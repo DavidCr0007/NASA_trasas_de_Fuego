@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Harmonized Heat Neiva</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="barra">
+    <div class="marca">
+      <h1>Harmonized Heat Neiva</h1>
+      <p>Calendario armonizado de focos de calor MODIS + VIIRS · NASA FIRMS</p>
+    </div>
+    <div class="insignias">
+      <span id="insignia-calidad" class="insignia">calidad…</span>
+      <span id="insignia-version" class="insignia tenue">reglas…</span>
+    </div>
+  </header>
+
+  <section class="controles" aria-label="Controles">
+    <label>Área
+      <select id="sel-area">
+        <option value="huila">Huila (bbox aproximado)</option>
+        <option value="neiva">Neiva ± 0,25°</option>
+        <option value="dibujo" disabled>Rectángulo dibujado</option>
+      </select>
+    </label>
+    <button id="btn-dibujar" type="button">Dibujar área en el mapa</button>
+    <label>Año
+      <select id="sel-anio"></select>
+    </label>
+    <a id="btn-csv" class="boton" href="#" download>Exportar CSV</a>
+    <span id="estado-carga" class="tenue" role="status"></span>
+  </section>
+
+  <main class="rejilla">
+    <section class="tarjeta mapa-tarjeta">
+      <div class="tarjeta-cabeza">
+        <h2>Mapa de focos</h2>
+        <span id="mapa-filtro" class="tenue"></span>
+      </div>
+      <div id="mapa" aria-label="Mapa de focos de calor"></div>
+      <div class="leyenda">
+        <span><i class="punto modis"></i> MODIS (huella nominal 1 km)</span>
+        <span><i class="punto viirs"></i> VIIRS (huella nominal 375 m)</span>
+        <span class="tenue">El círculo es el píxel, no la posición exacta del fuego.</span>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <section class="tarjeta" id="tarjeta-base">
+        <h2>Línea base y días inusuales</h2>
+        <div id="base-estado"></div>
+      </section>
+      <section class="tarjeta">
+        <h2>Temporada (climatología mensual)</h2>
+        <div id="clima"></div>
+      </section>
+      <section class="tarjeta">
+        <h2>Periodos críticos del año</h2>
+        <ol id="periodos" class="lista"></ol>
+      </section>
+      <section class="tarjeta">
+        <h2>Incertidumbre</h2>
+        <dl id="incertidumbre" class="datos"></dl>
+      </section>
+    </aside>
+
+    <section class="tarjeta calendario-tarjeta">
+      <div class="tarjeta-cabeza">
+        <h2>Calendario de actividad <span id="cal-anio"></span></h2>
+        <div class="leyenda-cal">
+          <span>menos</span><i class="esc e0"></i><i class="esc e1"></i><i class="esc e2"></i><i class="esc e3"></i><i class="esc e4"></i><span>más</span>
+          <span class="sep"></span><i class="esc e2 inusual"></i><span>inusual</span>
+          <i class="esc e2 nrt"></i><span>NRT (preliminar)</span>
+        </div>
+      </div>
+      <div id="calendario" role="grid" aria-label="Calendario de focos por día"></div>
+      <p id="cal-resumen" class="tenue"></p>
+    </section>
+  </main>
+
+  <footer class="pie">
+    <p id="cita"></p>
+    <p id="aviso" class="tenue"></p>
+    <p class="tenue">Los focos son detecciones térmicas, no incendios confirmados. Fechas en UTC.</p>
+  </footer>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
