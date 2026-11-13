@@ -62,7 +62,13 @@ El hash del Parquet (D-06) depende de las versiones de las librerías fijadas en
 
 ## 11. Línea base y días inusuales
 
-La API aplica el mínimo de años (D-08, ADR 0005: 5 años por defecto, acordado el 2026-11-13). Por debajo del mínimo responde «base insuficiente». El cálculo de días inusuales (R5, P95 por día del año, ADR 0004) se implementa en H4. Con la historia disponible (un año), toda consulta da «base insuficiente».
+- La API exige un mínimo de 5 años con dato en el área (D-08, ADR 0005). Por debajo responde «base insuficiente» y no marca días.
+- **Falsos positivos esperados.** Con un P95, cerca del 5 % de los días de un año normal supera el umbral. «Inusual» significa por encima del P95 histórico, no anómalo con significación estadística.
+- **Ventana de ±7 días PROVISIONAL** (ADR 0004). Sin ventana, con pocos años y focos dispersos, el umbral sería 0 y cualquier día con un foco saldría inusual.
+- **Cobertura deducida de los datos.** Se toma del primer al último día con focos del conjunto procesado, no de las fechas de descarga del manifiesto. Si el último día descargado no tuvo focos, queda fuera de la cobertura (R-29).
+- **Años con dato.** Un año cuenta para el mínimo si tiene al menos un foco en el área; no se exige que esté completo (ADR 0005).
+- **Métrica.** Se usa `n_brutas` y no `n_detecciones`, para no depender de la deduplicación (R-25).
+- **Sensores en el tiempo.** La línea base mezcla años con distinta combinación de sensores (Suomi NPP hasta su fin, NOAA-21 desde su lanzamiento). Un cambio de sensores puede desplazar la serie sin que cambie el fuego.
 
 ## 12. Lo que sigue por confirmar
 

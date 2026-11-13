@@ -115,9 +115,9 @@ def test_calendario_cuenta_lo_mismo_que_celda_dia(cliente, salida):
 
 
 def test_calendario_rellena_dias_sin_dato(cliente):
-    cuerpo = cliente.get(f"/calendario?bbox={BBOX}&desde=2026-11-08&hasta=2026-11-14").json()
-    fechas = [d["fecha_utc"] for d in cuerpo["dias"]]
-    assert fechas == [(date(2026, 11, 8) + timedelta(days=i)).isoformat() for i in range(7)]
+    # Dentro de la cobertura (2026-11-10..12) un área sin focos da ceros explícitos.
+    cuerpo = cliente.get("/calendario?bbox=10,10,11,11").json()
+    assert [d["fecha_utc"] for d in cuerpo["dias"]] == ["2026-11-10", "2026-11-11", "2026-11-12"]
     vacio = cuerpo["dias"][0]
     assert vacio["n_detecciones"] == 0 and vacio["calidad"] is None and vacio["preliminar"] is False
 
@@ -148,12 +148,11 @@ def test_incertidumbre_horario_de_pasada(cliente, salida):
 
 
 def test_incertidumbre_anios_y_porcentaje_dias(cliente):
-    cuerpo = cliente.get(f"/calendario?bbox={BBOX}&desde=2026-11-09&hasta=2026-11-12").json()
+    cuerpo = cliente.get("/calendario?bbox=-75.33,2.4,-75.2,2.7&desde=2026-11-10&hasta=2026-11-12").json()
     inc = cuerpo["incertidumbre"]
     assert inc["anios_con_dato"] == [2026]
     con_dato = sum(1 for d in cuerpo["dias"] if d["n_detecciones"] > 0)
-    assert con_dato == 3
-    assert inc["porcentaje_dias_con_dato"] == 75.0
+    assert inc["porcentaje_dias_con_dato"] == round(100 * con_dato / 3, 1)
 
 
 def test_detecciones_traen_semilado_nominal(cliente):
@@ -233,3 +232,64 @@ def test_parametros_invalidos_responden_422(cliente, consulta):
 
 def test_bbox_obligatorio(cliente):
     assert cliente.get("/calendario").status_code == 422
+
+
+# ---------------------------------------------------------------- H4-03
+def test_base_insuficiente_deja_nulos_los_campos_de_r5(cliente):
+    cuerpo = cliente.get(f"/calendario?bbox={BBOX}").json()
+    assert cuerpo["linea_base"]["estado"] == "base insuficiente"
+    assert all(d["umbral"] is None and d["inusual"] is None for d in cuerpo["dias"])
+    assert cuerpo["periodos_inusuales"] is None
+    assert cuerpo["meses_pico"] is None
+
+
+def test_linea_base_declara_parametros_de_r5(cliente):
+    base = cliente.get(f"/calendario?bbox={BBOX}").json()["linea_base"]
+    assert base["ventana_dias"] == 7
+    assert base["metrica"] == "n_brutas"
+
+
+def test_csv_exporta_umbral_e_inusual(cliente):
+    texto = cliente.get(f"/calendario.csv?bbox={BBOX}").text
+    cabecera = next(ln for ln in texto.splitlines() if not ln.startswith("#"))
+    assert cabecera.endswith(",umbral,inusual")
+
+
+# ---------------------------------------------------------------- H4-05 (interfaz)
+def test_raiz_redirige_a_la_interfaz(cliente):
+    r = cliente.get("/", follow_redirects=False)
+    assert r.status_code in (302, 307) and r.headers["location"] == "/ui/"
+
+
+def test_interfaz_servida_sin_recursos_externos(cliente):
+    html = cliente.get("/ui/").text
+    assert "Harmonized Heat Neiva" in html
+    # Funciona sin internet: ningún script ni hoja de estilos remotos (las teselas son opcionales).
+    assert not re.search(r'<script[^>]+src="https?://', html)
+    assert not re.search(r'<link[^>]+href="https?://', html)
+    for recurso in ("vendor/leaflet/leaflet.js", "vendor/leaflet/leaflet.css", "app.js", "styles.css"):
+        assert recurso in html
+        assert cliente.get(f"/ui/{recurso}").status_code == 200
+
+
+def test_interfaz_muestra_la_cita_en_el_mapa(cliente):
+    # Mapa: forma corta «NASA FIRMS» con enlace (FAQ de FIRMS) en la atribución.
+    # Pie: la cita completa y el aviso tal como los entrega la API.
+    js = cliente.get("/ui/app.js").text
+    assert "addAttribution" in js and "NASA FIRMS" in js and "LANCE" in js
+    assert '$("cita").textContent = c.cita' in js and '$("aviso").textContent = c.aviso' in js
+
+
+def test_rango_se_recorta_a_la_cobertura_de_datos(cliente):
+    # Días fuera de la cobertura no son «días sin focos»: no se cuentan ni se rellenan.
+    cuerpo = cliente.get(f"/calendario?bbox={BBOX}&desde=2026-11-01&hasta=2026-12-31").json()
+    assert cuerpo["desde"] == "2026-11-10" and cuerpo["hasta"] == "2026-11-12"
+    assert cuerpo["desde_solicitado"] == "2026-11-01" and cuerpo["hasta_solicitado"] == "2026-12-31"
+    assert len(cuerpo["dias"]) == 3
+    assert cuerpo["incertidumbre"]["porcentaje_dias_con_dato"] == 100.0
+
+
+def test_rango_sin_solapamiento_con_la_cobertura(cliente):
+    cuerpo = cliente.get(f"/calendario?bbox={BBOX}&desde=2020-01-01&hasta=2020-12-31").json()
+    assert cuerpo["dias"] == []
+    assert cuerpo["incertidumbre"]["porcentaje_dias_con_dato"] == 0.0

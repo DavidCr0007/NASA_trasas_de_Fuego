@@ -16,9 +16,11 @@ from typing import Any
 import duckdb
 import pyarrow.parquet as pq
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from api.cita import AVISO, CITA
+from harmonize import linea_base as lb
 from harmonize.config import RulesConfig
 from harmonize.pipeline import ARCHIVOS_PARQUET
 
@@ -26,12 +28,15 @@ from harmonize.pipeline import ARCHIVOS_PARQUET
 ANIOS_MINIMOS_DEFECTO = 5
 # R5 / ADR 0004: percentil de la climatología por día del año (por defecto 95).
 PERCENTIL_DEFECTO = 95
+# ADR 0004: ventana ±días alrededor del día del año. PROVISIONAL.
+VENTANA_DIAS_DEFECTO = 7
 
 # Resolución nominal en nadir: tabla oficial de atributos FIRMS (docs/esquema_firms.md).
 RESOLUCION_M = {"MODIS": 1000, "VIIRS": 375}
 SEMILADO_NOMINAL_M = {s: r / 2 for s, r in RESOLUCION_M.items()}
 CLASES = ("baja", "nominal", "alta")
 LIMITE_DETECCIONES = 50_000
+UI_DIR = Path(__file__).resolve().parent.parent / "ui" / "static"
 
 
 def _calidad(valores: set[str]) -> str | None:
@@ -64,6 +69,7 @@ def create_app(
     *,
     anios_minimos: int | None = None,
     percentil: int = PERCENTIL_DEFECTO,
+    ventana_dias: int = VENTANA_DIAS_DEFECTO,
 ) -> FastAPI:
     datos = Path(datos)
     minimo_por_defecto = anios_minimos is None
@@ -94,16 +100,18 @@ def create_app(
         }
 
     def rango(con, bbox, desde: date | None, hasta: date | None) -> tuple[date | None, date | None]:
+        """Recorta el rango pedido a la cobertura de los datos [primer día, último día].
+
+        Fuera de la cobertura no hay observaciones: esos días no son «días sin focos».
+        """
         if desde and hasta and desde > hasta:
             raise HTTPException(422, "desde debe ser anterior o igual a hasta")
-        if desde is None or hasta is None:
-            lo, hi = con.execute(
-                f"select min(fecha_utc), max(fecha_utc) from read_parquet('{ruta['celda_dia']}')"
-            ).fetchone()
-            desde, hasta = desde or lo, hasta or hi
-            if desde and hasta and desde > hasta:
-                raise HTTPException(422, "desde debe ser anterior o igual a hasta")
-        return desde, hasta
+        lo, hi = con.execute(
+            f"select min(fecha_utc), max(fecha_utc) from read_parquet('{ruta['celda_dia']}')"
+        ).fetchone()
+        if lo is None:
+            return None, None
+        return max(desde or lo, lo), min(hasta or hi, hi)
 
     def incertidumbre(con, bbox, desde, hasta, dias: list[dict] | None) -> dict[str, Any]:
         w, s, e, n = bbox
@@ -153,17 +161,22 @@ def create_app(
             "anios_disponibles": len(anios),
             "anios_minimos": minimo,
             "percentil": percentil,
-            "metodo": "climatología por día del año (R5)",
+            "metodo": "climatología por día del año (R5), excluyendo el año evaluado",
+            "metrica": "n_brutas",
+            "ventana_dias": ventana_dias,
+            "nota_ventana": "Ventana ±días PROVISIONAL (ADR 0004).",
             "nota": (
                 (f"Mínimo de {minimo} años acordado (ADR 0005). " if minimo_por_defecto
                  else f"Mínimo de {minimo} años fijado en la configuración. ")
-                + ("El cálculo de días inusuales llega en H4." if suficiente
+                + ("Un día es inusual si n_brutas supera el umbral; un día con menos años de "
+                   "referencia que el mínimo queda sin umbral." if suficiente
                    else "No se calculan días inusuales con menos años que el mínimo.")
             ),
         }
 
     def calendario(bbox_txt: str, desde: date | None, hasta: date | None) -> dict[str, Any]:
         bbox = _parse_bbox(bbox_txt)
+        desde_sol, hasta_sol = desde, hasta
         cuerpo = base()
         w, s, e, n = bbox
         con = duckdb.connect()
@@ -197,12 +210,38 @@ def create_app(
                 })
                 dia += timedelta(days=1)
             inc = incertidumbre(con, bbox, desde, hasta, dias)
+            historia = {
+                f: int(v) for f, v in con.execute(
+                    f"select fecha_utc, sum(n_brutas) from read_parquet('{ruta['celda_dia']}')"
+                    " where centroide_lat between ? and ? and centroide_lon between ? and ? group by 1",
+                    [s, n, w, e],
+                ).fetchall()
+            }
         finally:
             con.close()
+        estado_base = linea_base(inc["anios_con_dato"])
+        periodos = meses_pico = clima = None
+        if estado_base["estado"] == "suficiente":
+            calc = lb.calcular(historia, percentil=percentil, anios_minimos=minimo, ventana_dias=ventana_dias)
+            for d in dias:
+                info = calc.dias.get(date.fromisoformat(d["fecha_utc"]))
+                d["umbral"] = None if info is None or info.umbral is None else round(info.umbral, 2)
+                d["inusual"] = None if info is None else info.inusual
+                d["n_anios_base"] = None if info is None else info.n_anios
+            periodos = lb.periodos_inusuales(calc, desde, hasta) if desde else []
+            clima = lb.climatologia_mensual(historia)
+            meses_pico = sorted(clima, key=lambda m: (-clima[m]["media"], m))[:3]
+            estado_base["anios_usados"] = inc["anios_con_dato"]
+        else:
+            for d in dias:
+                d.update(umbral=None, inusual=None, n_anios_base=None)
         cuerpo.update({
             "bbox": list(bbox),
             "desde": desde.isoformat() if desde else None,
             "hasta": hasta.isoformat() if hasta else None,
+            "desde_solicitado": desde_sol.isoformat() if desde_sol else None,
+            "hasta_solicitado": hasta_sol.isoformat() if hasta_sol else None,
+            "nota_rango": "El rango se recorta a la cobertura de los datos; fuera de ella no hay observaciones.",
             "calidad": _calidad(calidades_global),
             "preliminar": "NRT" in calidades_global,
             "nota_conteos": (
@@ -211,9 +250,18 @@ def create_app(
             ),
             "dias": dias,
             "incertidumbre": inc,
-            "linea_base": linea_base(inc["anios_con_dato"]),
+            "linea_base": estado_base,
+            "periodos_inusuales": periodos,
+            "climatologia_mensual": None if clima is None else {str(m): v for m, v in clima.items()},
+            "meses_pico": meses_pico,
         })
         return cuerpo
+
+    @app.get("/", include_in_schema=False)
+    def raiz():
+        return RedirectResponse("/ui/")
+
+    app.mount("/ui", StaticFiles(directory=UI_DIR, html=True), name="ui")
 
     @app.get("/salud")
     def salud():
@@ -251,8 +299,8 @@ def create_app(
         ):
             buf.write(f"# {linea}\n")
         campos = ["fecha_utc", "n_detecciones", "n_brutas", "n_modis", "n_viirs",
-                  "frp_max", "frp_sum", "calidad", "preliminar"]
-        escritor = csv.DictWriter(buf, fieldnames=campos, lineterminator="\n")
+                  "frp_max", "frp_sum", "calidad", "preliminar", "umbral", "inusual"]
+        escritor = csv.DictWriter(buf, fieldnames=campos, lineterminator="\n", extrasaction="ignore")
         escritor.writeheader()
         escritor.writerows(cuerpo["dias"])
         return PlainTextResponse(buf.getvalue(), media_type="text/csv; charset=utf-8")
@@ -270,7 +318,7 @@ def create_app(
         con = duckdb.connect()
         try:
             desde, hasta = rango(con, caja, desde, hasta)
-            filas = [] if desde is None else con.execute(
+            filas = [] if desde is None or desde > hasta else con.execute(
                 f"select record_id, sensor, satelite, fecha_hora_utc at time zone 'UTC', calidad,"
                 f" confianza_clase, confianza_raw, lat, lon, frp, cell_id, version, n_fusionados"
                 f" from read_parquet('{ruta['detecciones']}')"
@@ -279,7 +327,7 @@ def create_app(
                 " order by fecha_hora_utc, record_id limit ?",
                 [s, n, w, e, desde, hasta, limite + 1],
             ).fetchall()
-            inc = incertidumbre(con, caja, desde, hasta, None) if desde else {}
+            inc = incertidumbre(con, caja, desde, hasta, None) if desde and desde <= hasta else {}
         finally:
             con.close()
         columnas = ["record_id", "sensor", "satelite", "fecha_hora_utc", "calidad", "confianza_clase",

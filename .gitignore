@@ -26,3 +26,5 @@ data/processed/
 node_modules/
 dist/
 build/
+# Muestra histórica sintética: se regenera con make demo
+data/sample_historica/
