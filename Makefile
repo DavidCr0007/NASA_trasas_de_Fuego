@@ -1,7 +1,7 @@
-.PHONY: help sync test demo download secrets verify-raw
+.PHONY: help sync test demo api download secrets verify-raw
 
 help:
-	@echo "Objetivos: sync test demo download secrets verify-raw"
+	@echo "Objetivos: sync test demo api download secrets verify-raw"
 
 sync:
 	uv sync
@@ -11,6 +11,9 @@ test:
 
 demo:
 	uv run python -m harmonize.pipeline --input data/sample --output data/processed/demo
+
+api: demo
+	uv run python -m api --datos data/processed/demo
 
 download:
 	uv run python -m ingest.firms_download
