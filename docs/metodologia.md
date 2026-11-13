@@ -149,7 +149,32 @@ Toda respuesta trae `rules_version`, `config_fingerprint`, `cita` y `aviso` (D-0
   - `clases_confianza`, con el conteo por clase;
   - `anios_con_dato`, los años con alguna celda-día en el área, sobre toda la historia;
   - `porcentaje_dias_con_dato`, la proporción de días del rango con al menos un foco.
-- **Línea base (D-08).** `linea_base.estado` vale `"base insuficiente"` si `len(anios_con_dato) < anios_minimos` y `"suficiente"` en caso contrario. Se configura con `--anios-minimos`; el valor por defecto es 5 años, acordado con el equipo el 2026-11-13 (ADR 0005). El percentil por defecto es 95 (ADR 0004). El cálculo de días inusuales llega en H4.
+- **Línea base (D-08).** `linea_base.estado` vale `"base insuficiente"` si `len(anios_con_dato) < anios_minimos` y `"suficiente"` en caso contrario. Se configura con `--anios-minimos`; el valor por defecto es 5 años, acordado con el equipo el 2026-11-13 (ADR 0005). El percentil por defecto es 95 (ADR 0004). Con base suficiente se calculan los días inusuales (sección 8).
+
+## 8. Línea base, días inusuales y periodos críticos (R5, H4)
+
+Implementación: `src/harmonize/linea_base.py`. Parámetros: ADR 0004 y ADR 0005.
+
+1. **Serie del área.** Se suma `n_brutas` por día UTC en las celdas-día cuyo centroide cae en el área consultada, sobre **toda** la historia.
+2. **Cobertura.** Va del primer al último día con datos del conjunto procesado. Dentro de ella, un día sin focos vale 0. Fuera de ella no hay observaciones: la API recorta el rango pedido a la cobertura e informa `desde_solicitado` y `hasta_solicitado`.
+3. **Referencia de un día `t`.** Son los valores de los **otros** años (se excluye el año de `t`) en el mismo día del año ± `ventana_dias` (7 por defecto, PROVISIONAL), de forma circular sobre 365 días. El 29 de febrero se evalúa como 28 de febrero y no entra en la referencia.
+4. **Umbral.** Percentil `p` (95 por defecto) de la referencia, con interpolación lineal.
+5. **Inusual.** `n_brutas(t) > umbral`. Si la referencia tiene menos de `anios_minimos` años (5), el día queda sin umbral.
+6. **Periodos críticos.** Rachas de días inusuales consecutivos (`periodos_inusuales`: inicio, fin, número de días y máximo).
+7. **Temporada.** `climatologia_mensual` es la media de la suma mensual en los meses completos de la cobertura; `meses_pico` son los 3 meses de media más alta.
+
+Interpretación: con un P95 sobre una serie estable se espera que ~5 % de los días supere el umbral aunque no pase nada raro. En la muestra histórica sintética, los años sin anomalía (2021–2025) dan entre 2,7 % y 7,9 %, con media de 4,6 %. La anomalía inyectada en agosto de 2026 se detecta como el periodo crítico más largo.
+
+## 9. Interfaz (H4)
+
+`make api` sirve la interfaz en http://127.0.0.1:8000/ (ADR 0008). Funciona sin internet; las teselas base son opcionales.
+
+- **Mapa.** Cada foco es un punto y un círculo del tamaño de su huella nominal (MODIS 1 km y VIIRS 375 m), con ventana de detalle: satélite, hora UTC, confianza, FRP, calidad y duplicados agrupados. El área se elige entre Huila, Neiva o un rectángulo dibujado.
+- **Calendario de actividad.** Un año por vista, con color por `n_brutas`. Los días inusuales llevan borde violeta y los días con datos NRT, un punto blanco («preliminar»). Al hacer clic en un día, el mapa muestra solo ese día.
+- **Panel.** Estado de la línea base (incluido «base insuficiente»), temporada mensual con meses pico, periodos críticos, metadatos de incertidumbre y versión de reglas.
+- **Calidad y cita.** La insignia de calidad cambia a PRELIMINAR si hay NRT. El enlace «Exportar CSV» incluye cita, aviso, versión y calidad. El mapa lleva la atribución «NASA FIRMS (LANCE / ESDIS)» y el pie, la cita y el aviso completos (D-10).
+
+La demo usa `data/sample_historica/`: datos **sintéticos** de 2020 a 2026 generados por `tools/generar_historico.py`, con un patrón estacional inventado y una anomalía inyectada del 10 al 16 de agosto de 2026.
 
 ## Prueba con datos reales (H0-07)
 

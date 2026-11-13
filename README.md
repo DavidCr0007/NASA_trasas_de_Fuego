@@ -55,7 +55,7 @@ cp .env.example .env
 | `make sync` | Instala las dependencias fijadas en `uv.lock` (requiere red la primera vez). |
 | `make test` | Ejecuta las pruebas con pytest. |
 | `make demo` | Ejecuta el flujo completo **offline** con `data/sample/` (datos sintéticos). |
-| `make api` | Corre la demo y levanta la API local en http://127.0.0.1:8000 (documentación en `/docs`). |
+| `make api` | Corre la demo y levanta la interfaz (mapa y calendario) y la API en http://127.0.0.1:8000 (API en `/docs`). |
 | `make download` | Descarga desde la API área de FIRMS para el bbox del Huila. Requiere `FIRMS_MAP_KEY` en `.env`. |
 | `make secrets` | Escanea el repositorio en busca de credenciales antes de entregar. |
 
@@ -77,9 +77,11 @@ Pipeline armonizacion-0.3.0 (config xxxxxxxxxxxx)
 
 Detalle de tablas y consultas DuckDB: [docs/metodologia.md](docs/metodologia.md#pipeline-y-salidas).
 
-## API local
+## Interfaz y API local
 
-`make api` sirve las salidas de la demo sin red. Ejemplo para el Huila:
+`make api` abre la interfaz en http://127.0.0.1:8000/: mapa de focos con su huella nominal, calendario de actividad con días inusuales, temporada mensual y periodos críticos. Sirve la muestra histórica **sintética** 2020–2026, funciona sin internet y las teselas del mapa son opcionales.
+
+Ejemplo de la API para el Huila:
 
 ```bash
 curl "http://127.0.0.1:8000/calendario?bbox=-76.7,1.4,-74.3,3.9"
