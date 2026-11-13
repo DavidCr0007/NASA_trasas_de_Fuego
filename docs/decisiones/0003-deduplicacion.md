@@ -16,7 +16,7 @@ Un mismo incendio puede aparecer varias veces: en pasadas de distintos satélite
 - Los duplicados se guardan en una **tabla aparte**, con referencia a su representante. No se borran (D-04).
 - Se deduplica también dentro del mismo sensor, a propósito.
 
-Algoritmo exacto implementado (`harmonize.rules.dedup`, `armonizacion-0.2.0`):
+Algoritmo exacto implementado (`harmonize.rules.dedup`, `armonizacion-0.3.0`):
 
 1. Ordenar todo por `(cell_id, fecha_hora_utc, record_id)`.
 2. En cada celda, el primer registro sin asignar abre un grupo anclado en su hora `t0`; el grupo incluye todos los registros con `t ≤ t0 + ventana` (inclusivo). **No** se exige el mismo día UTC: un par 23:30–00:30 se deduplica.

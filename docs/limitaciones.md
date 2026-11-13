@@ -33,7 +33,7 @@ La fecha de celda-día es **UTC**. Colombia usa UTC−5 sin horario de verano. U
 
 ## 5. Umbrales de confianza provisionales (R2)
 
-Los umbrales 30 y 80 para MODIS, y el mapeo de las clases VIIRS, son **PROVISIONALES**. No se han validado contra la documentación oficial de FIRMS ni contra una clasificación de referencia. Son configurables, y cualquier cambio cambia la `RULES_VERSION` (`docs/decisiones/0002-umbrales-confianza.md`).
+Los umbrales 30 y 80 para MODIS, y el mapeo de las clases VIIRS, son **PROVISIONALES**. No se han validado contra la documentación oficial de FIRMS ni contra una clasificación de referencia. Son configurables: cambiar un valor **por defecto** obliga a subir `RULES_VERSION` (lo vigila `test_config_defaults_y_congelada`); una configuración distinta pasada en ejecución no cambia `RULES_VERSION`, pero sí `config_fingerprint`, que queda en los metadatos Parquet y en `resumen.json` (`docs/decisiones/0002-umbrales-confianza.md`). Desde `armonizacion-0.3.0` el mapeo VIIRS usa los valores oficiales `low`/`nominal`/`high` (tabla de atributos FIRMS).
 
 ## 6. Bbox del Huila por confirmar
 

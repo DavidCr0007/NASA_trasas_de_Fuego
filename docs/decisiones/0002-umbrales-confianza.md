@@ -19,7 +19,7 @@ Asignar tres clases con estas reglas, todas PROVISIONALES:
 
 - **MODIS:** < 30 → baja; 30 a 79 → nominal; ≥ 80 → alta.
 - **VIIRS:** mapeo de las clases oficiales (`l` → baja, `n` → nominal, `h` → alta). Este mapeo es **por confirmar**.
-- Umbrales configurables. Cualquier cambio cambia `RULES_VERSION`.
+- Umbrales configurables: cambiar un valor **por defecto** obliga a subir `RULES_VERSION` (lo vigila `test_config_defaults_y_congelada`); una configuración distinta pasada en ejecución no cambia `RULES_VERSION`, pero sí `config_fingerprint`, que queda en los metadatos Parquet y en `resumen.json`.
 - Implementación (`harmonize.config.RulesConfig`): `modis_umbrales = {"nominal": 30, "alta": 80}` (PROVISIONAL); `viirs_mapa` se **deriva** de `ingest.firms_schema.CONFIANZA_VIIRS_VALORES` (estado «por confirmar»), por lo que sigue siendo PROVISIONAL. El dominio MODIS es el rango cerrado 0–100; NaN o texto no numérico → fuera de dominio. El valor VIIRS se compara sin espacios y en minúsculas.
 - Si un registro aceptado por H1 no se puede clasificar, `harmonize_ingest` lo envía a cuarentena con `confianza fuera de dominio`.
 - Valores fuera de dominio van a cuarentena con motivo (D-03 y D-04), no se clasifican.
@@ -34,7 +34,7 @@ Asignar tres clases con estas reglas, todas PROVISIONALES:
 
 - La clasificación es simple y transparente, y se puede revisar sin cambiar el código.
 - Los resultados de confianza no deben presentarse como validados hasta confirmar los dominios y los cortes.
-- Cada cambio de umbral obliga a registrar una nueva `RULES_VERSION`.
+- Cada cambio de umbral por defecto obliga a registrar una nueva `RULES_VERSION`.
 
 ## Por confirmar
 

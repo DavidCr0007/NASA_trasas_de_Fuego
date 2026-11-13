@@ -6,7 +6,7 @@ PROVISIONAL (H0). Se aplica como parte de la prioridad del representante en R3.
 
 ## Contexto
 
-Para una misma detección pueden existir dos registros: uno NRT (casi tiempo real, con correcciones posteriores pendientes) y otro estándar (procesado con más calma). FIRMS publica ambos. Si se conservan los dos, se cuentan dos veces; si se elige uno, hay que decidir cuál. La distinción entre NRT y estándar se hace a partir de la fuente y del campo `version`, cuyos patrones son **por confirmar**.
+Para una misma detección pueden existir dos registros: uno NRT (casi tiempo real, con correcciones posteriores pendientes) y otro estándar (procesado con más calma). FIRMS publica ambos. Si se conservan los dos, se cuentan dos veces; si se elige uno, hay que decidir cuál. La distinción entre NRT y estándar se hace a partir de la fuente y del campo `version`, cuyos patrones están confirmados con la tabla oficial de atributos (`docs/esquema_firms.md`).
 
 ## Decisión
 

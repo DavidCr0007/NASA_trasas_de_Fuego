@@ -27,7 +27,7 @@ Invariante de conteo (D-04): **entrada = aceptados + cuarentena + deduplicados**
 
 ## 3. Lector y validación (D-01 a D-04)
 
-**D-01. Lector con validación de esquema.** El lector comprueba que las columnas del archivo coinciden con el esquema esperado para su sensor y variante. Las columnas hipotéticas (orden y nombres) están en `src/ingest/firms_schema.py` y **no están confirmadas**. Un archivo con esquema distinto se rechaza en lugar de interpretarse.
+**D-01. Lector con validación de esquema.** El lector comprueba que las columnas del archivo coinciden con el esquema esperado para su sensor y variante. Las columnas, verificadas contra la tabla oficial de atributos y CSV reales de FIRMS (2026-11-13), están en `src/ingest/firms_schema.py` (detalle en `docs/esquema_firms.md`). Si a un archivo le falta una columna requerida, **todas sus filas van a cuarentena** con el motivo «esquema inválido: faltan columnas […]»; nunca se interpreta a medias. Las columnas extra se toleran y se registran.
 
 **D-02. Procedencia por registro.** Cada registro conserva:
 
@@ -41,7 +41,7 @@ Invariante de conteo (D-04): **entrada = aceptados + cuarentena + deduplicados**
 
 **D-03. Validación de campos.** Cada registro se valida en:
 
-- latitud y longitud dentro de rango y del bbox de trabajo;
+- latitud en [−90, 90] y longitud en [−180, 180] (el recorte al bbox de trabajo lo hace la descarga, no la validación);
 - fecha y hora válidas en UTC;
 - confianza dentro del dominio del sensor (VIIRS: `l`, `n`, `h`, **por confirmar**; MODIS: número 0–100, **por confirmar**);
 - satélite presente en el catálogo de códigos (**por confirmar**).
@@ -131,3 +131,22 @@ ORDER BY n_detecciones DESC LIMIT 10;
 
 - Línea base celda-mes con percentil candidato P90 (`docs/decisiones/0004-percentil.md`).
 - Mínimo de años de historia para la línea base (`docs/decisiones/0005-minimo-anios.md`).
+
+## Prueba con datos reales (H0-07)
+
+Fuente: CSV públicos de FIRMS de 24 h para South America. Calidad **NRT**; descargados el 2026-11-13 22:54 UTC; cubren detecciones del 2026-11-12 y el 2026-11-13 UTC. Los hashes están en `tests/fixtures/firms_real/ORIGEN.md`. Reglas `armonizacion-0.3.0`.
+
+| magnitud | valor |
+|---|---|
+| entrada (MODIS 3 787 + NOAA-20 15 977 + NOAA-21 14 102; Suomi NPP vacío) | 33 866 |
+| cuarentena | 0 |
+| aceptados (representantes) | 20 147 |
+| deduplicados | 13 719 |
+| — VIIRS agrupado con VIIRS | 12 972 |
+| — MODIS agrupado con VIIRS (cruce de sensores) | 692 |
+| — MODIS agrupado con MODIS | 55 |
+| celdas-día | 18 115 |
+| invariante entrada = aceptados + cuarentena + deduplicados | se cumple |
+
+La mayor parte de la deduplicación ocurre **dentro de VIIRS**: varios píxeles de 375 m caen en la misma celda de ~1 km en la misma pasada. Por eso `n_detecciones` (representantes) no es comparable con los conteos brutos del visor de FIRMS. En la validación cruzada (H5) hay que usar `n_brutas`, que `celda_dia` conserva. Riesgo R-25.
+
