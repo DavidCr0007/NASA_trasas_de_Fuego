@@ -12,15 +12,15 @@ DESCARGA = datetime(2026, 11, 13, 0, 0, 0, tzinfo=UTC)
 MODIS = {
     "latitude": "2.93", "longitude": "-75.28", "brightness": "330.5",
     "scan": "1.0", "track": "1.0", "acq_date": "2026-11-10",
-    "acq_time": "1705", "satellite": "Terra", "instrument": "MODIS",
+    "acq_time": "1705", "satellite": "T",
     "confidence": "85", "version": "6.1NRT", "bright_t31": "295.0",
     "frp": "12.5", "daynight": "D",
 }
 VIIRS = {
     "latitude": "2.93", "longitude": "-75.28", "bright_ti4": "340.1",
     "scan": "0.4", "track": "0.4", "acq_date": "2026-11-10",
-    "acq_time": "1830", "satellite": "N20", "instrument": "VIIRS",
-    "confidence": "n", "version": "2.0NRT", "bright_ti5": "300.0",
+    "acq_time": "1830", "satellite": "N20",
+    "confidence": "nominal", "version": "2.0NRT", "bright_ti5": "300.0",
     "frp": "3.2", "daynight": "D",
 }
 
@@ -50,7 +50,7 @@ def test_fila_valida_modis():
     assert c["brillo"] == 330.5
     assert c["frp"] == 12.5
     assert c["satelite"] == "Terra"
-    assert c["satelite_codigo"] == "Terra"
+    assert c["satelite_codigo"] == "T"
     assert c["confianza_raw"] == "85"
 
 
@@ -118,7 +118,7 @@ def test_confianza_modis_valida(conf):
     assert validar(con(MODIS, confidence=conf)).motivo is None
 
 
-@pytest.mark.parametrize("conf", ["x", "", "50", "H", "high"])
+@pytest.mark.parametrize("conf", ["x", "", "50", "H", "alta", "NOMINAL"])
 def test_confianza_viirs_fuera_de_dominio(conf):
     out = validar_viirs(con(VIIRS, confidence=conf))
     assert out.motivo == "confianza fuera de dominio"
@@ -145,20 +145,20 @@ def test_satelite_inconsistente_por_fuente():
     assert out.motivo == "satélite inconsistente con la fuente"
 
 
-def test_satelite_no_confirmado_se_acepta_con_marca():
-    assert fs.SATELITES["Terra"]["confirmado"] is False
+def test_satelite_no_confirmado_se_acepta_con_marca(monkeypatch):
+    monkeypatch.setitem(fs.SATELITES, "T", {**fs.SATELITES["T"], "confirmado": False})
     out = validar(MODIS)
     assert out.motivo is None
     assert out.campos["satelite_confirmado"] is False
 
 
-def test_satelite_confirmado_lleva_marca_true(monkeypatch):
-    monkeypatch.setitem(fs.SATELITES, "Terra", {**fs.SATELITES["Terra"], "confirmado": True})
+def test_satelite_confirmado_lleva_marca_true():
+    assert fs.SATELITES["T"]["confirmado"] is True
     assert validar(MODIS).campos["satelite_confirmado"] is True
 
 
-def test_calidad_vs_version_sin_confirmar_solo_advierte():
-    assert fs.PATRONES_VERSION_ESTADO == "por confirmar"
+def test_calidad_vs_version_sin_confirmar_solo_advierte(monkeypatch):
+    monkeypatch.setattr(fs, "PATRONES_VERSION_ESTADO", "por confirmar")
     out = validar(con(MODIS, version="6.1"))  # versión estándar en fuente NRT
     assert out.motivo is None
     assert out.campos is not None
@@ -179,3 +179,9 @@ def test_calidad_vs_version_confirmada_acepta_coherente(monkeypatch):
     assert validar(MODIS).motivo is None
     assert validar(con(MODIS, version="6.1"), fuente="MODIS_SP", calidad="estandar").motivo is None
     assert validar(MODIS).advertencias == []
+
+
+@pytest.mark.parametrize("version", ["6.1URT", "6.1RT", "6.1NRT", "2.0NRT"])
+def test_versiones_preliminares_oficiales_son_nrt(version):
+    # Tabla oficial de atributos: URT y RT son variantes aún más preliminares que NRT.
+    assert validar(con(MODIS, version=version)).motivo is None

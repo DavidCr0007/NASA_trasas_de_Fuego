@@ -53,12 +53,12 @@ def reg(rid, sensor="VIIRS", calidad="NRT", t=None, lat=2.95, lon=-75.29,
 
 # --------------------------------------------------------------------- config
 def test_config_defaults_y_congelada():
-    assert RULES_VERSION == "armonizacion-0.2.0"
+    assert RULES_VERSION == "armonizacion-0.3.0"
     assert CFG.cell_deg == 0.009
     assert CFG.grid_origin == (-90.0, -180.0)
     assert CFG.dedup_window == timedelta(hours=3)
     assert CFG.modis_umbrales == {"nominal": 30, "alta": 80}
-    assert CFG.viirs_mapa == {"l": "baja", "n": "nominal", "h": "alta"}
+    assert CFG.viirs_mapa == {"low": "baja", "nominal": "nominal", "high": "alta", "l": "baja", "n": "nominal", "h": "alta"}
     with pytest.raises(FrozenInstanceError):
         CFG.cell_deg = 1.0
 
@@ -136,7 +136,7 @@ def test_dominio_viirs(raw, esperado):
     assert classify_confidence("VIIRS", raw, CFG) == esperado
 
 
-@pytest.mark.parametrize("raw", ["z", "", None, "50", "low"])
+@pytest.mark.parametrize("raw", ["z", "", None, "50", "bajo"])
 def test_viirs_fuera_de_dominio(raw):
     assert classify_confidence("VIIRS", raw, CFG) is None
 
@@ -383,3 +383,13 @@ def test_harmonize_ingest_n_brutas_cuenta_antes_de_deduplicar():
     regs = [reg("v1", t=hora(6)), reg("m1", "MODIS", t=hora(7))]
     res = harmonize_ingest(_ingest(regs), CFG)
     assert res.celda_dia[0]["n_detecciones"] == 1 and res.celda_dia[0]["n_brutas"] == 2
+
+
+# R2 (0.3.0): el mapa VIIRS cubre todo el dominio aceptado por la validación.
+def test_viirs_mapa_cubre_el_dominio_confirmado():
+    from ingest import firms_schema as fs
+
+    assert set(CFG.viirs_mapa) == set(fs.CONFIANZA_VIIRS_VALORES)
+    assert CFG.viirs_mapa["low"] == "baja"
+    assert CFG.viirs_mapa["nominal"] == "nominal"
+    assert CFG.viirs_mapa["high"] == "alta"

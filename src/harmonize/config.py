@@ -13,7 +13,7 @@ from datetime import timedelta
 
 from ingest import firms_schema as fs
 
-RULES_VERSION = "armonizacion-0.2.0"
+RULES_VERSION = "armonizacion-0.3.0"  # 0.3.0: R2 mapea low/nominal/high (confirmado)
 
 # Estado de cada parámetro (para informes y metadatos).
 ESTADO_PARAMETROS = {
@@ -21,19 +21,22 @@ ESTADO_PARAMETROS = {
     "grid_origin": "PROVISIONAL (ADR 0001): origen (-90, -180)",
     "dedup_window": "PROVISIONAL (ADR 0003): 3 h",
     "modis_umbrales": "PROVISIONAL (ADR 0002): cortes 30 y 80 por confirmar",
-    "viirs_mapa": "PROVISIONAL (ADR 0002): letras de firms_schema por confirmar",
+    "viirs_mapa": "CONFIRMADO low/nominal/high (tabla oficial FIRMS); l/n/h por confirmar en API",
 }
 
-# Clase asociada a cada inicial del prototipo (l/n/h = low/nominal/high). Es una
-# hipótesis: solo se usa para los valores que firms_schema declara como dominio.
-_CLASE_POR_INICIAL = {"l": "baja", "n": "nominal", "h": "alta"}
+# Clase de cada valor de confianza VIIRS. low/nominal/high: tabla oficial de atributos
+# FIRMS y CSV reales (2026-11-13). l/n/h: variante por confirmar en la API area (R-23).
+# Solo se usa para los valores que firms_schema declara como dominio.
+_CLASE_POR_INICIAL = {
+    "low": "baja", "nominal": "nominal", "high": "alta",
+    "l": "baja", "n": "nominal", "h": "alta",
+}
 
 
 def viirs_mapa_desde_esquema() -> dict[str, str]:
     """Mapa VIIRS derivado del dominio declarado en ingest.firms_schema.
 
-    CONFIANZA_VIIRS_ESTADO == "por confirmar": el mapa es PROVISIONAL y se
-    deriva de CONFIANZA_VIIRS_VALORES, sin añadir valores propios.
+    Se deriva de CONFIANZA_VIIRS_VALORES, sin añadir valores propios.
     """
     return {v: _CLASE_POR_INICIAL[v] for v in fs.CONFIANZA_VIIRS_VALORES if v in _CLASE_POR_INICIAL}
 

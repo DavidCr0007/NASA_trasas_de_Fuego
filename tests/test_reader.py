@@ -35,15 +35,15 @@ CAB_VIIRS = list(fs.COLUMNAS_REQUERIDAS[("VIIRS", "api_nrt")])
 MODIS = {
     "latitude": "2.93", "longitude": "-75.28", "brightness": "330.5",
     "scan": "1.0", "track": "1.0", "acq_date": "2026-11-10",
-    "acq_time": "1705", "satellite": "Terra", "instrument": "MODIS",
+    "acq_time": "1705", "satellite": "T",
     "confidence": "85", "version": "6.1NRT", "bright_t31": "295.0",
     "frp": "12.5", "daynight": "D",
 }
 VIIRS = {
     "latitude": "2.93", "longitude": "-75.28", "bright_ti4": "340.1",
     "scan": "0.4", "track": "0.4", "acq_date": "2026-11-10",
-    "acq_time": "1830", "satellite": "N20", "instrument": "VIIRS",
-    "confidence": "n", "version": "2.0NRT", "bright_ti5": "300.0",
+    "acq_time": "1830", "satellite": "N20",
+    "confidence": "nominal", "version": "2.0NRT", "bright_ti5": "300.0",
     "frp": "3.2", "daynight": "D",
 }
 
@@ -110,9 +110,9 @@ def test_procedencia_completa(tmp_path):
     assert r["record_id"] == f"{sha[:16]}:1"
     assert r["fuente"] == "MODIS_NRT"
     assert r["sensor"] == "MODIS"
-    assert r["satelite_codigo"] == "Terra"
+    assert r["satelite_codigo"] == "T"
     assert r["satelite"] == "Terra"
-    assert r["satelite_confirmado"] is False
+    assert r["satelite_confirmado"] is True
     assert r["coleccion"] == "6.1"
     assert r["version"] == "6.1NRT"
     assert r["calidad"] == "NRT"
@@ -237,7 +237,10 @@ def test_invariante_se_cumple_y_se_viola(tmp_path):
 
 
 def test_resultado_independiente_del_orden_del_manifiesto(tmp_path):
-    ruta_b, ent_b = preparar(tmp_path, nombre="b.csv", fuente="MODIS_SP", calidad="estandar")
+    ruta_b, ent_b = preparar(
+        tmp_path, nombre="b.csv", fuente="MODIS_SP", calidad="estandar",
+        filas=[como_fila(CAB_MODIS, {**MODIS, "version": "6.1"})],
+    )
     ruta_a, ent_a = preparar(
         tmp_path, nombre="a.csv",
         filas=[como_fila(CAB_MODIS, {**MODIS, "latitude": "99"}), como_fila(CAB_MODIS, MODIS)],
@@ -279,4 +282,20 @@ def test_recortes_reales_sin_cuarentena_por_esquema(tmp_path):
         res = read_file(copia, entrada)
         por_esquema = [q for q in res.cuarentena if q["motivo"].startswith("esquema inválido")]
         assert por_esquema == [], recorte.name
+        # Los recortes son datos reales de FIRMS (24 h, 2026-11-13): ninguna fila
+        # debe ir a cuarentena y los satélites deben resolverse a nombres oficiales.
+        assert res.cuarentena == [], (recorte.name, res.cuarentena[:1])
+        assert res.n_input == 25, recorte.name
+        esperados = {"MODIS": {"Terra", "Aqua"}, "VIIRS": {"NOAA-20", "NOAA-21"}}[sensor]
+        assert {r["satelite"] for r in res.registros} <= esperados, recorte.name
+        assert all(r["satelite_confirmado"] for r in res.registros), recorte.name
         check_invariant(IngestResult(res.registros, res.cuarentena, res.n_input, {}))
+
+
+def test_codigos_refutados_no_se_aceptan():
+    # Los códigos del prototipo "1"/"2" (VIIRS) y "Terra"/"Aqua" (MODIS) no aparecen
+    # en la tabla oficial de atributos ni en los CSV reales: deben ser rechazados.
+    for codigo in ("1", "2", "Terra", "Aqua"):
+        assert codigo not in fs.SATELITES, codigo
+    for codigo in ("N", "N20", "N21", "T", "A"):
+        assert fs.SATELITES[codigo]["confirmado"] is True, codigo
