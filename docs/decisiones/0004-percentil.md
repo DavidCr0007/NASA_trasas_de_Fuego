@@ -1,33 +1,32 @@
-# ADR 0004: Percentil de la línea base celda-mes
+# ADR 0004: Percentil de la línea base para días inusuales (R5)
 
 ## Estado
 
-PROPUESTA para un hito posterior. **No implementada en H0–H2.** Valor por definir.
+ACEPTADA como parámetro (2026-11-13). El cálculo de días inusuales se implementa en H4. En H3 la API ya expone el percentil (`linea_base.percentil`).
 
 ## Contexto
 
-Para decir si un mes de una celda tiene más focos de lo normal hace falta una línea base de referencia por celda y mes. Un umbral basado en un percentil alto de la historia de la celda permite marcar meses anómalos. El valor del percentil es una decisión de definición, no de código, y debe documentarse antes de implementarse.
+R5 define la línea base como una **climatología por día del año**, con percentil configurable y 95 por defecto. Un día es inusual si su conteo en el área supera el percentil histórico de ese día del año. La versión anterior de este ADR proponía P90 sobre celda-mes; no coincidía con el requisito del reto y se corrigió.
 
 ## Decisión
 
-- Proponer como candidato el **percentil 90 (P90)** de la línea base celda-mes.
-- No implementar en H0–H2. El valor definitivo queda por definir.
-- Depende de contar con historia suficiente (ADR 0005).
+- La climatología se calcula por día del año para el área de interés consultada.
+- El percentil por defecto es **95** (`api.app.PERCENTIL_DEFECTO`), configurable con `create_app(percentil=…)`.
+- Como métrica se usa `n_brutas`, el conteo original, para no depender de la deduplicación (R-25). Se confirmará al implementar H4.
+- Solo se calcula si se cumple el mínimo de años (ADR 0005). Si no, la respuesta dice «base insuficiente».
 
 ## Alternativas
 
-1. **P75.** Más sensible, con más falsos positivos.
-2. **P95.** Más conservador, con menos meses marcados y menos muestra por celda.
-3. **Media más desviación estándar.** Supone una distribución que los conteos de focos probablemente no cumplen.
-4. **Mediana.** Demasiado permisiva para marcar anomalías.
+1. **P90.** Más sensible; marca más días.
+2. **Media más k desviaciones estándar.** Supone una distribución que los conteos de focos, sesgados y con muchos ceros, no cumplen.
+3. **Ventana móvil de ±k días alrededor del día del año.** Da más muestra por día. Queda como opción para H4 (por confirmar).
 
 ## Consecuencias
 
-- Con solo un año de descarga (véase `docs/limitaciones.md`), una línea base celda-mes tiene muy pocos valores por celda. Un P90 sobre tan pocos datos es inestable.
-- La decisión depende de ampliar la historia y de fijar el mínimo de años (ADR 0005).
+- Con pocos años, el P95 de cada día del año se apoya en muy pocos valores. De ahí el mínimo del ADR 0005.
+- Cambiar el percentil por defecto obliga a subir `RULES_VERSION`.
 
 ## Por confirmar
 
-- Valor final del percentil (candidato: 90).
-- Si el percentil se aplica por celda o por bloque espacial.
-- Comparación con alternativas sobre datos reales, cuando haya historia suficiente.
+- Si se usa ventana móvil y su ancho (H4).
+- Si la métrica final es `n_brutas` o `n_detecciones`.
