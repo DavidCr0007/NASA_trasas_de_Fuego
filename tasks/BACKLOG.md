@@ -25,3 +25,17 @@ Roles posibles: `infra`, `datos-ingesta`, `reglas`, `docs`, `QA`.
 | R4 | Conservación de satélite, hora UTC y calidad en el representante. | Una prueba comprueba que estos tres campos llegan intactos a la salida agregada. | hecho | reglas | R3 |
 | D-05 | `RULES_VERSION` en cada fila de salida. | Cada fila del Parquet contiene `RULES_VERSION` no vacío. Cambiar una regla cambia el valor. | hecho | reglas | R1, R2, R3, R4, R-18, R-22 |
 | D-06 | Reproducibilidad: el mismo crudo produce el mismo Parquet y el mismo hash. | Dos ejecuciones con el mismo `data/raw/` y el mismo `uv.lock` producen el mismo SHA-256 del Parquet. Prueba automatizada en `make test`. | hecho | QA | D-05, H0-05, R-18 |
+
+## H3: API con incertidumbre, mínimo de base y citación
+
+| ID | Descripción | Criterio de aceptación | Estado | Rol | Dependencias |
+|---|---|---|---|---|---|
+| H3-01 | API FastAPI de solo lectura sobre los Parquet de `data/processed/` con DuckDB. | `create_app(dir)` sirve `/salud`, `/cita`, `/calendario`, `/calendario.csv` y `/detecciones`; si falta un Parquet, `/salud` responde 503 con motivo. Pruebas con `TestClient`, sin red. | hecho | api | D-06 |
+| H3-02 (D-07) | Metadatos de incertidumbre en cada respuesta de `/calendario` y `/detecciones`. | El bloque `incertidumbre` trae: resolución (MODIS 1000 m, VIIRS 375 m, grilla 0,009°), horario de pasada observado por satélite (hora UTC mínima y máxima, n), conteo por clase de confianza, años con dato y porcentaje de días con dato en el rango. Cada punto de `/detecciones` trae su semilado nominal en metros. Pruebas con valores esperados de la muestra. | hecho | api | H3-01 |
+| H3-03 (D-02) | Calidad NRT o estándar visible. | Cada día y la respuesta global traen `calidad` (`NRT`, `estandar` o `mixta`) y `preliminar=true` si interviene algún dato NRT. Prueba con la muestra (mixta) y con un subconjunto solo estándar. | hecho | api | H3-01 |
+| H3-04 (D-05) | Versión de reglas en cada respuesta. | Toda respuesta JSON y CSV lleva `rules_version` y `config_fingerprint` leídos de los metadatos Parquet. | hecho | api | H3-01 |
+| H3-05 (D-08) | Mínimo de años para la línea base. | `linea_base.estado` es `"base insuficiente"` cuando los años con dato del área son menos que `anios_minimos` (configurable; valor por defecto PROVISIONAL, ADR 0005). Con años suficientes, `"suficiente"` y el cálculo de días inusuales queda para H4. Pruebas de ambos casos. | hecho | api | H3-01 |
+| H3-06 (D-10) | Cita de FIRMS en la API y en la exportación. | Toda respuesta JSON trae `cita` y `aviso` con el texto literal de `docs/cita.md`; `/calendario.csv` empieza con esas líneas comentadas con `#`. Prueba que compara con `docs/cita.md`. | hecho | api | H3-01 |
+| H3-07 | Validación de parámetros. | `bbox` mal formado, fuera de rango o con W ≥ E o S ≥ N, y `desde > hasta`, responden 422 con mensaje en español. | hecho | api | H3-01 |
+| H3-08 | Arranque local de la API. | `make api` levanta uvicorn sobre `data/processed/demo` sin red; `make demo` sigue siendo el comando único de la demo. | hecho | infra | H3-01 |
+| D-09 | Sin datos personales en el MVP. | La API no recibe ni guarda datos de personas; no hay endpoints de registro ni alertas. | hecho | api | ninguna |
