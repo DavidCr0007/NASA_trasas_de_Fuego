@@ -60,6 +60,22 @@ cp .env.example .env
 
 Procedimiento de descarga y verificación: [docs/descarga.md](docs/descarga.md).
 
+## Demo offline
+
+`make demo` procesa `data/sample/` (datos **sintéticos**, sin red) y escribe en `data/processed/demo/`: `detecciones.parquet`, `deduplicados.parquet`, `cuarentena.parquet`, `celda_dia.parquet` y `resumen.json`. Dos ejecuciones producen los mismos hashes (con las versiones de `uv.lock`). Salida esperada (formato; los valores exactos están en `resumen.json`):
+
+```
+Pipeline armonizacion-0.2.0 (config xxxxxxxxxxxx)
+  entrada:      132
+  aceptados:    N
+  deduplicados: N
+  cuarentena:   N
+  celda-día:    N
+  invariante:   OK
+```
+
+Detalle de tablas y consultas DuckDB: [docs/metodologia.md](docs/metodologia.md#pipeline-y-salidas).
+
 ## Documentación
 
 - [Metodología](docs/metodologia.md): flujo, validación y reglas R1 a R4.

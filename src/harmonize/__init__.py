@@ -5,7 +5,7 @@ from .config import (
     viirs_mapa_desde_esquema,
 )
 from .core import Detection, Result, harmonize, validate
-from .pipeline import HarmonizeResult, harmonize_ingest
+from .armonizar import HarmonizeResult, harmonize_ingest
 from .rules import (
     cell_1km,
     cell_centroid,
