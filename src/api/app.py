@@ -22,7 +22,7 @@ from api.cita import AVISO, CITA
 from harmonize.config import RulesConfig
 from harmonize.pipeline import ARCHIVOS_PARQUET
 
-# D-08 / ADR 0005: mínimo de años con dato para calcular la línea base. PROVISIONAL.
+# D-08 / ADR 0005: mínimo de años con dato para calcular la línea base (acordado 2026-11-13).
 ANIOS_MINIMOS_DEFECTO = 5
 # R5 / ADR 0004: percentil de la climatología por día del año (por defecto 95).
 PERCENTIL_DEFECTO = 95
@@ -66,7 +66,7 @@ def create_app(
     percentil: int = PERCENTIL_DEFECTO,
 ) -> FastAPI:
     datos = Path(datos)
-    minimo_provisional = anios_minimos is None
+    minimo_por_defecto = anios_minimos is None
     minimo = ANIOS_MINIMOS_DEFECTO if anios_minimos is None else anios_minimos
     cfg = RulesConfig()
     app = FastAPI(
@@ -155,7 +155,8 @@ def create_app(
             "percentil": percentil,
             "metodo": "climatología por día del año (R5)",
             "nota": (
-                ("Mínimo de años PROVISIONAL (ADR 0005). " if minimo_provisional else "")
+                (f"Mínimo de {minimo} años acordado (ADR 0005). " if minimo_por_defecto
+                 else f"Mínimo de {minimo} años fijado en la configuración. ")
                 + ("El cálculo de días inusuales llega en H4." if suficiente
                    else "No se calculan días inusuales con menos años que el mínimo.")
             ),
