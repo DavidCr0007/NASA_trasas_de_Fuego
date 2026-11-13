@@ -13,7 +13,7 @@ from datetime import timedelta
 
 from ingest import firms_schema as fs
 
-RULES_VERSION = "armonizacion-0.3.0"  # 0.3.0: R2 mapea low/nominal/high (confirmado)
+RULES_VERSION = "armonizacion-0.3.1"  # 0.3.1: celda-día no pierde brutas; 0.3.0: R2 low/nominal/high
 
 # Estado de cada parámetro (para informes y metadatos).
 ESTADO_PARAMETROS = {

@@ -178,7 +178,7 @@ La demo usa `data/sample_historica/`: datos **sintéticos** de 2020 a 2026 gener
 
 ## Prueba con datos reales (H0-07)
 
-Fuente: CSV públicos de FIRMS de 24 h para South America. Calidad **NRT**; descargados el 2026-11-13 22:54 UTC; cubren detecciones del 2026-11-12 y el 2026-11-13 UTC. Los hashes están en `tests/fixtures/firms_real/ORIGEN.md`. Reglas `armonizacion-0.3.0`.
+Fuente: CSV públicos de FIRMS de 24 h para South America. Calidad **NRT**; descargados el 2026-11-13 22:54 UTC; cubren detecciones del 2026-11-12 y el 2026-11-13 UTC. Los hashes están en `tests/fixtures/firms_real/ORIGEN.md`. Reglas `armonizacion-0.3.1` (las cifras no cambiaron respecto a 0.3.0).
 
 | magnitud | valor |
 |---|---|
@@ -193,4 +193,60 @@ Fuente: CSV públicos de FIRMS de 24 h para South America. Calidad **NRT**; desc
 | invariante entrada = aceptados + cuarentena + deduplicados | se cumple |
 
 La mayor parte de la deduplicación ocurre **dentro de VIIRS**: varios píxeles de 375 m caen en la misma celda de ~1 km en la misma pasada. Por eso `n_detecciones` (representantes) no es comparable con los conteos brutos del visor de FIRMS. En la validación cruzada (H5) hay que usar `n_brutas`, que `celda_dia` conserva. Riesgo R-25.
+
+## 10. Validación cruzada (H5)
+
+### 10.1 Pipeline frente al archivo oficial
+
+`tools/validacion_cruzada.py` cuenta por su cuenta, con el módulo `csv` y sin usar el lector del proyecto, las filas de cada CSV del manifiesto que caen en el área y el día UTC pedidos. Las compara con la salida del pipeline: `crudas = n_brutas + cuarentena`. Las pruebas (`tests/test_validacion_cruzada.py`) lo exigen para cada día de la muestra.
+
+**Hallazgo.** En la primera ejecución sobre la muestra sintética, el 2026-11-10 dio **45 filas crudas frente a 44** (`n_brutas`) y 0 en cuarentena. Faltaba el duplicado MODIS de las 23:50 cuyo representante VIIRS cayó a las 00:20 del día siguiente: su celda-día no se emitía. Se corrigió en `armonizacion-0.3.1` (`harmonize.rules.celda_dia`), con una prueba del cruce de medianoche, y la diferencia quedó en 0.
+
+**Resultado con datos reales.** Fuente: CSV de FIRMS de 24 h para South America. Calidad **NRT**; descargados el 2026-11-13 22:54 UTC. Reglas `armonizacion-0.3.1`.
+
+| área | día UTC | crudas (MODIS / NOAA-20 / NOAA-21) | `n_brutas` | cuarentena | `n_detecciones` | diferencia |
+|---|---|---|---|---|---|---|
+| Huila (bbox aproximado `-76.7,1.4,-74.3,3.9`) | 2026-11-12 | 3 (2 / 1 / 0) | 3 | 0 | 3 | 0 |
+| Huila | 2026-11-13 | 3 (0 / 1 / 2) | 3 | 0 | 3 | 0 |
+| Colombia (bbox aproximado `-79.1,-4.3,-66.8,12.6`) | 2026-11-12 | 400 (17 / 122 / 261) | 400 | 0 | 305 | 0 |
+
+El 2026-11-13 está **incompleto**: el archivo se descargó a las 22:54 UTC de ese día. Suomi NPP no aporta filas porque ya no entrega datos.
+
+Para reproducirlo:
+
+```bash
+uv run python -I tools/validacion_cruzada.py data/raw/firms_24h_south_america/20261113 <salida> -76.7,1.4,-74.3,3.9 2026-11-12
+```
+
+### 10.2 Comparación con el visor de FIRMS (pendiente, H5-02)
+
+Requiere una persona frente al visor <https://firms.modaps.eosdis.nasa.gov/map/>:
+
+1. Elegir el día UTC 2026-11-12 y las capas MODIS (C6.1), VIIRS NOAA-20 y VIIRS NOAA-21, sin Suomi NPP.
+2. Dibujar el área del Huila (`-76.7,1.4,-74.3,3.9`) y contar los focos de cada capa; la herramienta de área del visor da el conteo.
+3. Anotar los conteos en la tabla de abajo y explicar la diferencia con la fila de la tabla 10.1.
+
+| fuente | MODIS | NOAA-20 | NOAA-21 | total | diferencia con `n_brutas` | explicación |
+|---|---|---|---|---|---|---|
+| visor de FIRMS, 2026-11-12, Huila | por registrar | por registrar | por registrar | por registrar | por registrar | por registrar |
+
+Causas esperables de diferencia:
+
+- El visor puede mostrar «últimas 24 h» en lugar del día UTC.
+- El visor y los archivos de 24 h se actualizan a horas distintas, y el NRT puede reprocesarse.
+- Los focos en el borde del área: el visor filtra por punto y `n_brutas`, por centroide de celda.
+- El visor puede tener activados filtros de capa o de confianza distintos a los de los archivos.
+
+## 11. Bibliografía
+
+Estudios de validación de los productos de fuego que cita la FAQ de FIRMS (detalle en `docs/cita.md`):
+
+- Justice, C. O., et al. (2002). The MODIS fire products. *Remote Sensing of Environment*, 83, 244–262.
+- Morisette, J. T., Giglio, L., Csiszar, I., & Justice, C. O. (2005). Validation of the MODIS active fire product over Southern Africa with ASTER data. *International Journal of Remote Sensing*, 26(19), 4239–4264.
+- Morisette, J. T., et al. (2005). Validation of MODIS active fire detection products derived from two algorithms. *Earth Interactions*, 9(9), 1–25.
+- Csiszar, I., Morisette, J. T., & Giglio, L. (2006). Validation of active fire detection from moderate-resolution satellite sensors: the MODIS example in Northern Eurasia. *IEEE Transactions on Geoscience and Remote Sensing*, 44(7), 1757–1764.
+- Csiszar, I., et al. (2014). Active fires from the Suomi NPP Visible Infrared Imaging Radiometer Suite: product status and first evaluation results. *Journal of Geophysical Research: Atmospheres*, 119, 803–816.
+- Schroeder, W., Oliva, P., Giglio, L., & Csiszar, I. (2014). The New VIIRS 375 m active fire detection data product: Algorithm description and initial assessment. *Remote Sensing of Environment*, 143, 85–96. Es la referencia del algoritmo VIIRS de 375 m.
+
+Fuentes de datos y documentación: tabla de atributos MODIS/VIIRS, FAQ y API de FIRMS (consultadas el 2026-11-13; URL en `docs/esquema_firms.md`).
 

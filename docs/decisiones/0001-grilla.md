@@ -15,7 +15,7 @@ Los focos de MODIS y VIIRS deben agruparse por celda (R1). El prototipo `Harmoni
 - Origen `(-90, -180)`, configurable.
 - Índice: `fila = floor((lat + 90) / CELL_DEG)`, `columna = floor((lon + 180) / CELL_DEG)`.
 - Todos los valores son configurables; cambiar un valor **por defecto** obliga a subir `RULES_VERSION` (lo vigila `test_config_defaults_y_congelada`); una configuración distinta pasada en ejecución no cambia `RULES_VERSION`, pero sí `config_fingerprint`, que queda en los metadatos Parquet y en `resumen.json`.
-- Implementación (`harmonize.rules.cell_index`, `RULES_VERSION = armonizacion-0.3.0`): se usa `math.floor` sobre `(coordenada - origen) / cell_deg`. Un punto exactamente en un límite pertenece a la celda de índice **mayor**. Con `cell_deg = 0.009` (no representable en binario), un punto a ~1e-12° de un límite puede caer en la celda vecina por redondeo de coma flotante; es irrelevante a la precisión de FIRMS.
+- Implementación (`harmonize.rules.cell_index`, `RULES_VERSION = armonizacion-0.3.1`): se usa `math.floor` sobre `(coordenada - origen) / cell_deg`. Un punto exactamente en un límite pertenece a la celda de índice **mayor**. Con `cell_deg = 0.009` (no representable en binario), un punto a ~1e-12° de un límite puede caer en la celda vecina por redondeo de coma flotante; es irrelevante a la precisión de FIRMS.
 - `cell_id = "f{fila}_c{col}"`; el centroide es `(lat0 + (fila + 0.5)·cell_deg, lon0 + (col + 0.5)·cell_deg)`.
 - La envoltura `cell_1km(lat, lon)` sigue existiendo y devuelve `(fila, col)`.
 

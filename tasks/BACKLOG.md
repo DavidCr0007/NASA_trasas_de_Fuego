@@ -50,3 +50,15 @@ Roles posibles: `infra`, `datos-ingesta`, `reglas`, `docs`, `QA`.
 | H4-04 | Muestra histórica sintética de varios años. | `tools/generar_historico.py` genera de forma determinista 2020–2026 para el Huila (MODIS y VIIRS, estándar hasta 2025 y NRT en 2026), con un patrón estacional **sintético** y una anomalía inyectada en agosto de 2026. Pasa por el pipeline sin cuarentena inesperada; la API detecta la anomalía. `make demo` la genera y la procesa sin red. | hecho | datos-ingesta | H4-01 |
 | H4-05 | Interfaz: mapa y calendario. | `/` sirve una página sin paso de compilación que funciona sin internet (Leaflet incluido en el repositorio; las teselas base son opcionales). Muestra: mapa con cada foco como círculo del tamaño de su semilado nominal; selector de área (Huila, Neiva y rectángulo dibujado); calendario anual con días inusuales resaltados y días NRT marcados como preliminares; climatología mensual; periodos críticos; estado de la línea base; versión de reglas; enlace de exportación CSV; y la cita de FIRMS en el mapa. Verificada en navegador. | hecho | ui | H4-03 |
 | H4-06 | Decisión de stack del frontend. | ADR 0008 explica por qué se usa JavaScript sin compilación con Leaflet incluido en lugar de React. | hecho | docs | H4-05 |
+
+## H5: validación cruzada, documentación, demo y pitch
+
+| ID | Descripción | Criterio de aceptación | Estado | Rol | Dependencias |
+|---|---|---|---|---|---|
+| H5-01 | Validación cruzada del pipeline contra el archivo oficial. | `tools/validacion_cruzada.py` cuenta por su cuenta, con el módulo `csv`, las filas del CSV oficial por sensor, día UTC y bbox, y las compara con la salida del pipeline. Se cumple `crudas = n_brutas + cuarentena` en el área y el día; la diferencia y su explicación quedan en `docs/metodologia.md`, con fuente, fecha y calidad. Prueba con la muestra. | hecho | QA | H2 |
+| H5-02 | Comparación con el visor de FIRMS (§8). | Procedimiento escrito en la metodología. Los conteos del visor para el mismo día y área quedan registrados con su diferencia y explicación. Requiere una persona frente al visor y queda marcado en la lista de entrega. | pendiente | QA | H5-01 |
+| H5-03 | Capturas de respaldo. | `docs/capturas/` contiene capturas de la interfaz (vista general, día seleccionado y base insuficiente) tomadas de `make api`, con fecha y versión de reglas. | pendiente | ui | H4-05 |
+| H5-04 | Pitch de 2 minutos. | `docs/pitch.md`: guion de ~260 palabras con tiempos. Cada cifra lleva fuente, fecha y calidad; una prueba comprueba que la versión de reglas y las cifras de la demo coinciden con el código. | hecho | docs | H4 |
+| H5-05 | Lista de verificación de entrega. | `docs/checklist_entrega.md` marca cada entregable y requisito (D-01 a D-11, R1 a R5, §8, §9) como hecho, pendiente o bloqueado, con evidencia. | hecho | QA | H5-01..04 |
+| H5-06 | README completo. | El README cubre instalación, uso, datos, citación y limitaciones, y refleja el estado H0 a H5. | hecho | docs | H4 |
+| H5-07 | Bibliografía de validación en la metodología. | `docs/metodologia.md` incluye los estudios de validación que cita FIRMS (copiados de `docs/cita.md`). | hecho | docs | H0-08 |

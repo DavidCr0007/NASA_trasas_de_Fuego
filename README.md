@@ -4,40 +4,56 @@ Proyecto del reto **«Harmonization of MODIS and VIIRS Hot Spots»** (NASA Space
 
 ## Objetivo
 
-Armonizar los focos de calor (hot spots) de MODIS y VIIRS publicados por NASA FIRMS para el departamento del Huila y Neiva (Colombia), de modo que sean comparables entre sensores y satélites. El resultado es una tabla reproducible por celda y día, con reglas versionadas (`RULES_VERSION`), en la que se conservan el satélite, la hora UTC y la calidad de cada detección.
+Armonizar los focos de calor (hot spots) de MODIS y VIIRS publicados por NASA FIRMS en un **calendario de actividad de quema** que respondedores de emergencia, científicos y gestores de tierras pueden consultar para un área de interés. Muestra patrones históricos, días inusuales y periodos críticos. El caso de uso es el Huila y Neiva (Colombia).
 
-Estado: en etapa inicial. Los hitos H0 (estructura y documentación), H1 (lector y validación) y H2 (grilla, confianza, deduplicación y Parquet reproducible) están en el alcance de este plan.
+La serie histórica está repartida entre sensores con distinta resolución y hora de paso (MODIS en Terra y Aqua; VIIRS en Suomi NPP, NOAA-20 y NOAA-21). Para hacerla comparable, el proyecto aplica estas reglas versionadas (`RULES_VERSION = armonizacion-0.3.1`):
 
-> **Estado del esquema (2026-11-13):** las columnas, los códigos de satélite (`N`, `N20`, `N21`, `T`, `A`), la confianza (`low`/`nominal`/`high` en VIIRS, 0–100 en MODIS) y los patrones de `version` están verificados contra la tabla oficial de atributos y contra CSV reales de FIRMS (24 h, NRT). Siguen **por confirmar** la cabecera exacta de la API area, los cortes oficiales de confianza MODIS, los DOI y el bbox del Huila. La demo usa datos sintéticos con ese esquema confirmado. Véanse `docs/esquema_firms.md` y `tasks/RIESGOS.md`.
+- **R1:** grilla común de ~1 km y agregación por celda y día.
+- **R2:** confianza en tres clases.
+- **R3:** deduplicación entre pasadas cercanas, conservando VIIRS.
+- **R4:** cada registro conserva su satélite, su hora UTC y su calidad.
+- **R5:** línea base por día del año, para detectar días inusuales.
+
+**Estado (2026-11-13):** hitos H0 a H4 terminados y H5 en entrega (ver `docs/checklist_entrega.md`). La descarga real de varios años del Huila está **bloqueada** hasta configurar `FIRMS_MAP_KEY` (B-01). La demo usa datos **sintéticos**. El esquema y el pipeline sí se validaron con datos reales de FIRMS (CSV de 24 h, NRT, 2026-11-13).
 
 ## Estructura de carpetas
 
 ```
 data/
-  raw/          Datos crudos de FIRMS. INMUTABLE y fuera de git.
-                Incluye el manifiesto SHA-256 en data/raw/manifest.jsonl.
-  processed/    Salidas derivadas (Parquet). Se regeneran desde data/raw.
-  sample/       Datos de muestra SINTÉTICOS para `make demo` (offline).
+  raw/                Datos crudos de FIRMS. INMUTABLE y fuera de git; manifiesto SHA-256.
+  processed/          Salidas Parquet (demo y demo_historica). Se regeneran.
+  sample/             Muestra SINTÉTICA pequeña (3 días) para pruebas y casos borde.
+  sample_historica/   Muestra SINTÉTICA 2020–2026, generada por make demo (fuera de git).
 src/
-  ingest/       Descarga y lectura de FIRMS, validación del esquema.
-  harmonize/    Reglas R1 a R4 (grilla, confianza, deduplicación) y salida.
-  api/          API FastAPI (fase posterior).
-  ui/           Interfaz de usuario (fase posterior).
-tests/          Pruebas con pytest (datos sintéticos y fixtures).
-docs/           Metodología, limitaciones, cita y decisiones (ADR).
-tasks/          Backlog (BACKLOG.md) y riesgos (RIESGOS.md).
+  ingest/             Esquema FIRMS, descarga (API area), manifiesto, lector y validación.
+  harmonize/          Reglas R1 a R5, configuración versionada y pipeline Parquet.
+  api/                API FastAPI de solo lectura (DuckDB sobre Parquet).
+  ui/static/          Interfaz: mapa Leaflet (incluido) y calendario, sin compilación.
+tools/                Generadores de muestra, validación cruzada y escaneo de secretos.
+tests/                Pruebas con pytest (sintéticas y con recortes reales de FIRMS).
+docs/                 Metodología, limitaciones, cita, esquema, decisiones (ADR), pitch y entrega.
+tasks/                Backlog (BACKLOG.md) y riesgos (RIESGOS.md).
 ```
 
-Notas:
+## Datos
 
-- `data/raw/` nunca se modifica después de escribirse. Cada archivo se registra con su SHA-256 y la fecha de descarga en `data/raw/manifest.jsonl`.
-- `data/raw/` y `.env` están excluidos de git.
-- Los datos de `data/sample/` son **sintéticos**; no son observaciones reales.
+- **Origen:** NASA FIRMS. MODIS C6.1 (Terra y Aqua) y VIIRS 375 m (NOAA-20 y NOAA-21; Suomi NPP solo como histórico, porque ya no entrega datos nuevos). Columnas y códigos en `docs/esquema_firms.md`.
+- **Calidad:** NRT (preliminar) o estándar. Cada registro, día y exportación lo indica, y cualquier resultado con NRT se marca como **preliminar**.
+- **Crudo inmutable:** `data/raw/` nunca se modifica. Cada archivo queda en `data/raw/manifest.jsonl` con su SHA-256, la fecha de descarga y la URL sin la clave.
+- **Muestras sintéticas:** `data/sample/` y `data/sample_historica/` **no son observaciones reales**. Sus archivos empiezan por `SINTETICO_` y su manifiesto lleva `sintetico=true`.
+- **Sin datos personales** (D-09).
 
-## Requisitos
+## Instalación
 
-- [uv](https://docs.astral.sh/uv/)
-- Python 3.13 (uv puede instalarlo: `uv python install 3.13`)
+Requisitos: [uv](https://docs.astral.sh/uv/) y Python 3.13 (uv puede instalarlo con `uv python install 3.13`).
+
+```bash
+git clone https://github.com/DavidCr0007/NASA_trasas_de_Fuego.git
+cd NASA_trasas_de_Fuego
+make sync     # instala las dependencias fijadas en uv.lock (requiere red la primera vez)
+make test     # pruebas
+make api      # demo completa sin red: http://127.0.0.1:8000
+```
 
 ## Configuración
 
@@ -54,19 +70,25 @@ cp .env.example .env
 |---|---|
 | `make sync` | Instala las dependencias fijadas en `uv.lock` (requiere red la primera vez). |
 | `make test` | Ejecuta las pruebas con pytest. |
-| `make demo` | Ejecuta el flujo completo **offline** con `data/sample/` (datos sintéticos). |
+| `make demo` | Comando único de la demo **sin red**: procesa `data/sample/`, genera `data/sample_historica/` y la procesa. Todo sintético. |
 | `make api` | Corre la demo y levanta la interfaz (mapa y calendario) y la API en http://127.0.0.1:8000 (API en `/docs`). |
 | `make download` | Descarga desde la API área de FIRMS para el bbox del Huila. Requiere `FIRMS_MAP_KEY` en `.env`. |
 | `make secrets` | Escanea el repositorio en busca de credenciales antes de entregar. |
+| `make verify-raw` | Verifica los SHA-256 de `data/raw/` contra su manifiesto. |
 
 Procedimiento de descarga y verificación: [docs/descarga.md](docs/descarga.md).
 
 ## Demo offline
 
-`make demo` procesa `data/sample/` (datos **sintéticos**, sin red) y escribe en `data/processed/demo/`: `detecciones.parquet`, `deduplicados.parquet`, `cuarentena.parquet`, `celda_dia.parquet` y `resumen.json`. Dos ejecuciones producen los mismos hashes (con las versiones de `uv.lock`). Salida esperada (formato; los valores exactos están en `resumen.json`):
+`make demo` corre dos pipelines sin red, ambos con datos **sintéticos**:
+
+1. `data/sample/` → `data/processed/demo/`: 132 filas con casos borde (cuarentena, cruce de medianoche, NRT frente a estándar).
+2. `tools/generar_historico.py` genera `data/sample_historica/` (2020–2026, con una anomalía inyectada en agosto de 2026) → `data/processed/demo_historica/`, que es la que usa la interfaz.
+
+Cada salida tiene `detecciones.parquet`, `deduplicados.parquet`, `cuarentena.parquet`, `celda_dia.parquet` y `resumen.json`. Dos ejecuciones producen los mismos hashes, con las versiones de `uv.lock`. Salida esperada de la primera (formato; los valores exactos están en `resumen.json`):
 
 ```
-Pipeline armonizacion-0.3.0 (config xxxxxxxxxxxx)
+Pipeline armonizacion-0.3.1 (config xxxxxxxxxxxx)
   entrada:      132
   aceptados:    N
   deduplicados: N
@@ -90,12 +112,26 @@ curl "http://127.0.0.1:8000/calendario.csv?bbox=-76.7,1.4,-74.3,3.9" -o calendar
 
 Cada respuesta trae la cita de FIRMS, el aviso «as is», la versión de reglas, la calidad (NRT/estándar, `preliminar`), los metadatos de incertidumbre y el estado de la línea base («base insuficiente» si no hay años suficientes). Rutas y campos: [docs/metodologia.md](docs/metodologia.md#7-api-de-consulta-h3).
 
+## Limitaciones
+
+Lo esencial; el detalle está en [docs/limitaciones.md](docs/limitaciones.md):
+
+- Los focos son **detecciones térmicas, no incendios confirmados**.
+- Cada punto es el **centro de un píxel**: 1 km en MODIS y 375 m en VIIRS, y el píxel crece hacia el borde del barrido.
+- VIIRS de 375 m **se satura** en fuegos intensos, así que el FRP es indicativo.
+- Cuando Terra deje de pasar, cambiarán las horas de observación y la serie MODIS quedará **sesgada en el horario**.
+- Los datos **NRT** son preliminares.
+- «Inusual» significa por encima del P95 histórico de ese día del año (±7 días, sin contar el propio año). En un año normal, ~5 % de los días lo supera.
+- Se necesitan 5 años de historia; con menos, la respuesta es «base insuficiente».
+
 ## Documentación
 
 - [Metodología](docs/metodologia.md): flujo, validación y reglas R1 a R4.
 - [Limitaciones](docs/limitaciones.md): lo que el método no resuelve y lo que está por confirmar.
 - [Decisiones (ADR)](docs/decisiones/): supuestos registrados uno por archivo.
 - [Cita y aviso](docs/cita.md): cómo citar FIRMS, LANCE y ESDIS.
+- [Esquema FIRMS verificado](docs/esquema_firms.md) y [descarga](docs/descarga.md).
+- [Pitch de 2 minutos](docs/pitch.md) y [lista de entrega](docs/checklist_entrega.md).
 - [Backlog](tasks/BACKLOG.md) y [riesgos](tasks/RIESGOS.md).
 
 ## Cita y aviso

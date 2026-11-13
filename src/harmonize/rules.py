@@ -152,17 +152,29 @@ def n_brutos_por_celda_dia(registros: list[dict]) -> dict[tuple[str, date], int]
 
 
 def celda_dia(conservados: list[dict], n_brutos_por_celda_dia: dict,
-              cfg: RulesConfig = DEFAULT_CFG) -> list[dict]:
-    """Agrega los conservados por (cell_id, fecha_utc). Ordenado por esa clave."""
+              cfg: RulesConfig = DEFAULT_CFG, deduplicados: list[dict] | None = None) -> list[dict]:
+    """Agrega por (cell_id, fecha_utc). Ordenado por esa clave.
+
+    Desde 0.3.1 también emite las celdas-día que solo tienen detecciones originales
+    deduplicadas (p. ej. un duplicado a las 23:50 cuyo representante cae a las 00:20
+    del día siguiente): ``n_detecciones = 0`` y ``n_brutas`` > 0, para que ninguna
+    detección original se pierda en la suma de ``n_brutas``.
+    """
     grupos: dict[tuple[str, date], list[dict]] = defaultdict(list)
     for r in conservados:
         grupos[(r["cell_id"], r["fecha_hora_utc"].date())].append(r)
+    solo_dups: dict[tuple[str, date], list[dict]] = defaultdict(list)
+    for r in deduplicados or []:
+        clave = (r["cell_id"], r["fecha_hora_utc"].date())
+        if clave not in grupos:
+            solo_dups[clave].append(r)
     filas = []
-    for (cid, fecha) in sorted(grupos):
-        g = grupos[(cid, fecha)]
+    for (cid, fecha) in sorted(set(grupos) | set(solo_dups)):
+        g = grupos.get((cid, fecha), [])
+        base = g or solo_dups[(cid, fecha)]
         frps = [r["frp"] for r in g if r.get("frp") is not None]
-        horas = [r["fecha_hora_utc"] for r in g]
-        fila, col = g[0]["cell_fila"], g[0]["cell_col"]
+        horas = [r["fecha_hora_utc"] for r in base]
+        fila, col = base[0]["cell_fila"], base[0]["cell_col"]
         clat, clon = cell_centroid(fila, col, cfg)
         filas.append({
             "cell_id": cid,
@@ -170,16 +182,17 @@ def celda_dia(conservados: list[dict], n_brutos_por_celda_dia: dict,
             "cell_fila": fila,
             "cell_col": col,
             "n_detecciones": len(g),
-            "n_brutas": n_brutos_por_celda_dia.get((cid, fecha), len(g)),
+            "n_brutas": n_brutos_por_celda_dia.get((cid, fecha), len(base)),
             "n_modis": sum(1 for r in g if r["sensor"] == "MODIS"),
             "n_viirs": sum(1 for r in g if r["sensor"] == "VIIRS"),
-            "confianza_max": CLASE_POR_RANGO[max(RANGO_CONFIANZA[r["confianza_clase"]] for r in g)],
+            "confianza_max": (CLASE_POR_RANGO[max(RANGO_CONFIANZA[r["confianza_clase"]] for r in g)]
+                              if g else None),
             "frp_max": max(frps) if frps else None,
             "frp_sum": float(sum(sorted(frps))) if frps else None,
             "primera_hora_utc": min(horas),
             "ultima_hora_utc": max(horas),
-            "satelites": ",".join(sorted({r["satelite"] for r in g})),
-            "calidades": ",".join(sorted({r["calidad"] for r in g})),
+            "satelites": ",".join(sorted({r["satelite"] for r in base})),
+            "calidades": ",".join(sorted({r["calidad"] for r in base})),
             "centroide_lat": clat,
             "centroide_lon": clon,
             "rules_version": RULES_VERSION,
