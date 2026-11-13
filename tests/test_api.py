@@ -1,0 +1,232 @@
+"""H3: API de solo lectura (D-02, D-05, D-07, D-08, D-10).
+
+Las expectativas se calculan aparte, leyendo los Parquet con pyarrow, para no
+reutilizar la lógica de la API.
+"""
+
+from __future__ import annotations
+
+import csv
+import io
+import re
+import shutil
+from collections import Counter
+from datetime import date, timedelta
+from pathlib import Path
+
+import pyarrow.parquet as pq
+import pytest
+from fastapi.testclient import TestClient
+
+from api.app import create_app
+from harmonize import RULES_VERSION
+from harmonize.pipeline import main as pipeline_main
+from ingest.firms_schema import HUILA_BBOX
+
+RAIZ = Path(__file__).resolve().parent.parent
+BBOX = ",".join(str(v) for v in HUILA_BBOX)
+
+
+@pytest.fixture(scope="module")
+def salida(tmp_path_factory) -> Path:
+    destino = tmp_path_factory.mktemp("demo_api")
+    assert pipeline_main(["--input", str(RAIZ / "data" / "sample"), "--output", str(destino)]) == 0
+    return destino
+
+
+@pytest.fixture(scope="module")
+def cliente(salida) -> TestClient:
+    return TestClient(create_app(salida, anios_minimos=5))
+
+
+def _tabla(salida: Path, nombre: str) -> list[dict]:
+    return pq.read_table(salida / f"{nombre}.parquet").to_pylist()
+
+
+def _cita_literal() -> tuple[str, str]:
+    texto = (RAIZ / "docs" / "cita.md").read_text(encoding="utf-8")
+
+    def bloque(titulo: str) -> str:
+        sec = texto.split(f"## {titulo}", 1)[1]
+        citas = re.findall(r"^> ?(.*)$", sec.split("\n## ", 1)[0], flags=re.M)
+        return " ".join(c.strip() for c in citas)
+
+    return bloque("Cita obligatoria (FIRMS, LANCE y ESDIS)"), bloque("Aviso «as is»")
+
+
+# ---------------------------------------------------------------- H3-01
+def test_salud_ok(cliente):
+    r = cliente.get("/salud")
+    assert r.status_code == 200
+    assert r.json()["estado"] == "ok"
+
+
+def test_salud_sin_parquet_responde_503(tmp_path):
+    r = TestClient(create_app(tmp_path)).get("/salud")
+    assert r.status_code == 503
+    assert "falta" in r.json()["detalle"]
+
+
+# ---------------------------------------------------------------- H3-04 (D-05)
+@pytest.mark.parametrize("ruta", ["/salud", "/cita", f"/calendario?bbox={BBOX}", f"/detecciones?bbox={BBOX}"])
+def test_version_de_reglas_en_cada_respuesta(cliente, salida, ruta):
+    meta = pq.read_metadata(salida / "celda_dia.parquet").metadata
+    cuerpo = cliente.get(ruta).json()
+    assert cuerpo["rules_version"] == RULES_VERSION
+    assert cuerpo["config_fingerprint"] == meta[b"config_fingerprint"].decode()
+
+
+# ---------------------------------------------------------------- H3-06 (D-10)
+@pytest.mark.parametrize("ruta", ["/salud", "/cita", f"/calendario?bbox={BBOX}", f"/detecciones?bbox={BBOX}"])
+def test_cita_literal_en_cada_respuesta(cliente, ruta):
+    cita, aviso = _cita_literal()
+    cuerpo = cliente.get(ruta).json()
+    assert cuerpo["cita"] == cita
+    assert cuerpo["aviso"] == aviso
+    assert "FIRMS" in cita and "LANCE" in cita and "ESDIS" in cita
+    assert '"as is"' in aviso
+
+
+def test_exportacion_csv_lleva_cita_aviso_y_version(cliente):
+    cita, aviso = _cita_literal()
+    r = cliente.get(f"/calendario.csv?bbox={BBOX}")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/csv")
+    lineas = r.text.splitlines()
+    comentarios = [ln[2:] for ln in lineas if ln.startswith("# ")]
+    assert cita in comentarios and aviso in comentarios
+    assert any(RULES_VERSION in c for c in comentarios)
+    assert any("preliminar" in c.lower() for c in comentarios)
+    datos = list(csv.DictReader(io.StringIO("\n".join(ln for ln in lineas if not ln.startswith("#")))))
+    assert datos and {"fecha_utc", "n_detecciones", "n_brutas", "calidad", "preliminar"} <= set(datos[0])
+
+
+# ---------------------------------------------------------------- calendario
+def test_calendario_cuenta_lo_mismo_que_celda_dia(cliente, salida):
+    filas = _tabla(salida, "celda_dia")
+    W, S, E, N = HUILA_BBOX
+    dentro = [f for f in filas if S <= f["centroide_lat"] <= N and W <= f["centroide_lon"] <= E]
+    esperado = Counter()
+    for f in dentro:
+        esperado[f["fecha_utc"].isoformat()] += f["n_detecciones"]
+    dias = {d["fecha_utc"]: d for d in cliente.get(f"/calendario?bbox={BBOX}").json()["dias"]}
+    assert {k: v["n_detecciones"] for k, v in dias.items() if v["n_detecciones"]} == dict(esperado)
+    assert sum(d["n_brutas"] for d in dias.values()) == sum(f["n_brutas"] for f in dentro)
+
+
+def test_calendario_rellena_dias_sin_dato(cliente):
+    cuerpo = cliente.get(f"/calendario?bbox={BBOX}&desde=2026-11-08&hasta=2026-11-14").json()
+    fechas = [d["fecha_utc"] for d in cuerpo["dias"]]
+    assert fechas == [(date(2026, 11, 8) + timedelta(days=i)).isoformat() for i in range(7)]
+    vacio = cuerpo["dias"][0]
+    assert vacio["n_detecciones"] == 0 and vacio["calidad"] is None and vacio["preliminar"] is False
+
+
+def test_area_sin_focos_devuelve_ceros(cliente):
+    cuerpo = cliente.get("/calendario?bbox=10,10,11,11&desde=2026-11-10&hasta=2026-11-12").json()
+    assert [d["n_detecciones"] for d in cuerpo["dias"]] == [0, 0, 0]
+    assert cuerpo["incertidumbre"]["porcentaje_dias_con_dato"] == 0.0
+
+
+# ---------------------------------------------------------------- H3-02 (D-07)
+def test_incertidumbre_resolucion_y_clases(cliente, salida):
+    inc = cliente.get(f"/calendario?bbox={BBOX}").json()["incertidumbre"]
+    assert inc["resolucion_m"] == {"MODIS": 1000, "VIIRS": 375}
+    assert inc["grilla_deg"] == 0.009
+    W, S, E, N = HUILA_BBOX
+    det = [d for d in _tabla(salida, "detecciones") if S <= d["lat"] <= N and W <= d["lon"] <= E]
+    assert inc["clases_confianza"] == {c: sum(d["confianza_clase"] == c for d in det)
+                                       for c in ("baja", "nominal", "alta")}
+
+
+def test_incertidumbre_horario_de_pasada(cliente, salida):
+    pasadas = cliente.get(f"/calendario?bbox={BBOX}").json()["incertidumbre"]["horario_pasada_utc"]
+    det = _tabla(salida, "detecciones")
+    for sat in {d["satelite"] for d in det}:
+        horas = sorted(d["fecha_hora_utc"].strftime("%H:%M") for d in det if d["satelite"] == sat)
+        assert pasadas[sat] == {"min": horas[0], "max": horas[-1], "n": len(horas)}
+
+
+def test_incertidumbre_anios_y_porcentaje_dias(cliente):
+    cuerpo = cliente.get(f"/calendario?bbox={BBOX}&desde=2026-11-09&hasta=2026-11-12").json()
+    inc = cuerpo["incertidumbre"]
+    assert inc["anios_con_dato"] == [2026]
+    con_dato = sum(1 for d in cuerpo["dias"] if d["n_detecciones"] > 0)
+    assert con_dato == 3
+    assert inc["porcentaje_dias_con_dato"] == 75.0
+
+
+def test_detecciones_traen_semilado_nominal(cliente):
+    cuerpo = cliente.get(f"/detecciones?bbox={BBOX}").json()
+    assert cuerpo["detecciones"]
+    for d in cuerpo["detecciones"]:
+        assert d["semilado_nominal_m"] == {"MODIS": 500.0, "VIIRS": 187.5}[d["sensor"]]
+        assert {"satelite", "fecha_hora_utc", "calidad", "confianza_clase", "lat", "lon"} <= set(d)
+    assert "incertidumbre" in cuerpo
+
+
+def test_detecciones_filtradas_por_fecha(cliente):
+    cuerpo = cliente.get(f"/detecciones?bbox={BBOX}&desde=2026-11-11&hasta=2026-11-11").json()
+    assert cuerpo["detecciones"]
+    assert {d["fecha_hora_utc"][:10] for d in cuerpo["detecciones"]} == {"2026-11-11"}
+
+
+# ---------------------------------------------------------------- H3-03 (D-02)
+def test_calidad_mixta_es_preliminar(cliente):
+    cuerpo = cliente.get(f"/calendario?bbox={BBOX}").json()
+    assert cuerpo["calidad"] == "mixta"
+    assert cuerpo["preliminar"] is True
+    for d in cuerpo["dias"]:
+        if d["n_detecciones"]:
+            assert d["preliminar"] == ("NRT" in d["calidad"] or d["calidad"] == "mixta")
+
+
+def test_solo_estandar_no_es_preliminar(salida, tmp_path):
+    # Subconjunto con solo registros estándar: se reescribe celda_dia y detecciones.
+    import pyarrow.compute as pc
+
+    for nombre in ("detecciones", "deduplicados", "cuarentena"):
+        shutil.copy(salida / f"{nombre}.parquet", tmp_path)
+    cd = pq.read_table(salida / "celda_dia.parquet")
+    pq.write_table(cd.filter(pc.equal(cd["calidades"], "estandar")), tmp_path / "celda_dia.parquet")
+    det = pq.read_table(salida / "detecciones.parquet")
+    pq.write_table(det.filter(pc.equal(det["calidad"], "estandar")), tmp_path / "detecciones.parquet")
+    cuerpo = TestClient(create_app(tmp_path)).get(f"/calendario?bbox={BBOX}").json()
+    assert cuerpo["calidad"] == "estandar"
+    assert cuerpo["preliminar"] is False
+
+
+# ---------------------------------------------------------------- H3-05 (D-08)
+def test_base_insuficiente_con_pocos_anios(cliente):
+    base = cliente.get(f"/calendario?bbox={BBOX}").json()["linea_base"]
+    assert base["estado"] == "base insuficiente"
+    assert base["anios_disponibles"] == 1
+    assert base["anios_minimos"] == 5
+    assert base["percentil"] == 95
+
+
+def test_base_suficiente_con_minimo_bajo(salida):
+    base = TestClient(create_app(salida, anios_minimos=1)).get(f"/calendario?bbox={BBOX}").json()["linea_base"]
+    assert base["estado"] == "suficiente"
+    assert base["anios_minimos"] == 1
+
+
+def test_minimo_por_defecto_es_provisional(salida):
+    base = TestClient(create_app(salida)).get(f"/calendario?bbox={BBOX}").json()["linea_base"]
+    assert "PROVISIONAL" in base["nota"]
+
+
+# ---------------------------------------------------------------- H3-07
+@pytest.mark.parametrize("consulta", [
+    "bbox=1,2,3", "bbox=a,b,c,d", "bbox=-75,2,-76,3", "bbox=-76,3,-75,2",
+    "bbox=-200,2,-75,3", "bbox=-76,-95,-75,3",
+    f"bbox={BBOX}&desde=2026-11-12&hasta=2026-11-10", f"bbox={BBOX}&desde=no-fecha",
+])
+def test_parametros_invalidos_responden_422(cliente, consulta):
+    for ruta in ("/calendario", "/detecciones", "/calendario.csv"):
+        r = cliente.get(f"{ruta}?{consulta}")
+        assert r.status_code == 422, (ruta, consulta)
+
+
+def test_bbox_obligatorio(cliente):
+    assert cliente.get("/calendario").status_code == 422

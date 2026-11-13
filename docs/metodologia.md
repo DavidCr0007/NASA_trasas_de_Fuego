@@ -127,10 +127,29 @@ ORDER BY n_detecciones DESC LIMIT 10;
 
 **Garantía de reproducibilidad.** El mismo crudo (mismos SHA-256 en el manifiesto), la misma configuración y `RULES_VERSION` producen archivos Parquet con el mismo SHA-256, sin importar el orden de las líneas del manifiesto. Lo logran: esquema pyarrow explícito (sin pandas), filas ordenadas por clave estable, parámetros de escritura fijos (zstd nivel 3, grupos de 65 536 filas, estadísticas activas, formato Parquet 2.6), ninguna marca de reloj ni ruta absoluta, y reemplazo atómico del archivo. La garantía está **condicionada a `uv.lock`**: otra versión de pyarrow/Arrow puede cambiar bytes del Parquet (p. ej. `created_by` o la codificación) sin que cambien los datos.
 
-## 7. Propuestas para hitos posteriores (no implementadas en H0–H2)
+## 7. API de consulta (H3)
 
-- Línea base celda-mes con percentil candidato P90 (`docs/decisiones/0004-percentil.md`).
-- Mínimo de años de historia para la línea base (`docs/decisiones/0005-minimo-anios.md`).
+`src/api/app.py` es una API de solo lectura (FastAPI + DuckDB) sobre los Parquet de `data/processed/`. Arranque local, sin red: `make api` (puerto 8000; documentación interactiva en `/docs`).
+
+| ruta | qué devuelve |
+|---|---|
+| `GET /salud` | Estado; 503 si falta algún Parquet. |
+| `GET /cita` | Cita y aviso oficiales, versión de reglas. |
+| `GET /calendario?bbox=W,S,E,N[&desde&hasta]` | Serie diaria del área (calendario de actividad), calidad, incertidumbre y línea base. |
+| `GET /calendario.csv?…` | La misma serie en CSV, con la cita, el aviso, la versión y la calidad como líneas `#`. |
+| `GET /detecciones?bbox=…[&desde&hasta&limite]` | Representantes, cada uno con su semilado nominal. |
+
+Toda respuesta trae `rules_version`, `config_fingerprint`, `cita` y `aviso` (D-05 y D-10).
+
+- **Filtro del área.** Las celdas-día se filtran por su centroide y las detecciones, por su posición. Los días sin focos se rellenan con 0.
+- **Calidad (D-02).** Cada día y la respuesta global tienen `calidad` (`NRT`, `estandar` o `mixta`) y `preliminar=true` si interviene algún dato NRT.
+- **Incertidumbre (D-07).** Incluye:
+  - `resolucion_m` y `semilado_nominal_m` por sensor, y `grilla_deg`;
+  - `horario_pasada_utc`, con la hora UTC mínima y máxima observada y el número de detecciones por satélite en el área y el rango;
+  - `clases_confianza`, con el conteo por clase;
+  - `anios_con_dato`, los años con alguna celda-día en el área, sobre toda la historia;
+  - `porcentaje_dias_con_dato`, la proporción de días del rango con al menos un foco.
+- **Línea base (D-08).** `linea_base.estado` vale `"base insuficiente"` si `len(anios_con_dato) < anios_minimos` y `"suficiente"` en caso contrario. Se configura con `--anios-minimos`; el valor por defecto, 5, es PROVISIONAL (ADR 0005). El percentil por defecto es 95 (ADR 0004). El cálculo de días inusuales llega en H4.
 
 ## Prueba con datos reales (H0-07)
 

@@ -51,61 +51,26 @@ El hash del Parquet (D-06) depende de las versiones de las librerías fijadas en
 
 `data/sample/` contiene datos **sintéticos** que imitan el esquema oficial. Sirven para `make demo` y para las pruebas. Ningún resultado de la muestra debe interpretarse como dato real de incendios. La descarga real requiere `FIRMS_MAP_KEY` en `.env`; si no existe, el proyecto registra el bloqueo B-01 (`tasks/RIESGOS.md`).
 
-## 10. Cita y aviso no verificados
+## 10. Naturaleza del dato (declaración obligatoria)
 
-La cita oficial de FIRMS, el reconocimiento de LANCE y ESDIS, el aviso «as is» y los DOI de cada producto **por confirmar** (véase `docs/cita.md`). Hasta verificarlos, el proyecto no puede presentarse con una cita oficial completa.
+- **Los focos son detecciones térmicas, no incendios confirmados.** Un foco indica que un píxel tuvo una anomalía térmica cuando pasó el satélite. Puede ser una quema agrícola, un incendio forestal, una fuente industrial o un volcán; MODIS estándar trae el campo `type` (tabla oficial de atributos), pero NRT no. No se valida en campo.
+- **Error de centro de píxel.** `latitude` y `longitude` son el centro del píxel (1 km nominal en MODIS y 375 m en VIIRS), no la posición del fuego. El fuego puede estar en cualquier punto del píxel, y el píxel crece hacia el borde del barrido (`scan` y `track`). La API publica un semilado **nominal** de 500 m (MODIS) y 187,5 m (VIIRS) por punto; no usa todavía `scan` ni `track` (riesgo R-26).
+- **Saturación en VIIRS de 375 m.** La tabla oficial de atributos asigna confianza `high` a los píxeles saturados de la banda I-4. En esos píxeles la temperatura de brillo no es fiable, y FIRMS indica que el FRP de 375 m solo es fiable para fuegos pequeños o de baja intensidad. La armonización no corrige la saturación; `frp_max` y `frp_sum` deben leerse como indicativos.
+- **Sesgo horario por la pasada de Terra.** Cada satélite observa a horas fijas: `horario_pasada_utc` las muestra para el área consultada. Si Terra deja de entregar datos, se pierde su pasada y la serie MODIS queda con menos horas muestreadas. Los conteos de antes y después no son comparables sin corrección, así que un descenso puede deberse al muestreo y no a menos fuego. Los CSV de 24 h del 2026-11-13 aún traen datos de Terra; la fecha de fin no está confirmada (R-08).
+- **Datos NRT.** Los datos en tiempo casi real son preliminares y pueden cambiar cuando se publica la versión estándar. La API marca `preliminar=true` en cada día y en cada punto con datos NRT, y la exportación CSV lo declara en su encabezado (D-02).
+- **Conteos tras deduplicar.** `n_detecciones` cuenta representantes de R3 y `n_brutas`, las detecciones originales. Con datos reales, el 40,5 % de las detecciones se agrupa, sobre todo dentro de VIIRS (R-25). Para comparar con el visor de FIRMS hay que usar `n_brutas`.
 
-## 11. Lista completa de «por confirmar»
+## 11. Línea base y días inusuales
 
-Lista de lo que `docs/esquema_firms.md` deja sin verificar. Ninguno de estos valores debe usarse como cierto.
+La API aplica el mínimo de años (D-08, ADR 0005, valor por defecto 5, PROVISIONAL). Por debajo del mínimo responde «base insuficiente». El cálculo de días inusuales (R5, P95 por día del año, ADR 0004) se implementa en H4. Con la historia disponible (un año), toda consulta da «base insuficiente».
 
-### 11.1 Columnas y tipos
+## 12. Lo que sigue por confirmar
 
-- Orden y nombres de columnas de VIIRS 375 m (`VNP14IMGTDL_NRT`, `VJ114IMGTDL_NRT`, `VJ214IMGTDL_NRT`): recuerdo de 14 columnas, sin verificar.
-- Orden y nombres de columnas de MODIS C6.1 (`MCD14DL`): recuerdo, sin verificar. Diferencias supuestas: `brightness` en lugar de `bright_ti4`, y `bright_t31` en lugar de `bright_ti5`.
-- Tipo y dominio de `latitude` y `longitude`.
-- Significado y unidades de `bright_ti4`, `bright_ti5`, `brightness`, `bright_t31` (K) y de `frp` (MW).
-- Tamaño de píxel `scan` y `track`: unidades y dominio.
-- Formato de `acq_date` (recuerdo: YYYY-MM-DD).
-- Formato de `acq_time` (recuerdo: HHMM UTC; no se sabe si tiene ceros a la izquierda).
-- Presencia de la columna `instrument` en todas las variantes.
-- Valores de `daynight` (recuerdo: D y N).
+El esquema se verificó el 2026-11-13 (`docs/esquema_firms.md`). Queda pendiente:
 
-### 11.2 Satélites
-
-- Códigos de satélite de VIIRS: el prototipo usa `N`, `1` y `2`; el recuerdo sugiere `N`, `N20` y `N21`. **Ninguno confirmado.**
-- Códigos de satélite de MODIS: el prototipo usa `T` y `A`; el recuerdo sugiere `Terra` y `Aqua`. **Ninguno confirmado.**
-
-### 11.3 Confianza
-
-- Dominio de `confidence` VIIRS: `l`, `n`, `h` (prototipo y recuerdo). **Por confirmar** con la FAQ de FIRMS.
-- Dominio de `confidence` MODIS: 0–100. **Por confirmar.**
-- Clases oficiales de FIRMS para MODIS (low, nominal, high) y sus cortes. **Por confirmar.** Los umbrales 30 y 80 son provisionales.
-
-### 11.4 Calidad NRT y estándar
-
-- Patrones de `version` para distinguir NRT de estándar (hipótesis: sufijo `NRT`). **Por confirmar.**
-- Colección de cada producto VIIRS. **Por confirmar.**
-
-### 11.5 API área
-
-- Plantilla de URL: `https://firms.modaps.eosdis.nasa.gov/api/area/csv/<MAP_KEY>/<FUENTE>/<W,S,E,N>/<DAY_RANGE>[/<fecha>]` (recuerdo). **Por confirmar.**
-- Orden de coordenadas `W,S,E,N`. **Por confirmar.**
-- Valor máximo de `DAY_RANGE` (recuerdo: 5). **Por confirmar.**
-- Límite de transacciones (recuerdo: 5000 por 10 minutos). **Por confirmar.**
-- Nombres de fuente: `MODIS_NRT`, `MODIS_SP`, `VIIRS_SNPP_NRT`, `VIIRS_SNPP_SP`, `VIIRS_NOAA20_NRT`, `VIIRS_NOAA20_SP`, `VIIRS_NOAA21_NRT` (recuerdo). **Por confirmar** con `data_availability`.
-- Existencia de `VIIRS_NOAA21_SP`. **Por confirmar.**
-- Formato de `FIRMS_MAP_KEY`. **Por confirmar.**
-
-### 11.6 Bbox
-
-- Coordenadas del bbox del Huila, margen y fuente autoritativa. **Por confirmar.**
-
-### 11.7 Cita y licencia
-
-- Cita oficial de FIRMS, reconocimiento de LANCE y ESDIS, aviso «as is» y DOI de cada producto. **Por confirmar** (véase `docs/cita.md`).
-
-### 11.8 Verificación pendiente
-
-- Los CSV de 24 horas de South America (MODIS C6.1, SNPP, NOAA-20, NOAA-21) no se han descargado. Sin ellos no hay cabeceras ni valores distintos verificados.
-- Las tablas de atributos oficiales de MODIS C6.1 y de los productos VIIRS 375 m no se han consultado.
+- La cabecera exacta y el formato de `confidence` que devuelve la API area: ¿`l`/`n`/`h` o `low`/`nominal`/`high`? (R-23).
+- Los cortes oficiales de confianza MODIS; 30 y 80 siguen PROVISIONALES (ADR 0002).
+- La colección de los productos VIIRS estándar y el DOI de cada producto (R-24).
+- El bbox del Huila con fuente autoritativa (R-06).
+- El valor definitivo del mínimo de años de la línea base (R-27).
+- Las fechas de inicio de cada serie y el fin de misión de Terra y Aqua (R-08, R-15).

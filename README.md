@@ -55,6 +55,7 @@ cp .env.example .env
 | `make sync` | Instala las dependencias fijadas en `uv.lock` (requiere red la primera vez). |
 | `make test` | Ejecuta las pruebas con pytest. |
 | `make demo` | Ejecuta el flujo completo **offline** con `data/sample/` (datos sintéticos). |
+| `make api` | Corre la demo y levanta la API local en http://127.0.0.1:8000 (documentación en `/docs`). |
 | `make download` | Descarga desde la API área de FIRMS para el bbox del Huila. Requiere `FIRMS_MAP_KEY` en `.env`. |
 | `make secrets` | Escanea el repositorio en busca de credenciales antes de entregar. |
 
@@ -75,6 +76,17 @@ Pipeline armonizacion-0.3.0 (config xxxxxxxxxxxx)
 ```
 
 Detalle de tablas y consultas DuckDB: [docs/metodologia.md](docs/metodologia.md#pipeline-y-salidas).
+
+## API local
+
+`make api` sirve las salidas de la demo sin red. Ejemplo para el Huila:
+
+```bash
+curl "http://127.0.0.1:8000/calendario?bbox=-76.7,1.4,-74.3,3.9"
+curl "http://127.0.0.1:8000/calendario.csv?bbox=-76.7,1.4,-74.3,3.9" -o calendario.csv
+```
+
+Cada respuesta trae la cita de FIRMS, el aviso «as is», la versión de reglas, la calidad (NRT/estándar, `preliminar`), los metadatos de incertidumbre y el estado de la línea base («base insuficiente» si no hay años suficientes). Rutas y campos: [docs/metodologia.md](docs/metodologia.md#7-api-de-consulta-h3).
 
 ## Documentación
 

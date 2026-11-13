@@ -1,34 +1,33 @@
-# ADR 0005: Mínimo de años de historia para la línea base
+# ADR 0005: Mínimo de años de historia para la línea base (D-08)
 
 ## Estado
 
-PROPUESTA para un hito posterior. **No implementada en H0–H2.** Valor por definir.
+IMPLEMENTADA en H3 como control (2026-11-13). El **valor por defecto es PROVISIONAL**: 5 años.
 
 ## Contexto
 
-Una línea base celda-mes necesita historia suficiente para ser estable. Con pocos años, un percentil (ADR 0004) depende de muy pocos valores. Además, VIIRS tiene menos historia que MODIS (así lo indica el planteamiento del reto; la cifra exacta no está verificada). La hipótesis es que las series VIIRS (SNPP, NOAA-20 y NOAA-21) son más cortas que la de MODIS, pero las fechas exactas de inicio de cada serie **no están confirmadas**.
-
-Actualmente solo se descarga el último año (véase `docs/limitaciones.md`), así que la línea base no puede calcularse de forma robusta todavía.
+Un percentil por día del año (ADR 0004) necesita varios años para no depender de unos pocos valores. MODIS tiene una serie más larga que VIIRS. La API responde por el área de interés, así que el control se aplica a los años con dato del área.
 
 ## Decisión
 
-- Fijar un **mínimo de años de historia** por celda o por sensor antes de calcular una línea base.
-- Valor por definir. No se implementa en H0–H2.
-- Si una celda o sensor no cumple el mínimo, la línea base no se calcula y se marca como insuficiente, sin inventar valores.
+- La API cuenta los años distintos con al menos una celda-día en el área (`incertidumbre.anios_con_dato`).
+- Si son menos que `anios_minimos`, `linea_base.estado = "base insuficiente"` y no se calculan días inusuales.
+- `anios_minimos` es configurable: `create_app(anios_minimos=…)` o `python -m api --anios-minimos N`.
+- Valor por defecto: **5 (PROVISIONAL)**. La respuesta lo indica en `linea_base.nota`. Es un supuesto de trabajo, no un valor validado.
 
 ## Alternativas
 
-1. **Mínimo único para todos los sensores.** Simple, pero penaliza a VIIRS por su historia más corta.
-2. **Mínimo distinto por sensor.** Más justo con VIIRS, pero complica la comparación entre sensores.
+1. **Mínimo distinto por sensor.** Más justo con VIIRS, pero la línea base es armonizada (MODIS + VIIRS) y separar por sensor rompe la comparabilidad.
+2. **Contar solo años completos.** Más estricto. Hoy cuenta cualquier año con dato; queda por confirmar.
 3. **Sin mínimo.** Descartada: produciría líneas base inestables.
 
 ## Consecuencias
 
-- Puede que la línea base no esté disponible para VIIRS en una parte de las celdas durante varios años.
-- Los resultados con línea base deben declarar el número de años usados.
+- Con la muestra local (un solo año) y con la descarga de un año del Huila, la respuesta será «base insuficiente». Para H4 hace falta descargar más historia.
+- Cambiar el valor por defecto obliga a subir `RULES_VERSION`.
 
 ## Por confirmar
 
-- Valor del mínimo de años (por definir).
-- Fechas exactas de inicio de la serie de cada producto (MODIS, VIIRS SNPP, NOAA-20, NOAA-21). **Por confirmar** con la documentación oficial de FIRMS.
-- Si el mínimo debe ser distinto por sensor.
+- El valor definitivo del mínimo (riesgo R-27).
+- Si un año cuenta solo cuando está completo.
+- Las fechas exactas de inicio de cada serie (MODIS, VIIRS SNPP, NOAA-20 y NOAA-21).
