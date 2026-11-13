@@ -8,7 +8,7 @@ Armonizar los focos de calor (hot spots) de MODIS y VIIRS publicados por NASA FI
 
 Estado: en etapa inicial. Los hitos H0 (estructura y documentación), H1 (lector y validación) y H2 (grilla, confianza, deduplicación y Parquet reproducible) están en el alcance de este plan.
 
-> **Aviso importante:** el esquema de datos de FIRMS, los códigos de satélite, las escalas de confianza y el bbox del Huila están **por confirmar** contra la documentación oficial. Hasta que se verifiquen, el proyecto trabaja con datos sintéticos que imitan el esquema oficial. Véanse `docs/esquema_firms.md` y `tasks/RIESGOS.md`.
+> **Estado del esquema (2026-11-13):** las columnas, los códigos de satélite (`N`, `N20`, `N21`, `T`, `A`), la confianza (`low`/`nominal`/`high` en VIIRS, 0–100 en MODIS) y los patrones de `version` están verificados contra la tabla oficial de atributos y contra CSV reales de FIRMS (24 h, NRT). Siguen **por confirmar** la cabecera exacta de la API area, los cortes oficiales de confianza MODIS, los DOI y el bbox del Huila. La demo usa datos sintéticos con ese esquema confirmado. Véanse `docs/esquema_firms.md` y `tasks/RIESGOS.md`.
 
 ## Estructura de carpetas
 
@@ -65,7 +65,7 @@ Procedimiento de descarga y verificación: [docs/descarga.md](docs/descarga.md).
 `make demo` procesa `data/sample/` (datos **sintéticos**, sin red) y escribe en `data/processed/demo/`: `detecciones.parquet`, `deduplicados.parquet`, `cuarentena.parquet`, `celda_dia.parquet` y `resumen.json`. Dos ejecuciones producen los mismos hashes (con las versiones de `uv.lock`). Salida esperada (formato; los valores exactos están en `resumen.json`):
 
 ```
-Pipeline armonizacion-0.2.0 (config xxxxxxxxxxxx)
+Pipeline armonizacion-0.3.0 (config xxxxxxxxxxxx)
   entrada:      132
   aceptados:    N
   deduplicados: N
@@ -86,24 +86,10 @@ Detalle de tablas y consultas DuckDB: [docs/metodologia.md](docs/metodologia.md#
 
 ## Cita y aviso
 
-Texto de cita y aviso copiado de `docs/cita.md`. Todavía no hay texto oficial verificado: los fragmentos se reproducen tal como constan en ese archivo, y la cita definitiva se completará cuando se consulte la fuente oficial.
+Texto oficial copiado de la página de FIRMS en Earthdata (2026-11-13). Detalle, DOI y estudios de validación en [docs/cita.md](docs/cita.md).
 
-**Cita obligatoria de FIRMS**
+> We acknowledge the use of data and/or imagery from NASA's Fire Information for Resource Management System (FIRMS) (https://www.earthdata.nasa.gov/data/tools/firms), part of NASA's Land, Atmosphere Near real-time Capability for Earth observations (LANCE) and NASA's Earth Science Data and Information System (ESDIS).
 
-> por confirmar. Fuente faltante: página de reconocimiento/cita de FIRMS (Earthdata, sección FIRMS).
+> The information presented through LANCE, GIBS, Worldview, and FIRMS are provided "as is" and users bear all responsibility and liability for their use of data.
 
-**Reconocimiento de LANCE y ESDIS**
-
-> por confirmar. Fuente faltante: página de reconocimiento de LANCE (Earthdata).
-
-**Aviso «as is» de LANCE**
-
-> por confirmar (texto oficial literal). Fuente faltante: aviso de datos de LANCE.
-
-**Cómo citar este proyecto**
-
-> Harmonized Heat Neiva (NASA Space Apps 2026, reto «Harmonization of MODIS and VIIRS Hot Spots»). Repositorio: por confirmar. Los datos de incendios provienen de NASA FIRMS; incluya la cita oficial de arriba cuando esté confirmada.
-
-**Aviso**
-
-> Este proyecto es una herramienta de armonización con fines de concurso; los datos se entregan «as is» según el aviso oficial de LANCE (texto por confirmar) y no deben usarse para decisiones críticas.
+Los focos son detecciones térmicas, no incendios confirmados. Los datos NRT son preliminares. Ver [docs/limitaciones.md](docs/limitaciones.md).
