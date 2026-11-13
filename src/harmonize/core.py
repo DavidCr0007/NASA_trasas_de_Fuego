@@ -1,52 +1,25 @@
-"""Prototipo de armonización MODIS/VIIRS (datos sintéticos).
+"""API heredada del prototipo (datos sintéticos) como adaptador sobre las reglas H2.
 
-Reglas (versión 0.1.0):
-  R1 grilla de ~1 km por celda (aproximación plana local)
-  R2 confianza en clases baja / nominal / alta (umbrales PROVISIONALES)
-  R3 deduplicación: mismo día, misma celda, |Δt| <= 3 h -> conserva VIIRS
-  R4 registros con horario UTC y satélite conservados
-  D-03/D-04 validación de esquema y cuarentena con motivo
+Las reglas viven en config.py / rules.py / pipeline.py (armonizacion-0.2.0):
+  R1 grilla fija en grados (floor), R2 confianza, R3 deduplicación determinista,
+  R4 procedencia. Este módulo conserva `harmonize(rows)`, `validate` y los tipos
+  `Detection`/`Result` para las pruebas originales. Los códigos de satélite del
+  prototipo (N/1/2, T/A) siguen "por confirmar" (ver ingest.firms_schema).
 """
 from __future__ import annotations
-import math
+import hashlib
+import json
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 
-RULES_VERSION = "armonizacion-0.1.0"
-KM_PER_DEG_LAT = 110.574
-KM_PER_DEG_LON_EQ = 111.320
-DEDUP_WINDOW = timedelta(hours=3)
+from .config import RULES_VERSION
+from .rules import DEFAULT_CFG, cell_1km, classify_confidence, dedup
 
-# Umbrales provisionales: deben validarse con documentación del producto.
-MODIS_CONF_THRESHOLDS = {"nominal": 30, "alta": 80}   # 0-100 %
-VIIRS_CLASS_MAP = {"l": "baja", "n": "nominal", "h": "alta"}  # clases tipo FIRMS (por confirmar)
+# Constantes heredadas (PROVISIONALES / por confirmar).
+MODIS_CONF_THRESHOLDS = DEFAULT_CFG.modis_umbrales
+VIIRS_CLASS_MAP = DEFAULT_CFG.viirs_mapa
 VIIRS_SATS = {"N": "Suomi NPP", "1": "NOAA-20", "2": "NOAA-21"}
 MODIS_SATS = {"T": "Terra", "A": "Aqua"}
-
-
-def cell_1km(lat: float, lon: float) -> tuple[int, int]:
-    """Índice de celda de ~1 km. Aproximación plana: válida para áreas pequeñas."""
-    y = math.floor(lat * KM_PER_DEG_LAT)
-    x = math.floor(lon * KM_PER_DEG_LON_EQ * math.cos(math.radians(lat)))
-    return (y, x)
-
-
-def classify_confidence(sensor: str, raw) -> str | None:
-    if sensor == "MODIS":
-        try:
-            v = float(raw)
-        except (TypeError, ValueError):
-            return None
-        if not 0 <= v <= 100:
-            return None
-        if v >= MODIS_CONF_THRESHOLDS["alta"]:
-            return "alta"
-        if v >= MODIS_CONF_THRESHOLDS["nominal"]:
-            return "nominal"
-        return "baja"
-    if sensor == "VIIRS":
-        return VIIRS_CLASS_MAP.get(str(raw).strip().lower())
-    return None
 
 
 @dataclass
@@ -105,22 +78,23 @@ def harmonize(rows: list[dict]) -> Result:
         else:
             valid.append(det)
     # R3 deduplicación: ordenar para que el resultado no dependa del orden de entrada
-    valid.sort(key=lambda d: (d.cell, d.when_utc, d.sensor != "VIIRS", d.satellite))
-    kept: list[Detection] = []
+    # Adaptador: R3 nueva (ventana anclada, determinista). El record_id se deriva
+    # del contenido para que el resultado no dependa del orden de entrada.
+    pendientes: dict[str, list[Detection]] = {}
+    registros = []
     for d in valid:
-        dup = None
-        for k in reversed(kept):
-            if k.cell != d.cell:
-                continue
-            if abs(k.when_utc - d.when_utc) <= DEDUP_WINDOW:
-                dup = k
-                break
-        if dup is None:
-            kept.append(d)
-        else:
-            res.n_dedup_removed += 1
-            # Prioridad VIIRS (mejor resolución); si ambos son del mismo sensor, se conserva el primero
-            if d.sensor == "VIIRS" and dup.sensor == "MODIS":
-                kept[kept.index(dup)] = d
-    res.accepted = kept
+        contenido = json.dumps(
+            [d.sensor, d.satellite, d.lat, d.lon, d.when_utc.isoformat(),
+             str(d.confidence_raw), d.frp], default=str)
+        rid = hashlib.sha256(contenido.encode()).hexdigest()[:16]
+        pendientes.setdefault(rid, []).append(d)
+        registros.append({
+            "record_id": rid, "sensor": d.sensor, "satelite": d.satellite,
+            "calidad": "estandar",  # el prototipo no distingue NRT/estándar
+            "lat": d.lat, "lon": d.lon, "fecha_hora_utc": d.when_utc,
+            "confianza_raw": d.confidence_raw, "frp": d.frp,
+        })
+    conservados, deduplicados = dedup(registros, DEFAULT_CFG)
+    res.accepted = [pendientes[r["record_id"]].pop(0) for r in conservados]
+    res.n_dedup_removed = len(deduplicados)
     return res
