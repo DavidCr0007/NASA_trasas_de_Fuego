@@ -8,7 +8,7 @@ Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indica
 - [x] Repositorio con README: instalación, uso, datos, citación y limitaciones. Ver `README.md`.
 - [x] Demo ejecutable con datos locales y sin red: `make demo` y `make api`. Dos ejecuciones dan los mismos hashes.
 - [x] Documento de metodología completo: `docs/metodologia.md` (flujo, R1 a R5, API, interfaz, validación cruzada y bibliografía).
-- [ ] Capturas de respaldo en `docs/capturas/` (H5-03). Pendientes: el panel del navegador estaba oculto durante la sesión.
+- [x] Capturas de respaldo en `docs/capturas/` (H5-03): vista general, calendario, día seleccionado con huella y base insuficiente. Ver `docs/capturas/LEEME.md`.
 - [x] Pitch de 2 minutos: `docs/pitch.md`, sincronizado con el código (`tests/test_documentos.py`).
 - [x] Esta lista, marcada antes de enviar.
 
