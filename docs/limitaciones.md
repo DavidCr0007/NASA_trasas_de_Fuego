@@ -12,7 +12,7 @@ Ejemplo, en la misma celda:
 - B a las 12:30 UTC;
 - C a las 14:00 UTC.
 
-A y B están a 2,5 h (dentro de la ventana), así que B entra en el grupo de A. C está a 1,5 h de B, pero a 4 h de A (ancla), así que **C queda fuera** del grupo aunque |C − B| = 1,5 h. C se trata como una detección independiente. El resultado depende del orden de llegada y del ancla, y el método no lo corrige.
+A y B están a 2,5 h (dentro de la ventana), así que B entra en el grupo de A. C está a 1,5 h de B, pero a 4 h de A (ancla), así que **C queda fuera** del grupo aunque |C − B| = 1,5 h. C se trata como una detección independiente. El resultado depende del ancla (el registro más temprano de la celda sin asignar) y el método no lo corrige. Desde `armonizacion-0.2.0` la implementación ordena por `(cell_id, fecha_hora_utc, record_id)` antes de agrupar, de modo que la salida **no** depende del orden de llegada (probado con permutaciones); este ejemplo es una prueba (`test_contraejemplo_voraz_documentado`). La ventana no exige el mismo día UTC y se aplica también entre registros del mismo sensor. Además, el `n_brutas` de celda-día cuenta cada registro en su propio día UTC, mientras que `n_detecciones` cuenta representantes en el día del representante; un duplicado que cruza la medianoche puede hacer que ambas cifras no coincidan entre días vecinos.
 
 ## 2. Deduplicación dentro del mismo sensor
 

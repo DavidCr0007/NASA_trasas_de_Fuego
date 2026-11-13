@@ -13,6 +13,7 @@ Para una misma detección pueden existir dos registros: uno NRT (casi tiempo rea
 - Cuando NRT y estándar se solapan (misma celda y ventana de R3), se **prefiere el estándar** como representante.
 - El NRT no se borra: pasa a la tabla de duplicados, con referencia al representante.
 - Esta regla va después de la preferencia VIIRS > MODIS y antes de la confianza (R3).
+- Implementación: es el segundo elemento de la clave del representante, `calidad != "estandar"`. Se compara solo el valor de `calidad` (`NRT` | `estandar`) que asignó H1; no se interpreta `version`.
 
 ## Alternativas
 
