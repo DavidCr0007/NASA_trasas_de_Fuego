@@ -1,0 +1,24 @@
+# Riesgos: Harmonized Heat Neiva
+
+Probabilidad e impacto: `alta`, `media`, `baja`. Estado: `BLOQUEO activo`, `abierto`, `mitigado`.
+
+| ID | Riesgo | Probabilidad | Impacto | Mitigación | Estado |
+|---|---|---|---|---|---|
+| B-01 | **BLOQUEO activo:** falta `FIRMS_MAP_KEY` en `.env`, por lo que no hay descarga real. | alta | alta | Usar datos sintéticos en `data/sample/` que imitan el esquema oficial. El usuario copia `.env.example` a `.env` y pone su clave. `make download` informa el bloqueo sin fallar en silencio. | BLOQUEO activo |
+| R-01 | Sin acceso a red ni a CSV reales, el esquema de FIRMS no está verificado (cabeceras, formatos de fecha y hora, códigos). | alta | alta | Todo lo no verificado está marcado «por confirmar» en `docs/esquema_firms.md` y `src/ingest/firms_schema.py`. El procedimiento de verificación queda descrito en `docs/esquema_firms.md`. | abierto |
+| R-02 | Códigos de satélite no confirmados. El prototipo usa `N`, `1`, `2` (VIIRS) y `T`, `A` (MODIS), y se sospecha que son incorrectos. | alta | alta | No usar códigos del prototipo como ciertos. Validar contra las tablas de atributos oficiales y los CSV reales. | abierto |
+| R-03 | Escala y dominio de `confidence` no confirmados (VIIRS `l`, `n`, `h`; MODIS 0–100). Los umbrales 30 y 80 son provisionales. | alta | media | Umbrales configurables y marcados PROVISIONALES (ADR 0002). Cada cambio cambia `RULES_VERSION`. | abierto |
+| R-04 | Patrones de `version` (NRT frente a estándar) y formato de `acq_time` no confirmados. | media | alta | Patrones aislados en `firms_schema.py` y validados en H0-07. Pruebas con fixtures reales cuando existan. | abierto |
+| R-05 | Límites de `DAY_RANGE` y de transacciones de la API área no confirmados. | media | media | Descarga por bloques y con reintentos. Límites en configuración, con los valores verificados en la documentación oficial. | abierto |
+| R-06 | Bbox del Huila aproximado y sin fuente autoritativa (IGAC, DANE o geoBoundaries ADM1). | media | media | Marcado `HUILA_BBOX_CONFIRMADO = False`. Verificar con fuente oficial y definir el margen. | abierto |
+| R-07 | Solapamiento entre NRT y estándar: el mismo evento puede aparecer en las dos calidades. | alta | media | Prioridad de estándar sobre NRT (ADR 0007). El NRT se conserva en la tabla de duplicados. | abierto |
+| R-08 | Posible fin de la misión MODIS (Terra y Aqua). **Por confirmar** con la fuente oficial. | media | alta | Revisar la disponibilidad de MODIS en cada descarga (`data_availability`). Diseñar el flujo para aceptar VIIRS como única fuente. | abierto |
+| R-09 | Deduplicación voraz no transitiva: algunos eventos quedan separados o agrupados según el orden de llegada. | alta | media | Documentado en `docs/limitaciones.md` con ejemplo. Pruebas del caso (A, B, C). Comparar con una alternativa en fase posterior. | abierto |
+| R-10 | Fecha de celda-día en UTC y no en hora local (UTC−5). Un foco nocturno local cae en el día siguiente. | alta | media | Documentado en `docs/limitaciones.md`. La hora UTC se conserva en cada registro para otra agregación. | abierto |
+| R-11 | Reproducibilidad del hash del Parquet depende de la versión de pyarrow y de las demás dependencias. | media | alta | Versiones fijadas en `uv.lock`. Registrar el hash junto con `RULES_VERSION`. Prueba D-06 en `make test`. | abierto |
+| R-12 | `uv sync` requiere red la primera vez. | media | baja | Documentar en el README. Preparar el entorno antes de la demo. | abierto |
+| R-13 | Nombres de paquete genéricos (`api`, `ui`, `ingest`) pueden colisionar con paquetes instalados. | baja | media | Usar `src/` como raíz de los paquetes del proyecto. Revisar nombres antes de la fase de API y UI. | abierto |
+| R-14 | Cita y aviso «as is» de FIRMS, LANCE y ESDIS sin texto oficial verificado. Riesgo de publicar sin la cita obligatoria. | alta | alta | No inventar texto. Los fragmentos quedan «por confirmar» en `docs/cita.md` y en el README. Completar antes de entregar (H0-08). | abierto |
+| R-15 | Fechas de inicio de las series VIIRS y MODIS no confirmadas. Afecta al mínimo de años de la línea base. | media | media | Mantener ADR 0005 como propuesta. Confirmar con la documentación oficial antes de fijar el mínimo. | abierto |
+| R-16 | `Harmonize.py` en la raíz y el test importa `harmonize` en minúscula. Un nombre distinto rompe las pruebas. | media | baja | Mover el módulo a `src/harmonize/` (H0-01) y ajustar la importación del test. | abierto |
+| R-17 | Prototipo con `cos(lat)` por punto: columnas de la grilla desalineadas. | alta (en el prototipo) | alta | Corregido por la grilla fija de ADR 0001 y cubierto con pruebas de borde de celda (R1). | mitigado en el diseño; pendiente de prueba |
