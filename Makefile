@@ -11,9 +11,11 @@ test:
 
 demo:
 	uv run python -m harmonize.pipeline --input data/sample --output data/processed/demo
+	uv run python tools/generar_historico.py data/sample_historica
+	uv run python -m harmonize.pipeline --input data/sample_historica --output data/processed/demo_historica
 
 api: demo
-	uv run python -m api --datos data/processed/demo
+	uv run python -m api --datos data/processed/demo_historica
 
 download:
 	uv run python -m ingest.firms_download
