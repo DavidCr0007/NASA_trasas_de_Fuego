@@ -62,7 +62,7 @@ El hash del Parquet (D-06) depende de las versiones de las librerías fijadas en
 
 ## 11. Línea base y días inusuales
 
-La API aplica el mínimo de años (D-08, ADR 0005, valor por defecto 5, PROVISIONAL). Por debajo del mínimo responde «base insuficiente». El cálculo de días inusuales (R5, P95 por día del año, ADR 0004) se implementa en H4. Con la historia disponible (un año), toda consulta da «base insuficiente».
+La API aplica el mínimo de años (D-08, ADR 0005: 5 años por defecto, acordado el 2026-11-13). Por debajo del mínimo responde «base insuficiente». El cálculo de días inusuales (R5, P95 por día del año, ADR 0004) se implementa en H4. Con la historia disponible (un año), toda consulta da «base insuficiente».
 
 ## 12. Lo que sigue por confirmar
 
@@ -72,5 +72,5 @@ El esquema se verificó el 2026-11-13 (`docs/esquema_firms.md`). Queda pendiente
 - Los cortes oficiales de confianza MODIS; 30 y 80 siguen PROVISIONALES (ADR 0002).
 - La colección de los productos VIIRS estándar y el DOI de cada producto (R-24).
 - El bbox del Huila con fuente autoritativa (R-06).
-- El valor definitivo del mínimo de años de la línea base (R-27).
+- Si un año con dato cuenta aunque esté incompleto (ADR 0005).
 - Las fechas de inicio de cada serie y el fin de misión de Terra y Aqua (R-08, R-15).

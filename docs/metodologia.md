@@ -149,7 +149,7 @@ Toda respuesta trae `rules_version`, `config_fingerprint`, `cita` y `aviso` (D-0
   - `clases_confianza`, con el conteo por clase;
   - `anios_con_dato`, los años con alguna celda-día en el área, sobre toda la historia;
   - `porcentaje_dias_con_dato`, la proporción de días del rango con al menos un foco.
-- **Línea base (D-08).** `linea_base.estado` vale `"base insuficiente"` si `len(anios_con_dato) < anios_minimos` y `"suficiente"` en caso contrario. Se configura con `--anios-minimos`; el valor por defecto, 5, es PROVISIONAL (ADR 0005). El percentil por defecto es 95 (ADR 0004). El cálculo de días inusuales llega en H4.
+- **Línea base (D-08).** `linea_base.estado` vale `"base insuficiente"` si `len(anios_con_dato) < anios_minimos` y `"suficiente"` en caso contrario. Se configura con `--anios-minimos`; el valor por defecto es 5 años, acordado con el equipo el 2026-11-13 (ADR 0005). El percentil por defecto es 95 (ADR 0004). El cálculo de días inusuales llega en H4.
 
 ## Prueba con datos reales (H0-07)
 

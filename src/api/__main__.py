@@ -16,7 +16,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--puerto", type=int, default=8000)
     p.add_argument("--anios-minimos", type=int, default=None,
-                   help="mínimo de años para la línea base (por defecto: valor PROVISIONAL del ADR 0005)")
+                   help="mínimo de años para la línea base (por defecto: 5, acordado en el ADR 0005)")
     a = p.parse_args(argv)
     uvicorn.run(create_app(a.datos, anios_minimos=a.anios_minimos), host=a.host, port=a.puerto)
 

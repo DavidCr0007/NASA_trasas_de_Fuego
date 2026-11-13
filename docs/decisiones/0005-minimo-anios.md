@@ -2,7 +2,7 @@
 
 ## Estado
 
-IMPLEMENTADA en H3 como control (2026-11-13). El **valor por defecto es PROVISIONAL**: 5 años.
+ACEPTADA (2026-11-13). Se implementó en H3 como control, y el equipo acordó un valor por defecto de **5 años**.
 
 ## Contexto
 
@@ -13,7 +13,7 @@ Un percentil por día del año (ADR 0004) necesita varios años para no depender
 - La API cuenta los años distintos con al menos una celda-día en el área (`incertidumbre.anios_con_dato`).
 - Si son menos que `anios_minimos`, `linea_base.estado = "base insuficiente"` y no se calculan días inusuales.
 - `anios_minimos` es configurable: `create_app(anios_minimos=…)` o `python -m api --anios-minimos N`.
-- Valor por defecto: **5 (PROVISIONAL)**. La respuesta lo indica en `linea_base.nota`. Es un supuesto de trabajo, no un valor validado.
+- Valor por defecto: **5 años**, acordado con el equipo el 2026-11-13. La respuesta lo cita en `linea_base.nota`.
 
 ## Alternativas
 
@@ -28,6 +28,5 @@ Un percentil por día del año (ADR 0004) necesita varios años para no depender
 
 ## Por confirmar
 
-- El valor definitivo del mínimo (riesgo R-27).
 - Si un año cuenta solo cuando está completo.
 - Las fechas exactas de inicio de cada serie (MODIS, VIIRS SNPP, NOAA-20 y NOAA-21).

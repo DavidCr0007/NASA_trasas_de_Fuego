@@ -211,9 +211,12 @@ def test_base_suficiente_con_minimo_bajo(salida):
     assert base["anios_minimos"] == 1
 
 
-def test_minimo_por_defecto_es_provisional(salida):
+def test_minimo_por_defecto_es_cinco_anios_acordado(salida):
+    # ADR 0005: valor acordado con el equipo el 2026-11-13 (ya no es provisional).
     base = TestClient(create_app(salida)).get(f"/calendario?bbox={BBOX}").json()["linea_base"]
-    assert "PROVISIONAL" in base["nota"]
+    assert base["anios_minimos"] == 5
+    assert "PROVISIONAL" not in base["nota"]
+    assert "ADR 0005" in base["nota"]
 
 
 # ---------------------------------------------------------------- H3-07
