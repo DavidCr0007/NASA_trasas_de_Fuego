@@ -96,6 +96,37 @@ Los registros aceptados y deduplicados se agregan por celda (R1) y fecha UTC. La
 - **D-05. Versión de reglas.** Cada fila de salida incluye `RULES_VERSION`, identificador de la versión de reglas (grilla, umbrales, deduplicación) con que se generó.
 - **D-06. Reproducibilidad.** El mismo crudo, con las mismas versiones fijadas en `uv.lock` y la misma `RULES_VERSION`, produce un Parquet con el **mismo hash SHA-256**. Para ello el orden de filas, los tipos de columna y los metadatos son deterministas. La reproducibilidad depende de las versiones fijadas en `uv.lock` (véase `docs/limitaciones.md`).
 
+## Pipeline y salidas
+
+`python -m harmonize.pipeline --input DIR --output DIR [--manifest RUTA]` (o `make demo` con `data/sample`) lee el manifiesto (por defecto `DIR/manifest.jsonl`), verifica el SHA-256 de cada CSV, aplica `harmonize_ingest` y escribe en `--output`. Se rechaza cualquier salida dentro de `data/raw`. No usa red.
+
+| Archivo | Contenido | Orden de filas |
+|---|---|---|
+| `detecciones.parquet` | Registros conservados (representantes). | `record_id` |
+| `deduplicados.parquet` | Registros absorbidos por un representante. | `record_id` |
+| `cuarentena.parquet` | Registros rechazados con su motivo (nunca se borran). | `(archivo_origen, fila, motivo, datos_crudos)` |
+| `celda_dia.parquet` | Agregación por celda y fecha UTC. | `(cell_id, fecha_utc)` |
+| `resumen.json` | Conteos, invariante, `rules_version`, `config_fingerprint`, SHA-256 de entradas y de cada Parquet, cuarentena por motivo. | claves ordenadas |
+
+Columnas principales:
+
+- **detecciones**: `record_id`, `fuente`, `sensor`, `satelite_codigo`, `satelite`, `satelite_confirmado`, `coleccion`, `version`, `calidad` (`NRT`/`estandar`), `lat`, `lon`, `fecha_hora_utc` (timestamp µs UTC), `daynight`, `confianza_raw`, `frp`, `brillo`, `archivo_origen`, `sha256_origen`, `fecha_descarga`, `fila`, `sintetico`, `confianza_clase`, `cell_id`, `cell_fila`, `cell_col`, `rules_version`, `n_fusionados`.
+- **deduplicados**: las mismas, sin `n_fusionados`, más `dedup_de`, `delta_t_min`, `motivo`.
+- **cuarentena**: `archivo_origen`, `sha256_origen`, `fila`, `motivo`, `datos_crudos` (JSON), `fecha_descarga`, `rules_version`.
+- **celda_dia**: `cell_id`, `fecha_utc`, `cell_fila`, `cell_col`, `n_detecciones`, `n_brutas`, `n_modis`, `n_viirs`, `confianza_max`, `frp_max`, `frp_sum`, `primera_hora_utc`, `ultima_hora_utc`, `satelites`, `calidades`, `centroide_lat`, `centroide_lon`, `rules_version`.
+
+Todos los archivos llevan en los metadatos Parquet `rules_version` y `config_fingerprint`. Los umbrales, la ventana y la grilla son **provisionales** (ADR 0001 a 0003).
+
+Consulta con DuckDB:
+
+```sql
+SELECT cell_id, fecha_utc, n_detecciones, confianza_max
+FROM read_parquet('data/processed/demo/celda_dia.parquet')
+ORDER BY n_detecciones DESC LIMIT 10;
+```
+
+**Garantía de reproducibilidad.** El mismo crudo (mismos SHA-256 en el manifiesto), la misma configuración y `RULES_VERSION` producen archivos Parquet con el mismo SHA-256, sin importar el orden de las líneas del manifiesto. Lo logran: esquema pyarrow explícito (sin pandas), filas ordenadas por clave estable, parámetros de escritura fijos (zstd nivel 3, grupos de 65 536 filas, estadísticas activas, formato Parquet 2.6), ninguna marca de reloj ni ruta absoluta, y reemplazo atómico del archivo. La garantía está **condicionada a `uv.lock`**: otra versión de pyarrow/Arrow puede cambiar bytes del Parquet (p. ej. `created_by` o la codificación) sin que cambien los datos.
+
 ## 7. Propuestas para hitos posteriores (no implementadas en H0–H2)
 
 - Línea base celda-mes con percentil candidato P90 (`docs/decisiones/0004-percentil.md`).
