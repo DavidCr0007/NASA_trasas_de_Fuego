@@ -121,7 +121,7 @@ def test_network_error_never_exposes_key(monkeypatch, tmp_path, capsys):
 
 
 def test_download_writes_matching_manifest_hash_and_read_only_file(tmp_path):
-    body = _header() + b"2.9,-75.3,300,1,1,2026-11-01,1200,T,MODIS,80,6.1NRT,290,10,D\n"
+    body = _header() + b"2.9,-75.3,300,1,1,2026-11-01,1200,T,80,6.1NRT,290,10,D\n"
 
     paths = download(
         sources=["MODIS_NRT"],
@@ -186,3 +186,39 @@ def test_header_only_response_is_valid(tmp_path):
     assert len(paths) == 1
     assert paths[0].read_bytes() == _header()
     assert len(_manifest_entries(tmp_path)) == 1
+
+
+def test_header_with_extra_or_reordered_columns_is_valid(tmp_path):
+    # El lector tolera columnas extra; el descargador debe ser coherente (p. ej. "type"
+    # en MODIS estándar según la tabla oficial de atributos).
+    cols = list(COLUMNAS_REQUERIDAS[("MODIS", "api_nrt")])
+    header = (",".join(reversed(cols)) + ",type\n").encode()
+    paths = download(
+        sources=["MODIS_NRT"], start=date(2026, 11, 1), end=date(2026, 11, 1),
+        bbox=HUILA_BBOX, out=tmp_path / "data/raw/firms_api", root=tmp_path,
+        map_key=KEY, fetch=lambda _: header, now=lambda: NOW, pause=0, max_days=5,
+    )
+    assert len(paths) == 1
+
+
+def test_header_missing_required_column_is_rejected(tmp_path):
+    cols = [c for c in COLUMNAS_REQUERIDAS[("MODIS", "api_nrt")] if c != "confidence"]
+    paths = download(
+        sources=["MODIS_NRT"], start=date(2026, 11, 1), end=date(2026, 11, 1),
+        bbox=HUILA_BBOX, out=tmp_path / "data/raw/firms_api", root=tmp_path,
+        map_key=KEY, fetch=lambda _: (",".join(cols) + "\n").encode(), now=lambda: NOW,
+        pause=0, max_days=5,
+    )
+    assert paths == []
+
+
+def test_main_returns_nonzero_when_a_response_is_rejected(tmp_path, capsys):
+    (tmp_path / ".env").write_text(f"FIRMS_MAP_KEY={KEY}\n")
+    code = main(
+        ["--sources", "MODIS_NRT", "--start", "2026-11-01", "--end", "2026-11-01", "--pause", "0"],
+        root=tmp_path, fetch=lambda _: b"Invalid request", now=NOW, sleep=lambda _: None,
+    )
+    assert code == 3
+    err = capsys.readouterr().err
+    assert "rechazad" in err
+    assert KEY not in err

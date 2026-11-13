@@ -148,11 +148,18 @@ def _expected_header(source: str) -> str:
 
 
 def _has_expected_header(payload: bytes, source: str) -> bool:
+    """La primera línea debe contener todas las columnas requeridas.
+
+    Se toleran columnas extra y otro orden, igual que el lector (ingest.reader).
+    """
     first_line = payload.splitlines()[0] if payload.splitlines() else b""
     try:
-        return first_line.decode("utf-8-sig") == _expected_header(source)
+        columns = {c.strip() for c in first_line.decode("utf-8-sig").split(",")}
     except UnicodeDecodeError:
         return False
+    metadata = FUENTES_API[source]
+    variant = "api_nrt" if metadata["calidad"] == "NRT" else "api_sp"
+    return set(COLUMNAS_REQUERIDAS[(metadata["sensor"], variant)]) <= columns
 
 
 def _log_invalid_response(
@@ -246,6 +253,7 @@ def download(
     pause: float = 1.0,
     max_days: int = PROVISIONAL_DAY_RANGE_MAX,
     sleep: Callable[[float], None] = time.sleep,
+    rejected: list[str] | None = None,
 ) -> list[Path]:
     """Descarga todas las ventanas válidas y devuelve los CSV guardados."""
     unknown = set(sources) - FUENTES_API.keys()
@@ -267,6 +275,8 @@ def download(
                 out, url=url, map_key=map_key, payload=payload,
                 downloaded_at=downloaded_at,
             )
+            if rejected is not None:
+                rejected.append(_masked_url(url, map_key))
             continue
 
         path = out / source / _filename(source, bbox, first, last, downloaded_at)
@@ -332,6 +342,7 @@ def main(
         return 0
 
     out = args.out if args.out.is_absolute() else root / args.out
+    rejected: list[str] = []
     try:
         download(
             sources=args.sources,
@@ -346,12 +357,22 @@ def main(
             pause=args.pause,
             max_days=max_days,
             sleep=sleep,
+            rejected=rejected,
         )
     except Exception as exc:
         # Frontera del CLI: incluso una excepción de urllib puede incluir la URL
         # solicitada; se oculta la credencial antes de informar el error.
         print(f"ERROR: {str(exc).replace(map_key, '<MAP_KEY>')}", file=sys.stderr)
         return 1
+    if rejected:
+        print(
+            f"ADVERTENCIA: {len(rejected)} respuesta(s) rechazada(s) por cabecera inválida; "
+            f"ver {out / '_errores.log'}",
+            file=sys.stderr,
+        )
+        for url in rejected:
+            print(f"  rechazada: {url}", file=sys.stderr)
+        return 3
     return 0
 
 
