@@ -53,7 +53,7 @@ def reg(rid, sensor="VIIRS", calidad="NRT", t=None, lat=2.95, lon=-75.29,
 
 # --------------------------------------------------------------------- config
 def test_config_defaults_y_congelada():
-    assert RULES_VERSION == "armonizacion-0.3.0"
+    assert RULES_VERSION == "armonizacion-0.3.1"
     assert CFG.cell_deg == 0.009
     assert CFG.grid_origin == (-90.0, -180.0)
     assert CFG.dedup_window == timedelta(hours=3)
@@ -393,3 +393,19 @@ def test_viirs_mapa_cubre_el_dominio_confirmado():
     assert CFG.viirs_mapa["low"] == "baja"
     assert CFG.viirs_mapa["nominal"] == "nominal"
     assert CFG.viirs_mapa["high"] == "alta"
+
+
+# R1 (0.3.1): ninguna detección original se pierde en celda-día (cruce de medianoche).
+def test_celda_dia_conserva_brutas_sin_representante_en_su_dia():
+    # MODIS a las 23:50 del día 1 y VIIRS a las 00:20 del día 2: Δt = 30 min, se
+    # deduplican y el representante (VIIRS) cae en el día 2.
+    regs = [reg("m1", "MODIS", calidad="estandar", t=hora(23, 50)), reg("v1", t=hora(0, 20, dias=1))]
+    res = harmonize_ingest(_ingest(regs), CFG)
+    por_dia = {f["fecha_utc"]: f for f in res.celda_dia}
+    assert set(por_dia) == {date(2026, 8, 1), date(2026, 8, 2)}
+    solo_brutas = por_dia[date(2026, 8, 1)]
+    assert solo_brutas["n_detecciones"] == 0 and solo_brutas["n_brutas"] == 1
+    assert solo_brutas["calidades"] == "estandar" and solo_brutas["satelites"] == "Terra"
+    assert solo_brutas["confianza_max"] is None and solo_brutas["frp_max"] is None
+    assert por_dia[date(2026, 8, 2)]["n_detecciones"] == 1
+    assert sum(f["n_brutas"] for f in res.celda_dia) == len(res.aceptados) + len(res.deduplicados)

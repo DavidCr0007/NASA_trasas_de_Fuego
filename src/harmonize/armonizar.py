@@ -60,7 +60,7 @@ def harmonize_ingest(ingest_result, cfg: RulesConfig = DEFAULT_CFG) -> Harmonize
 
     conservados, deduplicados = dedup(candidatos, cfg)
     brutos = n_brutos_por_celda_dia(conservados + deduplicados)
-    agregado = celda_dia(conservados, brutos, cfg)
+    agregado = celda_dia(conservados, brutos, cfg, deduplicados)
     cuarentena.sort(key=_clave_cuarentena)
 
     n_ok = len(conservados) + len(cuarentena) + len(deduplicados)
