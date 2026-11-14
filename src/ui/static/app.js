@@ -156,7 +156,7 @@ function pintarFocos(datos) {
   for (const d of lista) {
     const sensor = String(d.sensor).toLowerCase() === "viirs" ? "viirs" : "modis";
     const pop = `<strong>${esc(d.satelite)}</strong> · ${esc(d.sensor)}<br>` +
-      `${esc(fechaHoraLegible(d.fecha_hora_utc))}<br>` +
+      `${esc(fechaHoraLegible(d.fecha_hora_utc))} <span class="tenue">(${esc(d.fecha_hora_utc)})</span><br>` +
       `Confianza: ${esc(d.confianza_clase)} (${esc(d.confianza_raw)})<br>` +
       `FRP (potencia radiativa del fuego): ${fmt(d.frp, 1)} MW · Calidad: ${esc(d.calidad)}${d.preliminar ? " <em>(preliminar)</em>" : ""}<br>` +
       `Huella nominal: ±${fmt(d.semilado_nominal_m)} m` +
@@ -217,10 +217,13 @@ function pintarComparacion(c) {
   }
   const anio = estado.anio;
   const suma = Array(12).fill(null);
+  const diasMes = Array(12).fill(0);
   dias.forEach((d) => {
     const m = Number(String(d.fecha_utc).slice(5, 7)) - 1;
-    if (m >= 0 && m < 12) suma[m] = (suma[m] ?? 0) + (d.n_brutas || 0);
+    if (m >= 0 && m < 12) { suma[m] = (suma[m] ?? 0) + (d.n_brutas || 0); diasMes[m] += 1; }
   });
+  // Un mes es incompleto si el rango cubierto no tiene todos sus días (p. ej. el año en curso).
+  const incompleto = diasMes.map((n, i) => n > 0 && n < new Date(Date.UTC(Number(anio), i + 1, 0)).getUTCDate());
   const clim = c.climatologia_mensual || null;
   const media = Array.from({ length: 12 }, (_, i) => {
     const v = clim ? clim[String(i + 1)] : null;
@@ -239,7 +242,7 @@ function pintarComparacion(c) {
     const x = IZQ + i * banda, cx = x + banda / 2;
     if (suma[i] != null) {
       const y = yDe(suma[i]);
-      p.push(`<rect class="cmp-anio" x="${x + (banda - bw) / 2}" y="${y}" width="${bw}" height="${ARR + ph - y}"/>`);
+      p.push(`<rect class="cmp-anio${incompleto[i] ? " cmp-incompleto" : ""}" x="${x + (banda - bw) / 2}" y="${y}" width="${bw}" height="${ARR + ph - y}"/>`);
     } else {
       p.push(`<text class="cmp-texto" x="${cx}" y="${ARR + ph - 4}" font-size="7" text-anchor="start" ` +
         `transform="rotate(-90 ${cx + 2} ${ARR + ph - 4})">sin datos</text>`);
@@ -258,12 +261,13 @@ function pintarComparacion(c) {
       : ". Sin promedio histórico: base insuficiente.");
   const filas = MESES.map((m, i) =>
     `<tr><th scope="row">${picos.includes(i + 1) ? `<strong>${m}</strong>` : m}</th>` +
-    `<td>${suma[i] == null ? "sin datos" : `${esc(fmt(suma[i]))} focos`}</td>` +
+    `<td>${suma[i] == null ? "sin datos" : `${esc(fmt(suma[i]))} focos${incompleto[i] ? ` (mes incompleto: ${diasMes[i]} días)` : ""}`}</td>` +
     (clim ? `<td>${media[i] == null ? "—" : `${esc(fmt(media[i], 1))} focos`}</td>` : "") + `</tr>`).join("");
   caja.innerHTML =
     `<h3 class="cmp-titulo">Este año frente al promedio histórico</h3>` +
     `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(etiqueta)}" preserveAspectRatio="xMidYMid meet">${p.join("")}</svg>` +
-    `<p class="tenue">Barras: focos de calor de ${esc(anio)} por mes${clim ? ". Línea: promedio histórico mensual" : ""}.</p>` +
+    `<p class="tenue">Barras: focos de calor de ${esc(anio)} por mes${clim ? ". Línea: promedio histórico mensual" : ""}.` +
+    `${incompleto.some(Boolean) ? " Las barras con borde punteado son meses incompletos y no se comparan de igual a igual con el promedio." : ""}</p>` +
     (clim ? `<p class="tenue">El promedio histórico usa los meses completos de todos los años disponibles, incluido este año si el mes está completo.</p>`
       : `<p class="tenue">Sin promedio: base insuficiente.</p>`) +
     `<details><summary>Ver como tabla</summary><table class="tabla-cmp"><thead><tr><th scope="col">Mes</th>` +
@@ -284,7 +288,8 @@ function pintarPeriodos(c) {
   if (!c.periodos_inusuales.length) { lista.innerHTML = `<li class="tenue">Sin días inusuales en el año.</li>`; return; }
   const orden = periodosOrdenados(c).slice(0, 6);
   lista.innerHTML = orden.map((p) =>
-    `<li><a href="#" data-dia="${esc(p.inicio)}" title="${esc(p.inicio)}${p.fin !== p.inicio ? ` → ${esc(p.fin)}` : ""}">${esc(textoPeriodo(p))}</a>` +
+    `<li><a href="#" data-dia="${esc(p.inicio)}">${esc(textoPeriodo(p))}</a> ` +
+    `<span class="tenue">(${esc(p.inicio)}${p.fin !== p.inicio ? ` → ${esc(p.fin)}` : ""})</span>` +
     ` · ${fmt(p.dias)} día(s), máx. ${fmt(p.maximo)} focos en un día</li>`).join("");
   lista.querySelectorAll("a").forEach((a) => a.addEventListener("click", (ev) => {
     ev.preventDefault(); seleccionarDia(a.dataset.dia);
@@ -314,7 +319,7 @@ const ORIGENES = {
   real: ["origen-real", "Datos reales NASA FIRMS",
     "Detecciones reales del archivo público de NASA FIRMS."],
   mixto: ["origen-mixto", "Datos mixtos: reales y sintéticos",
-    "El área mezcla detecciones reales con datos sintéticos de demostración."],
+    "El conjunto de datos cargado mezcla detecciones reales con datos sintéticos de demostración."],
 };
 
 function pintarCabecera(c) {
