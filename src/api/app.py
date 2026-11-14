@@ -16,11 +16,13 @@ from pathlib import Path
 from typing import Any
 
 import duckdb
+import pyarrow as pa
 import pyarrow.parquet as pq
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from api.area import contiene, resolver_area
 from api.cita import AVISO, CITA
 from harmonize import linea_base as lb
 from harmonize.config import RulesConfig
@@ -101,6 +103,42 @@ def create_app(
             "aviso": AVISO,
         }
 
+    def caja_y_area(bbox_txt: str | None, area: str | None):
+        """R-40: un área con forma (huila, mun:<id>) o un recuadro W,S,E,N."""
+        if area:
+            try:
+                info = resolver_area(area)
+            except ValueError as exc:
+                raise HTTPException(422, str(exc)) from None
+            return info["bbox"], info
+        if bbox_txt:
+            return _parse_bbox(bbox_txt), None
+        raise HTTPException(422, "indique bbox=W,S,E,N o area=huila|mun:<id>")
+
+    def conectar(info: dict | None, bbox):
+        """Conexión DuckDB. Con área, registra la tabla celdas_area (celdas de ~1 km cuyo
+        centroide cae en el polígono) y devuelve el filtro SQL para celda_dia y detecciones.
+        Calendario y mapa usan así exactamente las mismas celdas."""
+        con = duckdb.connect()
+        if info is None:
+            return con, "", ""
+        w, s, e, n = bbox
+        filas = con.execute(
+            f"select distinct cell_id, centroide_lat, centroide_lon from read_parquet('{ruta['celda_dia']}')"
+            " where centroide_lat between ? and ? and centroide_lon between ? and ?", [s, n, w, e],
+        ).fetchall()
+        geoms = info["geometrias"]
+        ids = [cid for cid, la, lo in filas if contiene(geoms, lo, la)]
+        con.register("celdas_area", pa.table({"cell_id": pa.array(ids, pa.string())}))
+        filtro = " and cell_id in (select cell_id from celdas_area)"
+        return con, filtro, filtro
+
+    def describir_area(info: dict | None) -> dict:
+        if info is None:
+            return {"id": None, "nombre": None, "filtro": "recuadro"}
+        return {"id": info["id"], "nombre": info["nombre"], "filtro": "poligono",
+                "fuente": "geoBoundaries ADM2 (DANE, CC BY 4.0)"}
+
     def rango(con, bbox, desde: date | None, hasta: date | None) -> tuple[date | None, date | None]:
         """Recorta el rango pedido a la cobertura de los datos [primer día, último día].
 
@@ -115,9 +153,10 @@ def create_app(
             return None, None
         return max(desde or lo, lo), min(hasta or hi, hi)
 
-    def incertidumbre(con, bbox, desde, hasta, dias: list[dict] | None) -> dict[str, Any]:
+    def incertidumbre(con, bbox, desde, hasta, dias: list[dict] | None, fc: str = "", fd: str = "") -> dict[str, Any]:
         w, s, e, n = bbox
-        filtro = "lat between ? and ? and lon between ? and ? and cast(fecha_hora_utc at time zone 'UTC' as date) between ? and ?"
+        filtro = ("lat between ? and ? and lon between ? and ? and cast(fecha_hora_utc at time zone 'UTC' as date) between ? and ?"
+                  + fd)
         params = [s, n, w, e, desde, hasta]
         det = f"read_parquet('{ruta['detecciones']}')"
         pasadas = {
@@ -135,7 +174,7 @@ def create_app(
             clases[clase] = cnt
         anios = [r[0] for r in con.execute(
             f"select distinct year(fecha_utc) from read_parquet('{ruta['celda_dia']}')"
-            " where centroide_lat between ? and ? and centroide_lon between ? and ? order by 1",
+            " where centroide_lat between ? and ? and centroide_lon between ? and ?" + fc + " order by 1",
             [s, n, w, e],
         ).fetchall()]
         out: dict[str, Any] = {
@@ -164,6 +203,8 @@ def create_app(
             "anios_minimos": minimo,
             "percentil": percentil,
             "metodo": "climatología por día del año (R5), excluyendo el año evaluado",
+            "version_r5": lb.VERSION_R5,
+            "nota_cobertura": "La referencia usa la cobertura del conjunto de datos: los días sin focos del área cuentan como 0.",
             "metrica": "n_brutas",
             "ventana_dias": ventana_dias,
             "nota_ventana": "Ventana ±días PROVISIONAL (ADR 0004).",
@@ -188,12 +229,13 @@ def create_app(
             return "sintetico"
         return "real" if n_real else None
 
-    def calendario(bbox_txt: str, desde: date | None, hasta: date | None) -> dict[str, Any]:
-        bbox = _parse_bbox(bbox_txt)
+    def calendario(bbox_txt: str | None, desde: date | None, hasta: date | None,
+                   area: str | None = None) -> dict[str, Any]:
+        bbox, info_area = caja_y_area(bbox_txt, area)
         desde_sol, hasta_sol = desde, hasta
         cuerpo = base()
         w, s, e, n = bbox
-        con = duckdb.connect()
+        con, fc, fd = conectar(info_area, bbox)
         try:
             desde, hasta = rango(con, bbox, desde, hasta)
             filas = {} if desde is None else {
@@ -203,7 +245,7 @@ def create_app(
                     f" string_agg(calidades, ','), max(frp_max), sum(frp_sum)"
                     f" from read_parquet('{ruta['celda_dia']}')"
                     " where centroide_lat between ? and ? and centroide_lon between ? and ?"
-                    " and fecha_utc between ? and ? group by 1",
+                    " and fecha_utc between ? and ?" + fc + " group by 1",
                     [s, n, w, e, desde, hasta],
                 ).fetchall()
             }
@@ -223,28 +265,33 @@ def create_app(
                     "calidad": _calidad(cals), "preliminar": "NRT" in cals,
                 })
                 dia += timedelta(days=1)
-            inc = incertidumbre(con, bbox, desde, hasta, dias)
+            inc = incertidumbre(con, bbox, desde, hasta, dias, fc, fd)
             historia = {
                 f: int(v) for f, v in con.execute(
                     f"select fecha_utc, sum(n_brutas) from read_parquet('{ruta['celda_dia']}')"
-                    " where centroide_lat between ? and ? and centroide_lon between ? and ? group by 1",
+                    " where centroide_lat between ? and ? and centroide_lon between ? and ?" + fc + " group by 1",
                     [s, n, w, e],
                 ).fetchall()
             }
             origen_datos = origen(con)
+            cobertura = con.execute(
+                f"select min(fecha_utc), max(fecha_utc) from read_parquet('{ruta['celda_dia']}')"
+            ).fetchone()
         finally:
             con.close()
+        cobertura = cobertura if cobertura[0] is not None else None
         estado_base = linea_base(inc["anios_con_dato"])
         periodos = meses_pico = clima = None
         if estado_base["estado"] == "suficiente":
-            calc = lb.calcular(historia, percentil=percentil, anios_minimos=minimo, ventana_dias=ventana_dias)
+            calc = lb.calcular(historia, percentil=percentil, anios_minimos=minimo, ventana_dias=ventana_dias,
+                               cobertura=cobertura)
             for d in dias:
                 info = calc.dias.get(date.fromisoformat(d["fecha_utc"]))
                 d["umbral"] = None if info is None or info.umbral is None else round(info.umbral, 2)
                 d["inusual"] = None if info is None else info.inusual
                 d["n_anios_base"] = None if info is None else info.n_anios
             periodos = lb.periodos_inusuales(calc, desde, hasta) if desde else []
-            clima = lb.climatologia_mensual(historia)
+            clima = lb.climatologia_mensual(historia, cobertura=cobertura)
             meses_pico = sorted(clima, key=lambda m: (-clima[m]["media"], m))[:3]
             estado_base["anios_usados"] = inc["anios_con_dato"]
         else:
@@ -252,6 +299,7 @@ def create_app(
                 d.update(umbral=None, inusual=None, n_anios_base=None)
         cuerpo.update({
             "bbox": list(bbox),
+            "area": describir_area(info_area),
             "desde": desde.isoformat() if desde else None,
             "hasta": hasta.isoformat() if hasta else None,
             "desde_solicitado": desde_sol.isoformat() if desde_sol else None,
@@ -304,15 +352,17 @@ def create_app(
 
     @app.get("/calendario")
     def get_calendario(
-        bbox: str = Query(..., description="W,S,E,N en grados"),
+        bbox: str | None = Query(None, description="W,S,E,N en grados"),
         desde: date | None = None,
         hasta: date | None = None,
+        area: str | None = Query(None, description="huila o mun:<shapeID> (filtro por polígono)"),
     ):
-        return calendario(bbox, desde, hasta)
+        return calendario(bbox, desde, hasta, area)
 
     @app.get("/calendario.csv")
-    def get_calendario_csv(bbox: str = Query(...), desde: date | None = None, hasta: date | None = None):
-        cuerpo = calendario(bbox, desde, hasta)
+    def get_calendario_csv(bbox: str | None = None, desde: date | None = None, hasta: date | None = None,
+                           area: str | None = None):
+        cuerpo = calendario(bbox, desde, hasta, area)
         buf = io.StringIO()
         for linea in (
             cuerpo["cita"], cuerpo["aviso"],
@@ -322,6 +372,7 @@ def create_app(
             f"bbox: {','.join(str(v) for v in cuerpo['bbox'])} desde: {cuerpo['desde']} hasta: {cuerpo['hasta']}",
             f"linea_base: {cuerpo['linea_base']['estado']}",
             f"origen_datos: {cuerpo['origen_datos']}",
+            f"area: {cuerpo['area']['nombre'] or 'recuadro'} ({cuerpo['area']['filtro']})",
         ):
             buf.write(f"# {linea}\n")
         campos = ["fecha_utc", "n_detecciones", "n_brutas", "n_modis", "n_viirs",
@@ -333,15 +384,16 @@ def create_app(
 
     @app.get("/detecciones")
     def get_detecciones(
-        bbox: str = Query(...),
+        bbox: str | None = None,
         desde: date | None = None,
         hasta: date | None = None,
         limite: int = Query(5000, ge=1, le=LIMITE_DETECCIONES),
+        area: str | None = None,
     ):
-        caja = _parse_bbox(bbox)
+        caja, info_area = caja_y_area(bbox, area)
         cuerpo = base()
         w, s, e, n = caja
-        con = duckdb.connect()
+        con, fc, fd = conectar(info_area, caja)
         try:
             desde, hasta = rango(con, caja, desde, hasta)
             filas = [] if desde is None or desde > hasta else con.execute(
@@ -349,11 +401,11 @@ def create_app(
                 f" confianza_clase, confianza_raw, lat, lon, frp, cell_id, version, n_fusionados"
                 f" from read_parquet('{ruta['detecciones']}')"
                 " where lat between ? and ? and lon between ? and ?"
-                " and cast(fecha_hora_utc at time zone 'UTC' as date) between ? and ?"
+                " and cast(fecha_hora_utc at time zone 'UTC' as date) between ? and ?" + fd +
                 " order by fecha_hora_utc, record_id limit ?",
                 [s, n, w, e, desde, hasta, limite + 1],
             ).fetchall()
-            inc = incertidumbre(con, caja, desde, hasta, None) if desde and desde <= hasta else {}
+            inc = incertidumbre(con, caja, desde, hasta, None, fc, fd) if desde and desde <= hasta else {}
             origen_datos = origen(con)
         finally:
             con.close()
@@ -368,6 +420,7 @@ def create_app(
             detecciones.append(d)
         cuerpo.update({
             "bbox": list(caja),
+            "area": describir_area(info_area),
             "desde": desde.isoformat() if desde else None,
             "hasta": hasta.isoformat() if hasta else None,
             "origen_datos": origen_datos,

@@ -348,3 +348,62 @@ def test_interfaz_se_revalida_tras_cada_actualizacion(cliente):
     # Sin esto, el navegador puede seguir usando un app.js viejo después de actualizar.
     for ruta in ("/ui/", "/ui/app.js", "/ui/styles.css"):
         assert "no-cache" in cliente.get(ruta).headers.get("cache-control", ""), ruta
+
+
+# ---------------------------------------------------------------- R-40: filtro por polígono
+def test_area_huila_filtra_por_poligono_y_no_suma_mas_que_el_recuadro(cliente):
+    por_recuadro = cliente.get(f"/calendario?bbox={BBOX}").json()
+    por_area = cliente.get("/calendario?area=huila").json()
+    assert por_area["area"]["filtro"] == "poligono" and por_area["area"]["nombre"] == "Huila"
+    assert sum(d["n_brutas"] for d in por_area["dias"]) <= sum(d["n_brutas"] for d in por_recuadro["dias"])
+    assert por_recuadro["area"]["filtro"] == "recuadro"
+
+
+def test_area_municipio_y_area_desconocida(cliente):
+    import json as _json
+
+    geo = _json.loads((RAIZ / "src/ui/static/datos/huila_municipios.geojson").read_text(encoding="utf-8"))
+    neiva = next(f for f in geo["features"] if f["properties"]["shapeName"] == "Neiva")
+    r = cliente.get(f"/calendario?area=mun:{neiva['properties']['shapeID']}")
+    assert r.status_code == 200 and r.json()["area"]["nombre"] == "Neiva"
+    assert cliente.get("/calendario?area=mun:no-existe").status_code == 422
+    assert cliente.get("/calendario").status_code == 422  # sin bbox ni area
+
+
+def test_detecciones_por_area_estan_en_celdas_del_poligono(cliente):
+    # Se filtra por celda de ~1 km (centroide en el polígono), igual que el calendario.
+    from api.area import contiene, resolver_area
+    from harmonize.config import RulesConfig
+    from harmonize.rules import cell_centroid
+
+    geom = resolver_area("huila")
+    cuerpo = cliente.get("/detecciones?area=huila").json()
+    assert cuerpo["detecciones"]
+    cfg = RulesConfig()
+    for d in cuerpo["detecciones"]:
+        f_txt, c_txt = d["cell_id"].split("_")  # formato f<fila>_c<col>
+        fila, col = int(f_txt[1:]), int(c_txt[1:])
+        lat, lon = cell_centroid(fila, col, cfg)
+        assert contiene(geom["geometrias"], lon, lat)
+
+
+def test_calendario_y_mapa_cuentan_lo_mismo_con_area(cliente):
+    cal = cliente.get("/calendario?area=huila").json()
+    det = cliente.get("/detecciones?area=huila&limite=50000").json()
+    assert sum(d["n_detecciones"] for d in cal["dias"]) == len(det["detecciones"])
+
+
+def test_punto_fuera_del_poligono_pero_dentro_del_recuadro_se_excluye():
+    from api.area import contiene, resolver_area
+
+    a = resolver_area("huila")
+    w, s, e, n = a["bbox"]
+    # Esquina del recuadro: dentro del rectángulo, fuera del departamento.
+    assert not contiene(a["geometrias"], w + 0.001, s + 0.001)
+    # Centro de Neiva: dentro.
+    assert contiene(a["geometrias"], -75.28, 2.93)
+
+
+def test_csv_respeta_el_area(cliente):
+    texto = cliente.get("/calendario.csv?area=huila").text
+    assert "# area: Huila (poligono)" in texto
