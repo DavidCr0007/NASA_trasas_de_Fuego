@@ -72,3 +72,18 @@ Roles posibles: `infra`, `datos-ingesta`, `reglas`, `docs`, `QA`.
 | H5-10 | Validación cruzada con historia real y diagnóstico de borde. | La herramienta separa la diferencia por efecto de borde y la diferencia sin explicar debe ser 0; resultados en la metodología §10.1. | hecho | QA | H5-01, H5-08 |
 | H5-11 | DOI oficiales. | Los DOI NRT de MCD14DL, VNP14, VJ114 y VJ214 se copian de la página de cada producto y se comprueba que resuelven en doi.org. | hecho | docs | H0-08 |
 
+## H6: interfaz entendible, tema claro/oscuro y origen de los datos
+
+Objetivo: presentar los datos a un público no técnico (respondedores de emergencia, gestores de tierras, jurado).
+
+| ID | Descripción | Criterio de aceptación | Estado | Rol | Dependencias |
+|---|---|---|---|---|---|
+| H6-01 | Origen de los datos en la API: `/calendario` y `/detecciones` exponen `origen_datos`. | `origen_datos` vale `"sintetico"`, `"real"`, `"mixto"` o `null` si no hay detecciones, calculado de la columna `sintetico` de `detecciones.parquet` sobre todo el conjunto. Pruebas en `tests/test_api.py` con conjuntos sintético, real y mixto. | pendiente | api | H3 |
+| H6-02 | Insignia de origen en la interfaz. | Muestra «DATOS SINTÉTICOS (demostración)», «Datos reales NASA FIRMS» o «Datos mixtos: reales y sintéticos», junto a la de calidad (PRELIMINAR/estándar, D-02). | pendiente | ui | H6-01 |
+| H6-03 | Tema claro y oscuro. | Tokens en `:root` redefinidos con `@media (prefers-color-scheme: dark)` y selector manual claro/oscuro/sistema guardado en `localStorage` con try/catch. Contraste WCAG AA (texto ≥ 4,5:1; gráficos y foco ≥ 3:1) en ambos temas para escala e0..e4, días inusuales, puntos MODIS/VIIRS, insignias, cajas de aviso, popups y controles de Leaflet. Teselas oscurecidas con filtro CSS. El mapa funciona sin internet. | pendiente | ui | H4-05 |
+| H6-04 | Resumen en lenguaje sencillo y explicaciones «¿qué significa?». | El resumen se genera solo con la respuesta de `/calendario`. Explica foco de calor, día inusual, NRT/preliminar, huella del píxel, base insuficiente y efecto de borde. Incluye el aviso de FIRMS «Do not use for the preservation of life or property» traducido y citado. Fechas legibles («12 ago 2026») además de ISO, números es-CO y unidades. | pendiente | ui | H4-03 |
+| H6-05 | Calendario accesible. | Celdas navegables con teclado (flechas, Inicio/Fin, Enter/Espacio); roles ARIA `grid`/`row`/`gridcell`; `aria-selected`; tooltip propio; foco visible; día seleccionado resaltado. Comparación «este año frente al promedio histórico mensual» en SVG propio, aclarando que el promedio incluye el año mostrado en sus meses completos. | pendiente | ui | H6-03 |
+| H6-06 | Robustez de la interfaz. | `pedir()` lee el cuerpo una sola vez; calendario vacío (`dias=[]`) sin errores; sin carreras entre cargas concurrentes (solo pinta la última); estados de carga, vacío y error comprensibles con botón de reintento; responsive desde 375 px sin scroll horizontal de la página (cita larga con `overflow-wrap`). | pendiente | ui | H4-05 |
+| H6-07 | Pruebas de interfaz. | `tests/test_interfaz.py` comprueba que no hay recursos remotos obligatorios, que hay tokens en ambos temas con contraste AA calculado, el selector de tema, la cita D-10 y la insignia de origen. `uv run pytest -q && make demo` pasa. | pendiente | QA | H6-01..06 |
+| H6-08 | Documentación de H6. | Se actualizan `docs/metodologia.md` §9, `docs/capturas/LEEME.md` (capturas a retomar en claro y oscuro) y el ADR 0008 (tema), sin reescribir otras secciones. | pendiente | docs | H6-01..07 |
+
