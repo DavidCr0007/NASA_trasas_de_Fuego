@@ -30,15 +30,18 @@ información se entrega «tal cual» y los usuarios asumen toda la responsabilid
 
 | producto | calidad | DOI |
 |---|---|---|
-| MCD14DL (MODIS C6.1) | NRT | por confirmar |
-| MCD14ML (MODIS C6.1) | estándar | por confirmar |
-| VNP14IMGTDL_NRT (Suomi NPP, solo histórico) | NRT | por confirmar |
-| VJ114IMGTDL_NRT (NOAA-20) | NRT | por confirmar |
-| VJ214IMGTDL_NRT (NOAA-21) | NRT | por confirmar |
-| VIIRS 375 m estándar (SNPP, NOAA-20, NOAA-21) | estándar | por confirmar |
+| MCD14DL (MODIS C6.1) | NRT | 10.5067/FIRMS/MODIS/MCD14DL.NRT.0061 |
+| VNP14IMGTDL_NRT (Suomi NPP, solo histórico) | NRT | 10.5067/FIRMS/VIIRS/VNP14IMGT_NRT.002 |
+| VJ114IMGTDL_NRT (NOAA-20) | NRT | 10.5067/FIRMS/VIIRS/VJ114IMGT_NRT.002 |
+| VJ214IMGTDL_NRT (NOAA-21) | NRT | 10.5067/FIRMS/VIIRS/VJ214IMGT_NRT.002 |
+| MCD14ML (MODIS C6.1) | estándar | 10.5067/FIRMS/MODIS/MCD14ML (resuelve a la página de FIRMS; versión por confirmar) |
+| VIIRS 375 m estándar (SNPP, NOAA-20) | estándar | por confirmar |
 
-Los DOI no figuraban en las páginas consultadas. Hay que copiarlos de la página de cada
-producto (riesgo R-24).
+Los cuatro DOI NRT se copiaron el 2026-11-13 de la página de cada producto en
+<https://modaps.modaps.eosdis.nasa.gov/services/about/products/> (`c61-nrt/MCD14DL-NRT.html`,
+`viirs-land-c2-nrt/vnp14imgtdl_nrt.html`, `vj114imgtdl_nrt.html` y `vj214imgtdl_nrt.html`).
+Los cuatro resuelven en doi.org al catálogo de Earthdata. El DOI de los productos VIIRS
+estándar sigue pendiente (R-24).
 
 ## Estudios de validación citados por FIRMS
 

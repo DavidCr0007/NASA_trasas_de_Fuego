@@ -21,7 +21,7 @@ Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indica
 - [x] Credenciales fuera del repositorio: `.env` en `.gitignore` y `.env.example` vacío.
 - [x] Cita de FIRMS + LANCE + ESDIS y aviso «as is» literales en la app, la exportación y el README.
 - [x] Tablas de atributos consultadas antes del lector; escala de confianza VIIRS y códigos de satélite confirmados.
-- [!] Muestra real de varios años del Huila en `data/raw`: **bloqueado por B-01** (falta `FIRMS_MAP_KEY`). Hay muestra real de 24 h de Sudamérica (NRT).
+- [x] Muestra real de varios años del Huila en `data/raw`: Colombia 2016–2025 por la ruta pública por país (ADR 0009, `make real`), calidad estándar y 84 833 focos en el Huila. La API area con MAP_KEY sigue pendiente (B-01) y no hay datos de 2026.
 
 ## Reglas (§3)
 
@@ -48,11 +48,11 @@ Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indica
 
 ## Validación de veracidad (§8)
 
-- [x] Conteo independiente frente al pipeline con datos reales: diferencia 0 en el Huila y en Colombia (`docs/metodologia.md` §10.1).
+- [x] Conteo independiente frente al pipeline con datos reales (NRT de 24 h y estándar 2016–2025): diferencia sin explicar 0; el efecto de borde se informa aparte (`docs/metodologia.md` §10.1).
 - [ ] Comparación con el **visor** de FIRMS para un día y un área: procedimiento listo y conteos por registrar (H5-02). Requiere una persona frente al visor.
 - [x] Limitaciones declaradas: detecciones térmicas, centro de píxel, saturación VIIRS, sesgo horario de Terra y NRT (`docs/limitaciones.md` §10).
 - [x] Bibliografía de validación (`docs/metodologia.md` §11 y `docs/cita.md`).
-- [ ] DOI de cada producto (R-24).
+- [x] DOI de los cuatro productos NRT verificados (`docs/cita.md`). [ ] Falta el DOI de VIIRS estándar.
 
 ## Antes de enviar
 
@@ -60,4 +60,4 @@ Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indica
 - [x] `make demo` y `make api` funcionan sin red.
 - [x] `make secrets` sin hallazgos.
 - [x] `git ls-files` no incluye `data/raw`, `data/processed` ni `.env`.
-- [ ] Confirmar con los organizadores la duración del evento local y el formato de envío.
+- [ ] Confirmar con los organizadores la sede en Neiva, la duración y el formato de envío. Dato público: el hackatón global es el 14 y 15 de noviembre de 2026 (R-38).

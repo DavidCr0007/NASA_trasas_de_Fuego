@@ -218,7 +218,19 @@ Para reproducirlo:
 uv run python -I tools/validacion_cruzada.py data/raw/firms_24h_south_america/20261113 <salida> -76.7,1.4,-74.3,3.9 2026-11-12
 ```
 
+**Resultado con historia real (ruta pública, ADR 0009).** Fuente: archivo anual por país de FIRMS, Colombia 2016–2025, recortado al Huila. Calidad **estándar**; descargado el 2026-11-13. Reglas `armonizacion-0.3.1`. Entrada: 84 833 detecciones, 0 en cuarentena; se cumple el balance de conteos.
+
+| día UTC | crudas (MODIS / Suomi NPP / NOAA-20) | `n_brutas` | borde | sin explicar |
+|---|---|---|---|---|
+| 2024-09-15 (día de mayor actividad de 2024) | 426 (22 / 174 / 230) | 425 | 1 | 0 |
+| 2025-03-25 | 205 (7 / 138 / 60) | 199 | 6 | 0 |
+| 2024-02-10 | 2 | 2 | 0 | 0 |
+
+«Borde» son los puntos dentro del bbox cuya celda de ~1 km tiene el centroide fuera: el pipeline asigna cada celda-día por su centroide. No hay pérdidas; la herramienta lo calcula e informa por separado (R-37).
+
 ### 10.2 Comparación con el visor de FIRMS (pendiente, H5-02)
+
+Intento del 2026-11-13: el visor abre con un aviso que hay que aceptar, y aceptarlo requiere la decisión de una persona. Además, el conteo por área se hace dibujando a mano. Queda como paso manual. Para un día con historia estándar conviene usar el **2024-09-15** (`n_brutas` = 425 y 426 puntos en el bbox).
 
 Requiere una persona frente al visor <https://firms.modaps.eosdis.nasa.gov/map/>:
 
@@ -228,7 +240,8 @@ Requiere una persona frente al visor <https://firms.modaps.eosdis.nasa.gov/map/>
 
 | fuente | MODIS | NOAA-20 | NOAA-21 | total | diferencia con `n_brutas` | explicación |
 |---|---|---|---|---|---|---|
-| visor de FIRMS, 2026-11-12, Huila | por registrar | por registrar | por registrar | por registrar | por registrar | por registrar |
+| visor de FIRMS, 2026-11-12, Huila (NRT) | por registrar | por registrar | por registrar | por registrar | por registrar | por registrar |
+| visor de FIRMS, 2024-09-15, Huila (estándar) | por registrar | por registrar | por registrar | por registrar | por registrar | por registrar |
 
 Causas esperables de diferencia:
 

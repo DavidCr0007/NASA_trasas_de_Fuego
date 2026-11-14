@@ -86,3 +86,18 @@ BLOQUEO B-01: falta FIRMS_MAP_KEY en .env (ver .env.example); se continúa con d
 
 y termina con código 2. En ese caso no intenta la red ni crea archivos crudos;
 el trabajo puede continuar offline con los datos sintéticos de `data/sample`.
+
+## Ruta pública temporal sin MAP_KEY (ADR 0009)
+
+Mientras se valida la `FIRMS_MAP_KEY`, la historia se obtiene del archivo anual por país de FIRMS, que es público, no pide clave y tiene calidad estándar:
+
+```bash
+make real       # descarga Colombia 2016–2025 (~165 MB la primera vez), recorta al Huila y procesa
+make api-real   # sirve la interfaz con los datos reales: http://127.0.0.1:8000
+```
+
+- Los crudos quedan en `data/raw/firms_pais/Colombia/` (solo lectura y con SHA-256 en `data/raw/manifest.jsonl`). En ejecuciones siguientes se reutilizan y se verifica su hash.
+- El recorte va a `data/processed/recortes_pais/huila/`, con un manifiesto que incluye `origen_archivo` y `origen_sha256`.
+- Un año no publicado (404) se informa como «no disponible». Una respuesta con cabecera inválida no se guarda y el comando termina con código 3.
+- Límite: no hay archivo por país de 2026 ni de NOAA-21.
+

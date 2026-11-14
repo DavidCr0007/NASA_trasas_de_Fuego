@@ -62,3 +62,13 @@ Roles posibles: `infra`, `datos-ingesta`, `reglas`, `docs`, `QA`.
 | H5-05 | Lista de verificación de entrega. | `docs/checklist_entrega.md` marca cada entregable y requisito (D-01 a D-11, R1 a R5, §8, §9) como hecho, pendiente o bloqueado, con evidencia. | hecho | QA | H5-01..04 |
 | H5-06 | README completo. | El README cubre instalación, uso, datos, citación y limitaciones, y refleja el estado H0 a H5. | hecho | docs | H4 |
 | H5-07 | Bibliografía de validación en la metodología. | `docs/metodologia.md` incluye los estudios de validación que cita FIRMS (copiados de `docs/cita.md`). | hecho | docs | H0-08 |
+
+## Mitigación de B-01 y cierre de pendientes de H5
+
+| ID | Descripción | Criterio de aceptación | Estado | Rol | Dependencias |
+|---|---|---|---|---|---|
+| H5-08 | Ruta pública temporal sin MAP_KEY (ADR 0009). | `ingest.firms_publico` descarga el archivo anual por país, crudo inmutable con SHA-256 y URL; reutiliza lo ya descargado; informa los 404; rechaza cabeceras inválidas; escribe recortes por bbox con hash de origen. `make real` procesa el Huila 2016–2025 sin cuarentena y con línea base suficiente. Pruebas con descarga simulada. | hecho | datos-ingesta | H1, H4 |
+| H5-09 | Variante de esquema «archivo por país». | `firms_schema` reconoce `Terra`/`Aqua`, `l`/`n`/`h` e `instrument` y `type`, con fuente [K]; los recortes reales de Colombia 2023 validan sin cuarentena. | hecho | datos-ingesta | H0-07 |
+| H5-10 | Validación cruzada con historia real y diagnóstico de borde. | La herramienta separa la diferencia por efecto de borde y la diferencia sin explicar debe ser 0; resultados en la metodología §10.1. | hecho | QA | H5-01, H5-08 |
+| H5-11 | DOI oficiales. | Los DOI NRT de MCD14DL, VNP14, VJ114 y VJ214 se copian de la página de cada producto y se comprueba que resuelven en doi.org. | hecho | docs | H0-08 |
+
