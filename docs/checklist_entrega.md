@@ -1,6 +1,6 @@
 # Lista de verificación de entrega
 
-Revisada el 2026-11-13 sobre `main` con reglas `armonizacion-0.3.1`.
+Revisada el 2026-11-14 sobre `main` (0a0d3c7) con reglas `armonizacion-0.3.1`.
 Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indicado).
 
 ## Entregables (§9)
@@ -8,7 +8,8 @@ Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indica
 - [x] Repositorio con README: instalación, uso, datos, citación y limitaciones. Ver `README.md`.
 - [x] Demo ejecutable con datos locales y sin red: `make demo` y `make api`. Dos ejecuciones dan los mismos hashes.
 - [x] Documento de metodología completo: `docs/metodologia.md` (flujo, R1 a R5, API, interfaz, validación cruzada y bibliografía).
-- [x] Capturas de respaldo en `docs/capturas/` (H5-03): vista general, calendario, día seleccionado con huella y base insuficiente. Ver `docs/capturas/LEEME.md`.
+- [x] Capturas de respaldo en `docs/capturas/` (H5-03): vista general, calendario, día seleccionado con huella y base insuficiente. Ver `docs/capturas/LEEME.md`. Con datos reales (ADR 0009) e interfaz H6 en claro, oscuro y 375 px: `05`–`08`.
+- [ ] Interfaz H6: tema claro/oscuro con contraste AA calculado, insignia de origen de los datos, resumen en lenguaje sencillo y calendario accesible (`tests/test_interfaz.py`). Pendiente: `uv run pytest -q` no se pudo ejecutar el 2026-11-14 (sistema de archivos de solo lectura en el entorno de revisión).
 - [x] Pitch de 2 minutos: `docs/pitch.md`, sincronizado con el código (`tests/test_documentos.py`).
 - [x] Esta lista, marcada antes de enviar.
 
