@@ -276,7 +276,8 @@ path.area-dibujo { fill: var(--acento); fill-opacity: 0.14; stroke: var(--acento
 .leaflet-popup-content { overflow-wrap: anywhere; }
 .leaflet-container a, .leaflet-container a.leaflet-popup-close-button { color: var(--enlace); }
 .leaflet-container a.leaflet-popup-close-button { opacity: 1; }
-.leaflet-bar a, .leaflet-bar a:hover { border-color: var(--borde); background: var(--boton-fondo); color: var(--boton-tinta); }
+.leaflet-container a.leaflet-popup-close-button:hover, .leaflet-container a.leaflet-popup-close-button:focus { color: var(--tinta); }
+.leaflet-bar a, .leaflet-bar a:hover, .leaflet-bar a:focus { border-color: var(--borde); background: var(--boton-fondo); color: var(--boton-tinta); }
 .leaflet-bar a.leaflet-disabled { background: var(--boton-fondo); color: var(--tenue); opacity: 0.6; }
 .leaflet-container .leaflet-control-attribution { max-width: 70%; background: color-mix(in srgb, var(--tarjeta) 88%, transparent); color: var(--tinta); font-size: 10px; overflow-wrap: anywhere; }
 .leaflet-container .leaflet-control-attribution a { color: var(--enlace); }

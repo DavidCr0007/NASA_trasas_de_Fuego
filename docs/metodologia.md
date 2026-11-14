@@ -170,7 +170,7 @@ Interpretación: con un P95 sobre una serie estable se espera que ~5 % de los d�
 `make api` sirve la interfaz en http://127.0.0.1:8000/ (ADR 0008). Funciona sin internet; las teselas base son opcionales.
 
 - **Mapa.** Cada foco es un punto y un círculo del tamaño de su huella nominal (MODIS 1 km y VIIRS 375 m), con ventana de detalle: satélite, hora UTC, confianza, FRP, calidad y duplicados agrupados. El área se elige entre Huila, Neiva o un rectángulo dibujado.
-- **Calendario de actividad.** Un año por vista, con color por `n_brutas`. Los días inusuales llevan borde violeta y los días con datos NRT, un punto blanco («preliminar»). Al hacer clic en un día, el mapa muestra solo ese día.
+- **Calendario de actividad.** Un año por vista, con color por `n_brutas`. Los días inusuales llevan un borde de color propio (violeta en el tema claro, azul en el oscuro); el día seleccionado, un borde de otro color (verde azulado en claro, amarillo en oscuro); y los días con datos NRT, un punto blanco («preliminar»). Al hacer clic en un día, el mapa muestra solo ese día.
 - **Panel.** Estado de la línea base (incluido «base insuficiente»), temporada mensual con meses pico, periodos críticos, metadatos de incertidumbre y versión de reglas.
 - **Calidad y cita.** La insignia de calidad cambia a PRELIMINAR si hay NRT. El enlace «Exportar CSV» incluye cita, aviso, versión y calidad. El mapa lleva la atribución «NASA FIRMS (LANCE / ESDIS)» y el pie, la cita y el aviso completos (D-10).
 
@@ -191,7 +191,7 @@ La demo usa `data/sample_historica/`: datos **sintéticos** de 2020 a 2026 gener
   - *NRT / preliminar*: datos casi en tiempo real que pueden corregirse después (D-02).
   - *Huella del píxel*: MODIS ~1 km y VIIRS ~375 m; el fuego está en algún punto del círculo.
   - *Base insuficiente*: el área tiene menos de 5 años de referencia, así que no se marcan días inusuales.
-  - *Efecto de borde*: un foco puede estar dentro del área pero contarse fuera, porque cada celda de ~1 km se asigna al área por su centroide (§10.1). Distinto de la huella: el píxel también crece hacia los extremos del barrido.
+  - *Efecto de borde*: el calendario asigna cada celda de ~1 km al área por su centroide; el mapa filtra cada foco por su posición. Cerca del límite del área, un foco puede estar dentro y contarse fuera, o al revés, así que ambos conteos pueden diferir un poco (§10.1). Es distinto de la huella: el píxel también crece hacia los extremos del barrido.
 - **Aviso de FIRMS.** La interfaz muestra la traducción «No usar para proteger vidas ni bienes» y cita el original en inglés, «Do not use for the preservation of life or property» (aviso de NASA FIRMS). El aviso va en un recuadro debajo del resumen, antes del mapa; la cita y el aviso completos siguen en el pie (D-10).
 - **Formato.** Fechas legibles («12 ago 2026») con la fecha ISO al lado en el detalle del día, en la ventana de cada foco y en los periodos críticos; la comparación mensual marca los meses incompletos; números con formato es-CO (coma decimal, punto de miles) y unidades explícitas (focos, MW, metros, %).
 
