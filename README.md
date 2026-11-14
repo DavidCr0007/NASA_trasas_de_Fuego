@@ -114,6 +114,16 @@ curl "http://127.0.0.1:8000/calendario.csv?bbox=-76.7,1.4,-74.3,3.9" -o calendar
 
 Cada respuesta trae la cita de FIRMS, el aviso «as is», la versión de reglas, la calidad (NRT/estándar, `preliminar`), los metadatos de incertidumbre y el estado de la línea base («base insuficiente» si no hay años suficientes). Rutas y campos: [docs/metodologia.md](docs/metodologia.md#7-api-de-consulta-h3).
 
+## Capas de contexto (H7)
+
+En el mapa y el panel hay tres capas de contexto (ADR 0010):
+
+- **Límites de los 37 municipios del Huila** (geoBoundaries / DANE). Funcionan sin red.
+- **Imagen satelital de color real del día elegido** (NASA GIBS). Requiere internet.
+- **Clima del día o del periodo crítico** (Open-Meteo; es un reanálisis, no una observación). Requiere internet.
+
+Si no hay red, la herramienta funciona sin las dos últimas.
+
 ## Limitaciones
 
 Lo esencial; el detalle está en [docs/limitaciones.md](docs/limitaciones.md):

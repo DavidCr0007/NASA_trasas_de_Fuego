@@ -230,6 +230,12 @@ Fuente: CSV públicos de FIRMS de 24 h para South America. Calidad **NRT**; desc
 
 La mayor parte de la deduplicación ocurre **dentro de VIIRS**: varios píxeles de 375 m caen en la misma celda de ~1 km en la misma pasada. Por eso `n_detecciones` (representantes) no es comparable con los conteos brutos del visor de FIRMS. En la validación cruzada (H5) hay que usar `n_brutas`, que `celda_dia` conserva. Riesgo R-25.
 
+**Fuentes complementarias (H7, ADR 0010).**
+
+- **Límites:** el mapa dibuja los 37 municipios del Huila (geoBoundaries ADM2, DANE, CC BY 4.0) desde un GeoJSON local, generado por `tools/preparar_limites.py` con el SHA-256 del crudo. El selector de área ofrece cada municipio y consulta su recuadro.
+- **Imagen:** al elegir un día, el selector «Imagen satelital del día» superpone el color real de NASA GIBS (VIIRS NOAA-20 o MODIS Terra) en un panel propio, que no se invierte en el tema oscuro.
+- **Clima:** la tarjeta «Clima (reanálisis)» muestra la temperatura máxima, la humedad mínima, la lluvia y el viento máximo de Open-Meteo para ±3 días alrededor del día elegido o, sin día, para el periodo crítico principal. Ejemplo con datos reales: alrededor del 15 sep 2024, máx. 37,6 °C, humedad mín. 21 % y 0,6 mm de lluvia.
+
 ## 10. Validación cruzada (H5)
 
 ### 10.1 Pipeline frente al archivo oficial

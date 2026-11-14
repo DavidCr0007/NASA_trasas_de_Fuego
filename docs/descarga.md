@@ -101,3 +101,16 @@ make api-real   # sirve la interfaz con los datos reales: http://127.0.0.1:8000
 - Un año no publicado (404) se informa como «no disponible». Una respuesta con cabecera inválida no se guarda y el comando termina con código 3.
 - Límite: no hay archivo por país de 2026 ni de NOAA-21.
 
+
+## Límites municipales (geoBoundaries, ADR 0010)
+
+Los crudos simplificados de Colombia (ADM1 y ADM2, commit `9469f09`) se descargaron el 2026-11-14 a `data/raw/geoboundaries/20261114/` y quedaron en `data/raw/manifest.jsonl` con SHA-256, URL y licencia:
+
+```bash
+B=https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/COL
+curl -sSfL -o data/raw/geoboundaries/20261114/geoBoundaries-COL-ADM1_simplified.geojson $B/ADM1/geoBoundaries-COL-ADM1_simplified.geojson
+curl -sSfL -o data/raw/geoboundaries/20261114/geoBoundaries-COL-ADM2_simplified.geojson $B/ADM2/geoBoundaries-COL-ADM2_simplified.geojson
+uv run python -I tools/preparar_limites.py   # escribe src/ui/static/datos/huila_municipios.geojson (37 municipios)
+```
+
+El GeoJSON resultante se versiona, de modo que la demo funciona sin red.

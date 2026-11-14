@@ -59,6 +59,19 @@ de validación:
 
 - Schroeder, W., Oliva, P., Giglio, L., & Csiszar, I. (2014). The New VIIRS 375 m active fire detection data product: Algorithm description and initial assessment. *Remote Sensing of Environment*, 143, 85–96.
 
+## Fuentes complementarias de la interfaz (H7, ADR 0010)
+
+**NASA GIBS**: imagen de color real del día. Reconocimiento solicitado en la documentación de la API de GIBS (<https://nasa-gibs.github.io/gibs-api-docs/>, consultada el 2026-11-14):
+
+> We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse
+> Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS).
+
+**Open-Meteo**: clima histórico. Los datos de la API se publican con licencia CC BY 4.0 (<https://open-meteo.com/en/terms>). La API histórica se basa en los reanálisis ERA5 y ERA5-Land y en el modelo IFS de ECMWF (<https://open-meteo.com/en/docs/historical-weather-api>). En la interfaz figura «Datos meteorológicos: Open-Meteo.com (CC BY 4.0)». El texto exacto de crédito que pide Open-Meteo y el crédito adicional de Copernicus/ECMWF siguen **por confirmar**: su página de licencia redirigía el 2026-11-14 y no se pudo leer (R-39).
+
+**geoBoundaries**: límites municipales del Huila (ADM2, fuente DANE 2020, CC BY 4.0). El ADM1 (OpenStreetMap, ODbL 1.0) solo se usa para seleccionar los municipios y no se redistribuye.
+
+- Runfola, D., et al. (2020). geoBoundaries: A global database of political administrative boundaries. *PLoS ONE*, 15(4), e0231866.
+
 ## Cómo citar este proyecto
 
 Harmonized Heat Neiva (NASA Space Apps 2026, reto «Harmonization of MODIS and VIIRS Hot

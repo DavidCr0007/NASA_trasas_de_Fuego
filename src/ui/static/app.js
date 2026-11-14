@@ -6,7 +6,7 @@
 "use strict";
 
 const AREAS = {
-  huila: [-76.7, 1.4, -74.3, 3.9], // bbox aproximado (firms_schema.HUILA_BBOX, por confirmar)
+  huila: [-76.7, 1.4, -74.3, 3.9], // firms_schema.HUILA_BBOX: contiene el límite oficial (geoBoundaries) con 0,05-0,15° de margen
   neiva: [-75.53, 2.68, -75.03, 3.18], // Neiva (2,93; -75,28) ± 0,25°
 };
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -127,13 +127,136 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 mapa.attributionControl.addAttribution(
   'Focos: <a href="https://www.earthdata.nasa.gov/data/tools/firms">NASA FIRMS</a> (LANCE / ESDIS)'
 );
+// Pocas figuras con estilo del tema (área y límites): en SVG, para que apliquen las clases CSS.
+const svgVector = L.svg();
+const capaLimites = L.layerGroup().addTo(mapa);
 const capaArea = L.layerGroup().addTo(mapa);
 const capaFocos = L.layerGroup().addTo(mapa);
 
 function dibujarArea() {
   capaArea.clearLayers();
   const [w, s, e, n] = estado.bbox;
-  L.rectangle([[s, w], [n, e]], { className: "area-rect", weight: 1.5, fill: false, dashArray: "4 4" }).addTo(capaArea);
+  L.rectangle([[s, w], [n, e]], { renderer: svgVector, className: "area-rect", weight: 1.5, fill: false, dashArray: "4 4", interactive: false }).addTo(capaArea);
+}
+
+// ------------------------------------------------------------------ límites (H7-01)
+// Municipios del Huila (geoBoundaries ADM2, DANE, CC BY 4.0), servidos localmente: funcionan sin red.
+let municipios = [];
+let capaMunicipios = null;
+
+async function cargarLimites() {
+  try {
+    const geo = await pedir("/ui/datos/huila_municipios.geojson");
+    municipios = geo.features ?? [];
+    capaMunicipios = L.geoJSON(geo, {
+      renderer: svgVector, interactive: false,
+      style: () => ({ className: "limite-municipio", weight: 1, fill: false }),
+    }).addTo(capaLimites);
+    const grupo = document.createElement("optgroup");
+    grupo.label = "Municipios del Huila (recuadro del municipio)";
+    for (const f of municipios) {
+      const o = document.createElement("option");
+      o.value = `mun:${f.properties.shapeID}`;
+      o.textContent = f.properties.shapeName;
+      grupo.appendChild(o);
+    }
+    $("sel-area").appendChild(grupo);
+    mapa.attributionControl.addAttribution(
+      'Límites: <a href="https://www.geoboundaries.org">geoBoundaries</a> (DANE, CC BY 4.0)'
+    );
+  } catch {
+    // Sin límites la herramienta sigue funcionando: solo no se dibujan los municipios.
+  }
+}
+
+function resaltarMunicipio(id) {
+  if (!capaMunicipios) return;
+  capaMunicipios.eachLayer((l) => {
+    const el = l.getElement && l.getElement();
+    if (el) el.classList.toggle("limite-sel", l.feature?.properties?.shapeID === id);
+  });
+}
+
+// ------------------------------------------------------------------ imagen del día (H7-02)
+// NASA GIBS: color real del día seleccionado. Panel propio fuera de .leaflet-tile-pane para
+// que el filtro del tema oscuro no invierta la imagen. Requiere red; es opcional.
+mapa.createPane("imagen");
+mapa.getPane("imagen").style.zIndex = 250;
+const CAPAS_GIBS = {
+  modis: "MODIS_Terra_CorrectedReflectance_TrueColor",
+  viirs: "VIIRS_NOAA20_CorrectedReflectance_TrueColor",
+};
+let capaGibs = null;
+
+function actualizarImagen() {
+  if (capaGibs) { mapa.removeLayer(capaGibs); capaGibs = null; }
+  const sel = $("sel-imagen");
+  const nota = $("imagen-nota");
+  if (!sel) return;
+  sel.disabled = !estado.dia;
+  if (!estado.dia) { nota.textContent = "Elija un día en el calendario para ver la imagen satelital de ese día."; return; }
+  const capa = CAPAS_GIBS[sel.value];
+  if (!capa) { nota.textContent = ""; return; }
+  capaGibs = L.tileLayer(
+    `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${capa}/default/${estado.dia}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`,
+    { pane: "imagen", maxNativeZoom: 9, maxZoom: 17, opacity: 0.92,
+      attribution: 'Imagen: <a href="https://www.earthdata.nasa.gov/data/tools/gibs">NASA GIBS</a> (ESDIS)' },
+  ).addTo(mapa);
+  nota.textContent = `Imagen de color real del ${fechaLegible(estado.dia)} (NASA GIBS). Las nubes pueden ocultar el humo; ` +
+    "las franjas negras son zonas por donde el satélite no pasó ese día (pruebe el otro satélite). Requiere internet.";
+}
+
+// ------------------------------------------------------------------ clima (H7-03)
+// Open-Meteo, archivo histórico: reanálisis (modelo), no observaciones. Opcional; requiere red.
+let meteoGen = 0;
+const sumarDias = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+
+async function pintarMeteo() {
+  const caja = $("meteo");
+  if (!caja) return;
+  const c = estado.calendario;
+  let desde, hasta, titulo;
+  if (estado.dia) {
+    desde = sumarDias(estado.dia, -3); hasta = sumarDias(estado.dia, 3);
+    titulo = `alrededor del ${fechaLegible(estado.dia)}`;
+  } else {
+    const p = c && c.periodos_inusuales ? periodosOrdenados(c)[0] : null;
+    if (!p) { caja.innerHTML = `<p class="tenue">Elija un día en el calendario para ver el clima de esos días.</p>`; return; }
+    desde = sumarDias(p.inicio, -2); hasta = sumarDias(p.fin, 2);
+    titulo = `del periodo crítico principal (${fechaLegible(p.inicio)} → ${fechaLegible(p.fin)})`;
+  }
+  const [w, s, e, n] = estado.bbox;
+  const lat = ((s + n) / 2).toFixed(2), lon = ((w + e) / 2).toFixed(2);
+  const gen = ++meteoGen;
+  caja.innerHTML = `<p class="tenue">Consultando el clima ${esc(titulo)}…</p>`;
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}` +
+    `&start_date=${desde}&end_date=${hasta}&timezone=UTC` +
+    "&daily=temperature_2m_max,relative_humidity_2m_min,precipitation_sum,wind_speed_10m_max";
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = (await r.json()).daily;
+    if (gen !== meteoGen) return;
+    const inusual = new Set((c?.dias ?? []).filter((x) => x.inusual).map((x) => x.fecha_utc));
+    const filas = d.time.map((t, i) => {
+      const marcas = [t === estado.dia ? "día elegido" : "", inusual.has(t) ? "inusual" : ""].filter(Boolean).join(", ");
+      return `<tr${t === estado.dia ? ' class="fila-sel"' : ""}><th scope="row">${esc(fechaLegible(t))}${marcas ? ` <span class="tenue">(${marcas})</span>` : ""}</th>` +
+        `<td>${fmt(d.temperature_2m_max[i], 1)} °C</td><td>${fmt(d.relative_humidity_2m_min[i])} %</td>` +
+        `<td>${fmt(d.precipitation_sum[i], 1)} mm</td><td>${fmt(d.wind_speed_10m_max[i], 0)} km/h</td></tr>`;
+    }).join("");
+    const vals = (k) => d[k].filter((v) => v != null);
+    const lluvia = vals("precipitation_sum").reduce((a, b) => a + b, 0);
+    caja.innerHTML =
+      `<p><strong>Clima ${esc(titulo)}</strong>: máx. ${fmt(Math.max(...vals("temperature_2m_max")), 1)} °C, ` +
+      `humedad mín. ${fmt(Math.min(...vals("relative_humidity_2m_min")))} %, lluvia total ${fmt(lluvia, 1)} mm.</p>` +
+      `<details><summary>Ver día por día</summary><table class="tabla-cmp"><thead><tr><th scope="col">Día</th>` +
+      `<th scope="col">T. máx.</th><th scope="col">Hum. mín.</th><th scope="col">Lluvia</th><th scope="col">Viento máx.</th>` +
+      `</tr></thead><tbody>${filas}</tbody></table></details>` +
+      `<p class="tenue">Punto central del área (${esc(fmt(Number(lat), 2))}; ${esc(fmt(Number(lon), 2))}). Calor, humedad baja y ausencia de lluvia favorecen las quemas, pero no las causan.</p>`;
+  } catch {
+    if (gen !== meteoGen) return;
+    caja.innerHTML = `<p class="tenue">No se pudo consultar el clima (requiere internet o la fecha aún no está en el archivo, que tiene unos días de retraso). El resto de la herramienta funciona sin él.</p>`;
+  }
 }
 
 function activarDibujo() {
@@ -702,6 +825,8 @@ async function cargarFocos() {
 
 async function seleccionarDia(dia) {
   estado.dia = dia;
+  actualizarImagen();
+  pintarMeteo();
   celdas.forEach((r, k) => {
     const es = r.dataset.dia === dia;
     r.classList.toggle("sel", es);
@@ -754,6 +879,8 @@ async function cargar() {
       return;
     }
     $("resumen-texto").textContent = resumir(c);
+    actualizarImagen();
+    pintarMeteo();
     const ok = await cargarFocos();
     if (!h.vigente() || !ok) return;
     mapa.fitBounds([[s, w], [n, e]], { padding: [10, 10] });
@@ -766,10 +893,21 @@ async function cargar() {
 }
 
 $("sel-area").addEventListener("change", (ev) => {
-  if (AREAS[ev.target.value]) { estado.bbox = AREAS[ev.target.value]; estado.dia = null; cargar(); }
+  const v = ev.target.value;
+  if (AREAS[v]) { estado.bbox = AREAS[v]; resaltarMunicipio(null); estado.dia = null; cargar(); return; }
+  if (v.startsWith("mun:")) {
+    const f = municipios.find((m) => `mun:${m.properties.shapeID}` === v);
+    if (!f) return;
+    estado.bbox = f.properties.bbox;
+    resaltarMunicipio(f.properties.shapeID);
+    estado.dia = null;
+    cargar();
+  }
 });
+$("sel-imagen").addEventListener("change", actualizarImagen);
 $("sel-anio").addEventListener("change", (ev) => { estado.anio = Number(ev.target.value); estado.dia = null; cargar(); });
 $("btn-dibujar").addEventListener("click", activarDibujo);
 $("btn-reintentar").addEventListener("click", () => { if (reintento) reintento(); });
 iniciarTema();
+cargarLimites();
 cargar();

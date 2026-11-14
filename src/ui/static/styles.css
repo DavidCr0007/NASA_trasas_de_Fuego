@@ -321,3 +321,12 @@ path.area-dibujo { fill: var(--acento); fill-opacity: 0.14; stroke: var(--acento
 .columna-izq { display: flex; min-width: 0; flex-direction: column; gap: 16px; grid-area: mapa; }
 .columna-izq > .tarjeta { align-self: stretch; }
 
+/* H7: límites, imagen del día y clima */
+path.limite-municipio { fill: none; stroke: var(--tinta); stroke-opacity: 0.35; stroke-width: 1px; }
+path.limite-municipio.limite-sel { stroke: var(--acento); stroke-opacity: 1; stroke-width: 2.5px; }
+.control-imagen { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 8px; font-size: 13px; }
+.control-imagen select:disabled { opacity: 0.6; cursor: not-allowed; }
+#imagen-nota { flex: 1 1 220px; font-size: 12px; }
+.nota-fuente { margin: 8px 0 0; font-size: 12px; }
+.tabla-cmp tr.fila-sel th, .tabla-cmp tr.fila-sel td { background: color-mix(in srgb, var(--acento) 14%, transparent); }
+

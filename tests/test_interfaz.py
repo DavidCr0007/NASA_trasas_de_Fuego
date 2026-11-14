@@ -94,14 +94,26 @@ def test_recursos_locales_responden(cliente, ruta):
     assert r.status_code == 200, ruta
 
 
-def test_app_js_solo_carga_teselas_osm():
+# Recursos remotos permitidos, todos OPCIONALES (la demo funciona sin red):
+# teselas OSM, imagen del día de NASA GIBS (H7-02) y clima de Open-Meteo (H7-03).
+REMOTOS_PERMITIDOS = (
+    "https://tile.openstreetmap.org/",
+    "https://gibs.earthdata.nasa.gov/wmts/",
+    "https://archive-api.open-meteo.com/v1/archive",
+)
+
+
+def test_app_js_solo_carga_recursos_remotos_permitidos():
     for m in re.finditer(r"https?://[^\s\"'`)<>]+", JS):
         url = m.group(0)
         antes = JS[max(0, m.start() - 8) : m.start()]
-        if url.startswith("https://tile.openstreetmap.org/"):
-            continue  # única plantilla de recurso permitida (opcional)
+        if url.startswith(REMOTOS_PERMITIDOS):
+            continue
         assert antes.endswith('href="') or antes.endswith("href='"), f"recurso remoto inesperado: {url}"
-    assert not re.search(r"fetch\(\s*[\"'`]https?:", JS)
+    # El único fetch remoto es el del clima, y su fallo no bloquea la interfaz.
+    remotos = re.findall(r"fetch\(\s*([^,)]+)", JS)
+    assert all(not r.strip().startswith(("'http", '"http', "`http")) for r in remotos)
+    assert "No se pudo consultar el clima" in JS
     assert "import(" not in JS and not re.search(r"^\s*import\s", JS, flags=re.M)
 
 
@@ -306,3 +318,29 @@ def test_seleccion_distinta_de_inusual_en_ambos_temas():
 
 def test_estado_vacio_no_ocupa_espacio():
     assert re.search(r"\.estado:not\(\.cargando\):not\(\.vacio\):not\(\.error\)\s*\{[^}]*display:\s*none", CSS)
+
+
+# ------------------------------------------------- H7: fuentes complementarias
+def test_imagen_gibs_en_panel_propio_sin_filtro_oscuro():
+    assert 'createPane("imagen")' in JS and 'pane: "imagen"' in JS
+    assert "NASA GIBS" in JS
+    # El filtro del tema oscuro solo actúa sobre .leaflet-tile-pane (ver
+    # test_filtro_de_teselas_solo_en_teselas); la imagen va en otro panel y no se invierte.
+    assert 'id="sel-imagen"' in HTML and "disabled" in re.search(r'<select id="sel-imagen"[^>]*>', HTML).group(0)
+
+
+def test_clima_rotulado_como_reanalisis_con_credito():
+    assert "Clima (reanálisis)" in HTML
+    assert "Open-Meteo.com" in HTML and "CC BY 4.0" in HTML
+    assert "no observaciones" in HTML
+
+
+def test_limites_locales_con_credito():
+    assert "/ui/datos/huila_municipios.geojson" in JS
+    assert "geoBoundaries" in JS and "DANE, CC BY 4.0" in JS
+
+
+def test_area_y_limites_en_svg_para_conservar_el_tema():
+    # Canvas ignora las clases CSS: el área y los límites deben usar el renderizador SVG.
+    assert re.search(r"L\.rectangle\([^;]*renderer:\s*svgVector", JS)
+    assert re.search(r"L\.geoJSON\([^;]*renderer:\s*svgVector", JS, flags=re.S)
