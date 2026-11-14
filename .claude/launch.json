@@ -1,0 +1,35 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api-demo",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": [
+        "run",
+        "python",
+        "-m",
+        "api",
+        "--datos",
+        "data/processed/demo_historica",
+        "--puerto",
+        "8000"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "api-real",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": [
+        "run",
+        "python",
+        "-m",
+        "api",
+        "--datos",
+        "data/processed/huila_real",
+        "--puerto",
+        "8002"
+      ],
+      "port": 8002
+    }
+  ]
+}
