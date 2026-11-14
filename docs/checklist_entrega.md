@@ -22,7 +22,7 @@ Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indica
 - [x] Credenciales fuera del repositorio: `.env` en `.gitignore` y `.env.example` vacío.
 - [x] Cita de FIRMS + LANCE + ESDIS y aviso «as is» literales en la app, la exportación y el README.
 - [x] Tablas de atributos consultadas antes del lector; escala de confianza VIIRS y códigos de satélite confirmados.
-- [x] Muestra real de varios años del Huila en `data/raw`: Colombia 2016–2025 por la ruta pública por país (ADR 0009, `make real`), calidad estándar y 84 833 focos en el Huila. La API area con MAP_KEY sigue pendiente (B-01) y no hay datos de 2026.
+- [x] Muestra real de varios años del Huila en `data/raw`: Colombia 2016–2025 por la ruta pública por país (ADR 0009, `make real`), calidad estándar: 84 833 detecciones en el recuadro y 14 280 dentro del Huila por forma real (`docs/metodologia.md` §10.3). La API area con MAP_KEY sigue pendiente (B-01) y no hay datos de 2026.
 
 ## Reglas (§3)
 
@@ -53,7 +53,7 @@ Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indica
 - [ ] Comparación con el **visor** de FIRMS para un día y un área: procedimiento listo y conteos por registrar (H5-02). Requiere una persona frente al visor.
 - [x] Limitaciones declaradas: detecciones térmicas, centro de píxel, saturación VIIRS, sesgo horario de Terra y NRT (`docs/limitaciones.md` §10).
 - [x] Bibliografía de validación (`docs/metodologia.md` §11 y `docs/cita.md`).
-- [x] DOI de los cuatro productos NRT verificados (`docs/cita.md`). [ ] Falta el DOI de VIIRS estándar.
+- [x] DOI verificados en doi.org: cuatro productos NRT y los productos VIIRS estándar de origen (`docs/cita.md`).
 
 ## Antes de enviar
 

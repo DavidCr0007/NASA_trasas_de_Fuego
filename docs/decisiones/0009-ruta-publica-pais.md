@@ -33,7 +33,7 @@ Disponibilidad comprobada el 2026-11-13 para Colombia:
 
 ## Consecuencias
 
-- Hay **historia real de 10 años** (2016–2025) para la línea base del Huila: 84 833 detecciones de calidad estándar.
+- Hay **historia real de 10 años** (2016–2025), con 84 833 detecciones de calidad estándar en el **recuadro** de trabajo. **Corrección (2026-11-14):** solo 14 280 caen dentro del Huila; el recuadro ocupa cuatro veces la superficie del departamento (ver `docs/metodologia.md` §10.3).
 - **No cubre 2026**, que solo existe en NRT. Para el año en curso hacen falta la API area (MAP_KEY) o los archivos de 24 h y 7 días.
 - **No incluye NOAA-21** en el archivo por país. Las series mezclan Suomi NPP, NOAA-20 y MODIS (R-36).
 - Ocupa unos 165 MB en disco para Colombia 2016–2025. Por eso se recorta antes de procesar.

@@ -33,6 +33,6 @@ Restricciones de diseño:
 
 ## Consecuencias
 
-- R-06 queda resuelto. El recuadro aproximado del Huila (−76,7; 1,4; −74,3; 3,9) **contiene** el límite oficial (−76,62; 1,55; −74,41; 3,84) con un margen de 0,05 a 0,15°. Ese margen incluye franjas de los departamentos vecinos (R-40).
+- R-06 queda resuelto. El recuadro aproximado del Huila (−76,7; 1,4; −74,3; 3,9) **contiene** el límite oficial (−76,62; 1,55; −74,41; 3,84) con un margen de 0,05 a 0,15°. Ese «margen» engaña: el Huila ocupa solo el **25 %** del recuadro (18 126 frente a 73 773 km²). Por eso se añadió el filtro por forma real (R-40), y las cifras del recuadro no deben presentarse como «Huila» (`docs/metodologia.md` §10.3).
 - Dos capas dependen de servicios externos sin acuerdo de servicio. Open-Meteo gratuito es solo para uso no comercial (R-39).
 - La imagen GIBS puede salir negra en franjas donde el satélite no pasó ese día. Ejemplo comprobado: MODIS Terra del 2024-09-15 sobre el Huila es un 49 % negra, frente al 0 % de VIIRS NOAA-20.

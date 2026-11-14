@@ -14,7 +14,7 @@ Harmonized Heat Neiva lleva MODIS y VIIRS a una grilla común de 1 km. Elimina l
 Elegimos un área (el Huila, Neiva o un rectángulo) y vemos el calendario del año. Los días inusuales superan el percentil 95 histórico de esa época del año. En la muestra *sintética* 2020–2026 aparece el periodo crítico inyectado: del **2026-08-10 al 2026-08-15**, 6 días con un máximo de 62 focos. Cada punto del mapa se dibuja con el tamaño de su píxel, porque el fuego no está en el centro exacto.
 
 **1:30 a 1:50. Por qué confiar.**
-Validamos el esquema con los archivos oficiales de FIRMS (NRT, 2026-11-13). En el Huila, el conteo independiente coincide foco por foco con el pipeline. Esa validación encontró y corrigió un error de medianoche. Con menos de 5 años de historia, la app responde «base insuficiente» en lugar de inventar.
+Validamos el esquema con los archivos oficiales de FIRMS (NRT, 2026-11-13). En el área de estudio, el conteo independiente coincide foco por foco con el pipeline. Esa validación encontró y corrigió un error de medianoche. Con menos de 5 años de historia, la app responde «base insuficiente» en lugar de inventar.
 
 **1:50 a 2:00. Cierre.**
 Detecciones térmicas, no incendios confirmados, con su incertidumbre a la vista. Datos de NASA FIRMS (LANCE / ESDIS).
