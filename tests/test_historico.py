@@ -92,3 +92,13 @@ def test_meses_pico_reflejan_la_estacionalidad_sintetica(historico):
     gen, _, salida = historico
     cuerpo = TestClient(create_app(salida)).get(f"/calendario?bbox={BBOX}").json()
     assert gen.MES_PICO_PRINCIPAL in cuerpo["meses_pico"]
+
+
+def test_resumen_mediana_y_anomalia_con_historia(historico):
+    _, _, salida = historico
+    r = TestClient(create_app(salida)).get(f"/resumen?bbox={BBOX}").json()
+    assert len(r["anios"]) == 7
+    agosto = r["mediana_mensual"]["8"]
+    assert agosto["n_anios"] >= 5 and agosto["mediana"] > r["mediana_mensual"]["5"]["mediana"]
+    m = r["mes_reciente"]
+    assert m["mes"] and m["mediana"] is not None and "anomalia_pct" in m

@@ -14,7 +14,7 @@ La serie histórica está repartida entre sensores con distinta resolución y ho
 - **R4:** cada registro conserva su satélite, su hora UTC y su calidad.
 - **R5:** línea base por día del año, para detectar días inusuales.
 
-**Estado (2026-11-14):** hitos H0 a H4 y H6 (interfaz clara/oscura y origen de los datos) terminados; H5 en entrega, con la comparación con el visor pendiente (H5-02) (ver `docs/checklist_entrega.md`). La `FIRMS_MAP_KEY` de la API area sigue pendiente (B-01). Mientras tanto, `make real` obtiene **historia real de 2016 a 2025** del archivo público por país de FIRMS (ADR 0009, calidad estándar): 84 833 detecciones en el recuadro de trabajo, de las cuales **14 280 caen dentro del Huila** (filtro por forma real, `area=huila`). La demo sin red (`make demo`) usa datos **sintéticos**.
+**Estado (2026-11-14):** hitos H0 a H8 terminados (ver `docs/auditoria_cumplimiento.md` y `docs/checklist_entrega.md`). `make real` descarga la historia **2001–2025** del archivo público por país de FIRMS (calidad estándar, ADR 0009). El calendario usa una **métrica armonizada** (celdas activas equivalentes, ADR 0011) que no cambia al sumar satélites. Pendientes: la MAP_KEY (B-01) para incluir 2026 y la comparación manual con el visor de FIRMS (H5-02). La demo sin red (`make demo`) usa datos **sintéticos**.
 
 ## Estructura de carpetas
 
@@ -72,7 +72,7 @@ cp .env.example .env
 | `make test` | Ejecuta las pruebas con pytest. |
 | `make demo` | Comando único de la demo **sin red**: procesa `data/sample/`, genera `data/sample_historica/` y la procesa. Todo sintético. |
 | `make api` | Corre la demo y levanta la interfaz (mapa y calendario) y la API en http://127.0.0.1:8000 (API en `/docs`). |
-| `make real` | Ruta pública temporal sin clave: descarga el archivo anual por país (Colombia 2016–2025), lo recorta al Huila y lo procesa (requiere red la primera vez). |
+| `make real` | Ruta pública temporal sin clave: descarga el archivo anual por país (Colombia 2001–2025), lo recorta al recuadro del Huila y lo procesa (requiere red la primera vez). |
 | `make api-real` | Sirve la interfaz con esos datos reales. |
 | `make download` | Descarga desde la API área de FIRMS para el bbox del Huila. Requiere `FIRMS_MAP_KEY` en `.env`. |
 | `make secrets` | Escanea el repositorio en busca de credenciales antes de entregar. |

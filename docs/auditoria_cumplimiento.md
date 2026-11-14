@@ -56,3 +56,20 @@ R1–R5, D-01 a D-11 y los entregables §9 se cumplen; ver `docs/checklist_entre
 | 6 | O4, C2 | Rango de fechas libre y entrada de coordenadas | bajo a medio |
 | 7 | O4 | Descarga de las visualizaciones (SVG del calendario y la matriz) | bajo |
 | 8 | C3 | Verificar la rampa con simulación de daltonismo | bajo |
+
+## Seguimiento: cierre de brechas (H8, 2026-11-14)
+
+| # | antes | ahora | evidencia |
+|---|---|---|---|
+| O2 | 🟡 | ✅ | Métrica «celdas activas equivalentes» (ADR 0011). Con datos reales del Huila, el salto de 2018 pasa de × 1,7 a × 1,00 y el de 2012, de × 7,4 a × 1,3. Factores publicados: k_M ≈ 4,34 y k_N20 ≈ 1,00. |
+| O3 | 🟡 | 🟡 | Serie 2001–2025 (131 021 detecciones en el recuadro, 0 en cuarentena). **2026 sigue pendiente** de la MAP_KEY (R-43); la calibración con NOAA-20 está lista. |
+| O4 | 🟡 | ✅ | Rango de fechas libre (mapa y descargas), CSV del calendario, CSV de focos y SVG del calendario y de la matriz |
+| O6 | 🟡 | ✅ | Totales anuales en la matriz; años con más actividad en el Huila: 2024, 2023 y 2020 |
+| O7 | 🟡 | ✅ | Mes reciente frente a la mediana: diciembre de 2025, +78 % (Huila por forma) y +91 % (recuadro de Neiva por coordenadas), con 24 años de referencia |
+| O8 | 🟡 | ✅ | Matriz año × mes 2001–2025 con rampa accesible y leyenda numérica |
+| O9 | ❌ | ✅ | `/detecciones.csv`: una fila por foco, con cita y procedencia (`tests/test_api.py`) |
+| C2 | 🟡 | ✅ | Entrada de coordenadas validada |
+| C3 | 🟡 | ✅ | Rampa monótona y con pasos de al menos 5 L* bajo protanopía, deuteranopía y tritanopía. La simulación encontró un paso débil en el tema oscuro, que se corrigió |
+| C5 | 🟡 | ✅ | Anomalía frente a la mediana plurianual y días inusuales por P95 |
+
+**Queda abierto:** el año en curso (2026) en la serie (R-43 y B-01), y la comparación manual con el visor de FIRMS (H5-02), que ya tiene enlace directo desde la interfaz.

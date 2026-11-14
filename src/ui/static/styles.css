@@ -67,7 +67,7 @@
   --inusual: #60a5fa;
   --e0: #2a3036;
   --e1: #ad5d1b;
-  --e2: #c7651a;
+  --e2: #cf6d1c;
   --e3: #e88c3a;
   --e4: #ffc078;
   --nrt-punto: #ffffff;
@@ -120,7 +120,7 @@
     --inusual: #60a5fa;
     --e0: #2a3036;
     --e1: #ad5d1b;
-    --e2: #c7651a;
+    --e2: #cf6d1c;
     --e3: #e88c3a;
     --e4: #ffc078;
     --nrt-punto: #ffffff;
@@ -188,7 +188,7 @@ button:hover, .boton:hover { border-color: var(--acento); }
 button.activo { border-color: var(--acento); background: var(--acento); color: var(--tarjeta); }
 :focus-visible, button:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--foco); outline-offset: 2px; }
 
-.rejilla { display: grid; grid-template-areas: "mapa panel" "cal cal"; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 16px; padding: 16px 20px; }
+.rejilla { display: grid; grid-template-areas: "mapa panel" "mat mat" "cal cal"; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 16px; padding: 16px 20px; }
 /* Altura fija: el panel derecho puede crecer sin estirar el mapa. Sin «sticky»: su
    contenedor es toda la rejilla y taparía el calendario al desplazarse. */
 .mapa-tarjeta { display: flex; min-width: 0; flex-direction: column; grid-area: mapa; align-self: start; }
@@ -286,7 +286,7 @@ path.area-dibujo { fill: var(--acento); fill-opacity: 0.14; stroke: var(--acento
 .pie p { max-width: 1000px; margin: 4px 0; }
 
 @media (max-width: 900px) {
-  .rejilla { grid-template-areas: "mapa" "panel" "cal"; grid-template-columns: minmax(0, 1fr); padding: 12px 16px; }
+  .rejilla { grid-template-areas: "mapa" "panel" "mat" "cal"; grid-template-columns: minmax(0, 1fr); padding: 12px 16px; }
   .barra, .controles, .pie { padding-right: 16px; padding-left: 16px; }
 }
 
@@ -332,4 +332,25 @@ path.limite-municipio.limite-sel { stroke: var(--acento); stroke-opacity: 1; str
 .enlace-visor { margin: 0 0 8px; font-size: 13px; }
 .enlaces-firms { margin-top: 8px; font-size: 12px; line-height: 1.9; }
 .enlaces-firms a { display: inline-block; padding-block: 2px; }
+
+/* H8: matriz año × mes, mes reciente, controles avanzados */
+.matriz-tarjeta { grid-area: mat; min-width: 0; }
+.matriz-scroll { overflow-x: auto; padding: 6px 0; }
+.matriz-scroll svg { display: block; }
+.celda-mat { cursor: pointer; }
+.celda-mat:hover { stroke: var(--tinta); stroke-width: 1.5; }
+.anio-sel { font-weight: 700; fill: var(--tinta); }
+.leyenda-matriz { margin: 4px 0; }
+.cifra-grande { margin: 0; font-size: 28px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cifra-grande.sube { color: var(--error-tinta); }
+.cifra-grande.baja { color: var(--ok-tinta); }
+.controles-avanzados { margin: 0 20px; padding: 8px 0; font-size: 13px; }
+.controles-avanzados summary { cursor: pointer; padding: 4px 0; font-weight: 600; }
+.fila-avanzada { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+.fila-avanzada fieldset { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 10px; margin: 0; padding: 8px 10px; border: 1px solid var(--borde); border-radius: 8px; }
+.fila-avanzada legend { padding: 0 4px; color: var(--tenue); font-size: 12px; }
+.fila-avanzada label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--tenue); }
+.fila-avanzada input { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--borde); border-radius: 6px; background: var(--boton-fondo); color: var(--tinta); }
+.boton-mini { margin-left: 8px; padding: 3px 8px; font-size: 12px; font-weight: 500; vertical-align: middle; }
+@media (max-width: 600px) { .controles-avanzados { margin: 0 16px; } }
 

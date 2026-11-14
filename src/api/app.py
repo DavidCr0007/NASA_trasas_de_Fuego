@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 
 from api.area import contiene, resolver_area
 from api.cita import AVISO, CITA
+from harmonize import armonizada as arm
 from harmonize import linea_base as lb
 from harmonize.config import RulesConfig
 from harmonize.pipeline import ARCHIVOS_PARQUET
@@ -101,6 +102,50 @@ def create_app(
             "config_fingerprint": meta.get(b"config_fingerprint", b"").decode(),
             "cita": CITA,
             "aviso": AVISO,
+        }
+
+    # ------------------------------------------------ H8-02: métrica armonizada (ADR 0011)
+    _cache_global: dict[str, Any] = {}
+
+    def registros_sql(where: str, params: list, fd: str):
+        cols = "cast(fecha_hora_utc at time zone 'UTC' as date), cell_id, satelite"
+        q = (f"select {cols} from read_parquet('{ruta['detecciones']}') where {where}{fd}"
+             f" union all select {cols} from read_parquet('{ruta['deduplicados']}') where {where}{fd}")
+        return q, params + params
+
+    def armonizacion_global(con):
+        """Factores de intercalibración sobre TODO el conjunto (cacheados por versión de archivos)."""
+        clave = tuple(p.stat().st_mtime_ns for p in ruta.values())
+        if _cache_global.get("clave") != clave:
+            q, p = registros_sql("true", [], "")
+            cont = arm.contar_por_dia(con.execute(q, p).fetchall())
+            er = arm.eras(cont)
+            _cache_global.update(clave=clave, eras=er, factores=arm.factores(cont, er))
+        return _cache_global["factores"], _cache_global["eras"]
+
+    def serie_area(con, bbox, fd):
+        w, s, e, n = bbox
+        q, p = registros_sql("lat between ? and ? and lon between ? and ?", [s, n, w, e], fd)
+        cont = arm.contar_por_dia(con.execute(q, p).fetchall())
+        f, er = armonizacion_global(con)
+        return arm.serie_armonizada(cont, f, er), f, er
+
+    def describir_armonizacion(metrica: str, f: dict, er: dict) -> dict:
+        r = lambda x: None if x is None else round(x, 4)
+        return {
+            "metrica": metrica,
+            "version": arm.VERSION_METRICA,
+            "definicion": ("celdas de ~1 km con al menos una detección de la constelación de referencia "
+                           "MODIS (Terra, Aqua) ∪ Suomi NPP; fuera de su era, MODIS × k_M[mes] o "
+                           "(MODIS ∪ NOAA-20) / k_N20 (ADR 0011)"),
+            "factores": {
+                "k_m": {str(m): r(v) for m, v in (f.get("k_m") or {}).items()},
+                "k_m_global": r(f.get("k_m_global")),
+                "k_n20": r(f.get("k_n20")),
+                "anios_superposicion_modis": f.get("anios_superposicion_modis"),
+                "n_dias_superposicion_n20": f.get("n_dias_superposicion_n20"),
+            },
+            "eras": {k: None if v is None else [v[0].isoformat(), v[1].isoformat()] for k, v in er.items()},
         }
 
     def caja_y_area(bbox_txt: str | None, area: str | None):
@@ -205,7 +250,6 @@ def create_app(
             "metodo": "climatología por día del año (R5), excluyendo el año evaluado",
             "version_r5": lb.VERSION_R5,
             "nota_cobertura": "La referencia usa la cobertura del conjunto de datos: los días sin focos del área cuentan como 0.",
-            "metrica": "n_brutas",
             "ventana_dias": ventana_dias,
             "nota_ventana": "Ventana ±días PROVISIONAL (ADR 0004).",
             "nota": (
@@ -230,7 +274,9 @@ def create_app(
         return "real" if n_real else None
 
     def calendario(bbox_txt: str | None, desde: date | None, hasta: date | None,
-                   area: str | None = None) -> dict[str, Any]:
+                   area: str | None = None, metrica: str = "armonizada") -> dict[str, Any]:
+        if metrica not in ("armonizada", "n_brutas"):
+            raise HTTPException(422, "metrica debe ser 'armonizada' o 'n_brutas'")
         bbox, info_area = caja_y_area(bbox_txt, area)
         desde_sol, hasta_sol = desde, hasta
         cuerpo = base()
@@ -273,6 +319,7 @@ def create_app(
                     [s, n, w, e],
                 ).fetchall()
             }
+            serie, fact, er = serie_area(con, bbox, fd)
             origen_datos = origen(con)
             cobertura = con.execute(
                 f"select min(fecha_utc), max(fecha_utc) from read_parquet('{ruta['celda_dia']}')"
@@ -280,7 +327,16 @@ def create_app(
         finally:
             con.close()
         cobertura = cobertura if cobertura[0] is not None else None
+        for d in dias:
+            dia_ = date.fromisoformat(d["fecha_utc"])
+            valor, metodo = serie.get(dia_, (0.0, arm.metodo_del_dia(dia_, fact, er)))
+            d["celdas_eq"] = round(valor, 2)
+            d["metodo"] = metodo
+            d["valor"] = d["celdas_eq"] if metrica == "armonizada" else d["n_brutas"]
+        if metrica == "armonizada":
+            historia = {f_: v for f_, (v, _m) in serie.items()}
         estado_base = linea_base(inc["anios_con_dato"])
+        estado_base["metrica"] = "celdas activas equivalentes" if metrica == "armonizada" else "n_brutas"
         periodos = meses_pico = clima = None
         if estado_base["estado"] == "suficiente":
             calc = lb.calcular(historia, percentil=percentil, anios_minimos=minimo, ventana_dias=ventana_dias,
@@ -291,6 +347,9 @@ def create_app(
                 d["inusual"] = None if info is None else info.inusual
                 d["n_anios_base"] = None if info is None else info.n_anios
             periodos = lb.periodos_inusuales(calc, desde, hasta) if desde else []
+            for p_ in periodos:
+                m_ = round(float(p_["maximo"]), 2)
+                p_["maximo"] = int(m_) if m_.is_integer() else m_
             clima = lb.climatologia_mensual(historia, cobertura=cobertura)
             meses_pico = sorted(clima, key=lambda m: (-clima[m]["media"], m))[:3]
             estado_base["anios_usados"] = inc["anios_con_dato"]
@@ -313,6 +372,7 @@ def create_app(
                 "originales. Para comparar con el visor de FIRMS use n_brutas."
             ),
             "dias": dias,
+            "armonizacion": describir_armonizacion(metrica, fact, er),
             "incertidumbre": inc,
             "linea_base": estado_base,
             "periodos_inusuales": periodos,
@@ -356,13 +416,14 @@ def create_app(
         desde: date | None = None,
         hasta: date | None = None,
         area: str | None = Query(None, description="huila o mun:<shapeID> (filtro por polígono)"),
+        metrica: str = Query("armonizada", description="armonizada (ADR 0011) o n_brutas"),
     ):
-        return calendario(bbox, desde, hasta, area)
+        return calendario(bbox, desde, hasta, area, metrica)
 
     @app.get("/calendario.csv")
     def get_calendario_csv(bbox: str | None = None, desde: date | None = None, hasta: date | None = None,
-                           area: str | None = None):
-        cuerpo = calendario(bbox, desde, hasta, area)
+                           area: str | None = None, metrica: str = "armonizada"):
+        cuerpo = calendario(bbox, desde, hasta, area, metrica)
         buf = io.StringIO()
         for linea in (
             cuerpo["cita"], cuerpo["aviso"],
@@ -373,13 +434,118 @@ def create_app(
             f"linea_base: {cuerpo['linea_base']['estado']}",
             f"origen_datos: {cuerpo['origen_datos']}",
             f"area: {cuerpo['area']['nombre'] or 'recuadro'} ({cuerpo['area']['filtro']})",
+            f"metrica: {cuerpo['armonizacion']['metrica']} ({cuerpo['armonizacion']['version']}); "
+            "valor = celdas activas equivalentes (ADR 0011) o n_brutas",
         ):
             buf.write(f"# {linea}\n")
-        campos = ["fecha_utc", "n_detecciones", "n_brutas", "n_modis", "n_viirs",
+        campos = ["fecha_utc", "valor", "celdas_eq", "metodo", "n_detecciones", "n_brutas", "n_modis", "n_viirs",
                   "frp_max", "frp_sum", "calidad", "preliminar", "umbral", "inusual"]
         escritor = csv.DictWriter(buf, fieldnames=campos, lineterminator="\n", extrasaction="ignore")
         escritor.writeheader()
         escritor.writerows(cuerpo["dias"])
+        return PlainTextResponse(buf.getvalue(), media_type="text/csv; charset=utf-8")
+
+    @app.get("/resumen")
+    def get_resumen(
+        bbox: str | None = None,
+        area: str | None = None,
+        metrica: str = Query("armonizada", description="armonizada (ADR 0011) o n_brutas"),
+    ):
+        """H8-04: totales anuales, matriz año × mes, mediana mensual y anomalía del mes reciente."""
+        import calendar as _cal
+        from statistics import median
+
+        if metrica not in ("armonizada", "n_brutas"):
+            raise HTTPException(422, "metrica debe ser 'armonizada' o 'n_brutas'")
+        caja, info_area = caja_y_area(bbox, area)
+        cuerpo = base()
+        w, s, e, n = caja
+        con, fc, fd = conectar(info_area, caja)
+        try:
+            brutas = dict(con.execute(
+                f"select fecha_utc, sum(n_brutas) from read_parquet('{ruta['celda_dia']}')"
+                " where centroide_lat between ? and ? and centroide_lon between ? and ?" + fc + " group by 1",
+                [s, n, w, e],
+            ).fetchall())
+            serie, fact, er = serie_area(con, caja, fd)
+            lo, hi = con.execute(f"select min(fecha_utc), max(fecha_utc) from read_parquet('{ruta['celda_dia']}')").fetchone()
+        finally:
+            con.close()
+        if lo is None:
+            raise HTTPException(503, "sin datos procesados")
+        valor = {d: v for d, (v, _m) in serie.items()} if metrica == "armonizada" else {d: float(v) for d, v in brutas.items()}
+        celdas: dict[tuple[int, int], dict] = {}
+        dia = lo
+        while dia <= hi:
+            k = (dia.year, dia.month)
+            c = celdas.setdefault(k, {"anio": dia.year, "mes": dia.month, "valor": 0.0, "n_brutas": 0, "dias": 0})
+            c["valor"] += valor.get(dia, 0.0)
+            c["n_brutas"] += int(brutas.get(dia, 0))
+            c["dias"] += 1
+            dia += timedelta(days=1)
+        for c in celdas.values():
+            c["completo"] = c["dias"] == _cal.monthrange(c["anio"], c["mes"])[1]
+            c["valor"] = round(c["valor"], 2)
+        matriz = sorted(celdas.values(), key=lambda c: (c["anio"], c["mes"]))
+        anios: dict[int, dict] = {}
+        for c in matriz:
+            a = anios.setdefault(c["anio"], {"anio": c["anio"], "valor": 0.0, "n_brutas": 0, "meses": 0})
+            a["valor"] = round(a["valor"] + c["valor"], 2)
+            a["n_brutas"] += c["n_brutas"]
+            a["meses"] += 1
+        for a in anios.values():
+            a["completo"] = a["meses"] == 12 and all(c["completo"] for c in matriz if c["anio"] == a["anio"])
+        mediana = {}
+        for m in range(1, 13):
+            vals = [c["valor"] for c in matriz if c["mes"] == m and c["completo"]]
+            mediana[str(m)] = {"mediana": round(median(vals), 2) if vals else None, "n_anios": len(vals)}
+        ult = matriz[-1]
+        if ult["completo"]:
+            ref = [c["valor"] for c in matriz if c["mes"] == ult["mes"] and c["completo"] and c["anio"] != ult["anio"]]
+            nota = "mes completo frente a la mediana del mismo mes en los otros años"
+        else:
+            # Mes en curso: se compara con los mismos días (1..n) del mismo mes en los otros años.
+            ref = []
+            for c in matriz:
+                if c["mes"] == ult["mes"] and c["anio"] != ult["anio"] and c["completo"]:
+                    ini = date(c["anio"], c["mes"], 1)
+                    ref.append(sum(valor.get(ini + timedelta(days=i), 0.0) for i in range(ult["dias"])))
+            nota = f"mes en curso ({ult['dias']} días) frente a la mediana de los mismos días en los otros años"
+        med = median(ref) if ref else None
+        mes_reciente = {
+            "anio": ult["anio"], "mes": ult["mes"], "valor": ult["valor"], "completo": ult["completo"],
+            "dias": ult["dias"], "mediana": None if med is None else round(med, 2), "n_anios_ref": len(ref),
+            "anomalia_pct": None if not med else round(100 * (ult["valor"] - med) / med, 1), "nota": nota,
+        }
+        cuerpo.update({
+            "bbox": list(caja), "area": describir_area(info_area),
+            "desde": lo.isoformat(), "hasta": hi.isoformat(),
+            "anios": list(anios.values()), "matriz": matriz, "mediana_mensual": mediana,
+            "mes_reciente": mes_reciente, "armonizacion": describir_armonizacion(metrica, fact, er),
+        })
+        return cuerpo
+
+    @app.get("/detecciones.csv")
+    def get_detecciones_csv(bbox: str | None = None, desde: date | None = None, hasta: date | None = None,
+                            area: str | None = None):
+        """H8-01 (O9): focos de la búsqueda, uno por fila, con cita y procedencia."""
+        cuerpo = get_detecciones(bbox=bbox, desde=desde, hasta=hasta, limite=LIMITE_DETECCIONES, area=area)
+        buf = io.StringIO()
+        for linea in (
+            cuerpo["cita"], cuerpo["aviso"],
+            f"rules_version: {cuerpo['rules_version']} config_fingerprint: {cuerpo['config_fingerprint']}",
+            f"area: {cuerpo['area']['nombre'] or 'recuadro'} ({cuerpo['area']['filtro']}); "
+            f"bbox: {','.join(str(v) for v in cuerpo['bbox'])} desde: {cuerpo['desde']} hasta: {cuerpo['hasta']}",
+            f"origen_datos: {cuerpo['origen_datos']}; truncado: {str(cuerpo['truncado']).lower()}",
+            "Cada fila es un foco representante tras deduplicar (R3); preliminar=true si es NRT. "
+            "Los focos son detecciones térmicas, no incendios confirmados.",
+        ):
+            buf.write(f"# {linea}\n")
+        campos = ["fecha_hora_utc", "lat", "lon", "sensor", "satelite", "confianza_clase", "confianza_raw",
+                  "frp", "calidad", "preliminar", "version", "cell_id", "semilado_nominal_m", "n_fusionados", "record_id"]
+        escritor = csv.DictWriter(buf, fieldnames=campos, lineterminator="\n", extrasaction="ignore")
+        escritor.writeheader()
+        escritor.writerows(cuerpo["detecciones"])
         return PlainTextResponse(buf.getvalue(), media_type="text/csv; charset=utf-8")
 
     @app.get("/detecciones")

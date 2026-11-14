@@ -49,7 +49,8 @@ def test_pitch_periodo_critico_coincide_con_la_api(tmp_path):
     p = sorted(cuerpo["periodos_inusuales"], key=lambda p: (-p["dias"], -p["maximo"]))[0]
     texto = (RAIZ / "docs" / "pitch.md").read_text(encoding="utf-8")
     assert f"**{p['inicio']} al {p['fin']}**" in texto
-    assert f"{p['dias']} días con un máximo de {p['maximo']} focos" in texto
+    # Desde H8 la métrica es «celdas activas equivalentes» (ADR 0011); el pitch la redondea.
+    assert f"{p['dias']} días con un máximo de {round(p['maximo'])} celdas activas por día" in texto
 
 
 def test_guion_cabe_en_dos_minutos():

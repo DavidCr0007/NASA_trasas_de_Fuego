@@ -20,7 +20,7 @@ api: demo
 # Ruta pública temporal sin MAP_KEY (ADR 0009): archivo anual por país, calidad estándar.
 # Requiere red la primera vez; los crudos se reutilizan si ya están en data/raw.
 real:
-	uv run python -m ingest.firms_publico --pais Colombia --desde 2016 --hasta 2025 --salida data/processed/recortes_pais/huila
+	uv run python -m ingest.firms_publico --pais Colombia --desde 2001 --hasta 2025 --salida data/processed/recortes_pais/huila
 	uv run python -m harmonize.pipeline --input data/processed/recortes_pais/huila --output data/processed/huila_real
 
 api-real:

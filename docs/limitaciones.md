@@ -78,7 +78,14 @@ El hash del Parquet (D-06) depende de las versiones de las librerías fijadas en
 - **Área por forma real:** «Huila (límite oficial)» y cada municipio filtran por las celdas de ~1 km cuyo centroide cae en el polígono (geoBoundaries); calendario y mapa usan las mismas celdas. Un foco cerca del límite puede quedar dentro o fuera según el centroide de su celda (R-37). Las áreas dibujadas y «Neiva ± 0,25°» siguen usando un recuadro.
 - **Dependencia de red:** la imagen y el clima requieren internet; sin red, la herramienta sigue funcionando sin esas capas.
 
-## 13. Lo que sigue por confirmar
+## 13. Métrica armonizada (ADR 0011)
+
+- **Era solo MODIS (2001–2011):** se reconstruye con factores mensuales (k_M ≈ 4–5) estimados en 2012–2025. Supone que la relación MODIS/VIIRS se mantiene en el tiempo. Su incertidumbre es mayor y no se publica un intervalo.
+- **Origen de los factores:** se estiman en el conjunto procesado, el recuadro del Huila. En otra región hay que recalcularlos.
+- **Qué cuenta la métrica:** celdas de ~1 km con detección, no incendios. Un fuego grande ocupa varias celdas y un fuego pequeño entre dos celdas puede contar dos veces.
+- **Año en curso:** 2026 no está en el archivo por país. Cuando llegue (por la MAP_KEY o los archivos de 7 días), se calibrará con NOAA-20 (k_N20 ≈ 1,00).
+
+## 14. Lo que sigue por confirmar
 
 El esquema se verificó el 2026-11-13 (`docs/esquema_firms.md`). Queda pendiente:
 

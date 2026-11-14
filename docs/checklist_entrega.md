@@ -62,3 +62,16 @@ Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indica
 - [x] `make secrets` sin hallazgos.
 - [x] `git ls-files` no incluye `data/raw`, `data/processed` ni `.env`.
 - [ ] Confirmar con los organizadores la sede en Neiva, la duración y el formato de envío. Dato público: el hackatón global es el 14 y 15 de noviembre de 2026 (R-38).
+
+## Reto oficial (auditoría de cumplimiento, 2026-11-14)
+
+- [x] O1 Calendario de quema en una aplicación web.
+- [x] O2 Armonización: métrica que no cambia al sumar satélites (salto de 2018 de × 1,7 a × 1,00; ADR 0011).
+- [x] O3 Serie desde 2001 (MODIS calibrado) hasta 2025. [ ] 2026 pendiente de la MAP_KEY (R-43).
+- [x] O4 Región, rango de fechas, descarga de CSV y SVG.
+- [x] O5, O6, O8 Meses y años con más actividad: matriz año × mes con totales.
+- [x] O7 Mes reciente frente a la mediana histórica.
+- [x] O9 CSV de los focos de la búsqueda.
+- [x] C2 Dibujo del área y entrada de coordenadas.
+- [x] C3 Rampa accesible: contraste AA y simulación de daltonismo (`tests/test_interfaz.py`).
+

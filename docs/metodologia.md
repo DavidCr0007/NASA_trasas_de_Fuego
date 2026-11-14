@@ -237,6 +237,14 @@ La mayor parte de la deduplicación ocurre **dentro de VIIRS**: varios píxeles 
 - **Imagen:** al elegir un día, el selector «Imagen satelital del día» superpone el color real de NASA GIBS (VIIRS NOAA-20 o MODIS Terra) en un panel propio, que no se invierte en el tema oscuro.
 - **Clima:** la tarjeta «Clima (reanálisis)» muestra la temperatura máxima, la humedad mínima, la lluvia y el viento máximo de Open-Meteo para ±3 días alrededor del día elegido o, sin día, para el periodo crítico principal. Ejemplo con datos reales: alrededor del 15 sep 2024, máx. 37,6 °C, humedad mín. 21 % y 0,6 mm de lluvia.
 
+**Brechas del reto cerradas (H8).**
+
+- **Métrica armonizada (ADR 0011):** el calendario, la temporada, la línea base y la matriz usan por defecto «celdas activas equivalentes». Los focos brutos se siguen mostrando en el detalle de cada día y en `metrica=n_brutas`.
+- **Calendario de quema año × mes** (`/resumen`): una matriz 2001–2025 coloreada por la métrica armonizada, con totales anuales, fila de mediana mensual y meses incompletos marcados. Un clic en un año abre su calendario diario.
+- **Mes más reciente frente a la mediana:** anomalía en % del último mes con datos frente a la mediana del mismo mes en los otros años. Si el mes está en curso, se compara con los mismos días de los otros años.
+- **Descargas:** CSV del calendario, CSV de los focos de la búsqueda (`/detecciones.csv`, uno por fila, con cita y procedencia) y SVG del calendario y de la matriz.
+- **Rango de fechas y coordenadas:** desde/hasta para el mapa y las descargas, y área por oeste, sur, este y norte, con validación.
+
 ## 10. Validación cruzada (H5)
 
 ### 10.1 Pipeline frente al archivo oficial

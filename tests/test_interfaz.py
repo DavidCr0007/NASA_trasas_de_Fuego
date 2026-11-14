@@ -361,3 +361,43 @@ def test_conexion_con_nasa_firms():
 def test_huila_y_municipios_consultan_por_forma():
     assert "area=${encodeURIComponent(estado.area)}" in JS
     assert 'area: "huila"' in JS
+
+
+# ------------------------------------------------- H8-07 (C3): rampa apta para daltonismo
+# Matrices de Machado, Oliveira y Fernandes (2009), severidad 1,0, sobre RGB lineal.
+MACHADO = {
+    "protanopia": ((0.152286, 1.052583, -0.204868), (0.114503, 0.786281, 0.099216), (-0.003882, -0.048116, 1.051998)),
+    "deuteranopia": ((0.367322, 0.860646, -0.227968), (0.280085, 0.672501, 0.047413), (-0.011820, 0.042940, 0.968881)),
+    "tritanopia": ((1.255528, -0.076749, -0.178779), (-0.078411, 0.930809, 0.147602), (0.004733, 0.691367, 0.303900)),
+}
+
+
+def _lineal(h: str) -> list[float]:
+    h = h.lstrip("#")
+    out = []
+    for i in (0, 2, 4):
+        c = int(h[i:i + 2], 16) / 255
+        out.append(c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4)
+    return out
+
+
+def _l_estrella(rgb_lineal: list[float]) -> float:
+    y = 0.2126 * rgb_lineal[0] + 0.7152 * rgb_lineal[1] + 0.0722 * rgb_lineal[2]
+    return 116 * (y ** (1 / 3)) - 16 if y > 0.008856 else 903.3 * y
+
+
+@pytest.mark.parametrize("tema", ["claro", "oscuro"])
+@pytest.mark.parametrize("vision", ["normal", "protanopia", "deuteranopia", "tritanopia"])
+def test_rampa_monotona_y_distinguible_con_daltonismo(tema, vision):
+    t = _temas()[tema]
+    ls = []
+    for paso in ("--e0", "--e1", "--e2", "--e3", "--e4"):
+        rgb = _lineal(t[paso])
+        if vision != "normal":
+            m = MACHADO[vision]
+            rgb = [min(1.0, max(0.0, sum(m[i][j] * rgb[j] for j in range(3)))) for i in range(3)]
+        ls.append(_l_estrella(rgb))
+    difs = [b - a for a, b in zip(ls, ls[1:])]
+    # Monótona (todos los pasos en el mismo sentido) y cada paso a ≥ 5 unidades de L*.
+    assert all(d > 0 for d in difs) or all(d < 0 for d in difs), (tema, vision, [round(x, 1) for x in ls])
+    assert min(abs(d) for d in difs) >= 5, (tema, vision, [round(x, 1) for x in ls])

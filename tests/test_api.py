@@ -246,7 +246,7 @@ def test_base_insuficiente_deja_nulos_los_campos_de_r5(cliente):
 def test_linea_base_declara_parametros_de_r5(cliente):
     base = cliente.get(f"/calendario?bbox={BBOX}").json()["linea_base"]
     assert base["ventana_dias"] == 7
-    assert base["metrica"] == "n_brutas"
+    assert base["metrica"] == "celdas activas equivalentes"  # H8-02 (ADR 0011)
 
 
 def test_csv_exporta_umbral_e_inusual(cliente):
@@ -407,3 +407,42 @@ def test_punto_fuera_del_poligono_pero_dentro_del_recuadro_se_excluye():
 def test_csv_respeta_el_area(cliente):
     texto = cliente.get("/calendario.csv?area=huila").text
     assert "# area: Huila (poligono)" in texto
+
+
+# ---------------------------------------------------------------- H8: brechas del reto
+def test_calendario_trae_metrica_armonizada(cliente):
+    c = cliente.get(f"/calendario?bbox={BBOX}").json()
+    a = c["armonizacion"]
+    assert a["metrica"] == "armonizada" and a["version"] == "celdas-eq-1.0.0"
+    assert {"k_m", "k_n20", "anios_superposicion_modis"} <= set(a["factores"])
+    for d in c["dias"]:
+        assert {"celdas_eq", "metodo", "valor"} <= set(d)
+        assert d["valor"] == d["celdas_eq"]
+    assert c["linea_base"]["metrica"] == "celdas activas equivalentes"
+
+
+def test_metrica_n_brutas_sigue_disponible(cliente):
+    c = cliente.get(f"/calendario?bbox={BBOX}&metrica=n_brutas").json()
+    assert all(d["valor"] == d["n_brutas"] for d in c["dias"])
+    assert cliente.get(f"/calendario?bbox={BBOX}&metrica=otra").status_code == 422
+
+
+def test_detecciones_csv_lista_los_focos_con_cita(cliente):
+    cita, aviso = _cita_literal()
+    r = cliente.get(f"/detecciones.csv?bbox={BBOX}")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
+    lineas = r.text.splitlines()
+    comentarios = [ln[2:] for ln in lineas if ln.startswith("# ")]
+    assert cita in comentarios and aviso in comentarios
+    filas = list(csv.DictReader(io.StringIO("\n".join(ln for ln in lineas if not ln.startswith("#")))))
+    n = len(cliente.get(f"/detecciones?bbox={BBOX}&limite=50000").json()["detecciones"])
+    assert len(filas) == n > 0
+    assert {"fecha_hora_utc", "lat", "lon", "sensor", "satelite", "confianza_clase", "frp", "calidad",
+            "cell_id", "semilado_nominal_m"} <= set(filas[0])
+
+
+def test_resumen_plurianual(cliente):
+    r = cliente.get(f"/resumen?bbox={BBOX}").json()
+    assert {"anios", "matriz", "mediana_mensual", "mes_reciente", "armonizacion", "cita"} <= set(r)
+    assert r["matriz"] and all({"anio", "mes", "valor", "n_brutas", "completo"} <= set(c) for c in r["matriz"])
+    assert sum(x["valor"] for x in r["anios"]) == pytest.approx(sum(c["valor"] for c in r["matriz"]))

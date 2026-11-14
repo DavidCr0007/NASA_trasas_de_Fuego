@@ -14,7 +14,8 @@ const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "ju
 const CLAVE_TEMA = "hhn-tema";
 
 // area: "huila" o "mun:<id>" filtra por la forma real (R-40); null usa solo el recuadro bbox.
-const estado = { bbox: AREAS.huila, area: "huila", anio: null, dia: null, calendario: null };
+// rango: {desde, hasta} opcional para el mapa y las descargas (H8-05).
+const estado = { bbox: AREAS.huila, area: "huila", anio: null, dia: null, calendario: null, rango: null, resumen: null };
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -380,7 +381,8 @@ function pintarFocos(datos) {
     detalle = ` · densidad en cuadros de ~${fmt(r.km)} km`;
   }
   $("mapa-filtro").textContent =
-    `${fmt(n)} ${n === 1 ? "foco" : "focos"} ${estado.dia ? `el ${fechaPrecisa(estado.dia)}` : `en ${estado.anio}`}${detalle}` +
+    `${fmt(n)} ${n === 1 ? "foco" : "focos"} ${estado.dia ? `el ${fechaPrecisa(estado.dia)}`
+      : estado.rango ? `del ${fechaLegible(estado.rango.desde)} al ${fechaLegible(estado.rango.hasta)}` : `en ${estado.anio}`}${detalle}` +
     (datos.truncado ? " (lista truncada)" : "");
   const modo = $("mapa-modo");
   if (modo) {
@@ -421,13 +423,13 @@ function pintarClima(c) {
   const max = Math.max(1, ...meses.map((m) => m.media));
   caja.innerHTML = `<div class="barras">${meses.map((m, i) => {
     const pico = picos.includes(i + 1);
-    return `<div class="barra-mes${pico ? " pico" : ""}" title="${MESES[i]}: media ${esc(fmt(m.media, 1))} focos (${esc(fmt(m.anios))} años)">` +
+    return `<div class="barra-mes${pico ? " pico" : ""}" title="${MESES[i]}: media ${esc(fmt(m.media, 1))} celdas activas (${esc(fmt(m.anios))} años)">` +
       `<i style="height:${(100 * m.media) / max}%"></i>${MESES[i]}</div>`;
   }).join("")}</div>` +
-    `<p class="tenue">Media mensual de focos (n_brutas). Meses pico: ${esc(picos.map((m) => MESES[m - 1]).join(", ") || "—")}.</p>`;
+    `<p class="tenue">Media mensual de ${ETIQUETA_METRICA}. Meses pico: ${esc(picos.map((m) => MESES[m - 1]).join(", ") || "—")}.</p>`;
 }
 
-/** Este año (suma mensual de n_brutas) frente al promedio histórico mensual, en SVG propio. */
+/** Este año (suma mensual de la métrica armonizada) frente al promedio histórico mensual, en SVG propio. */
 function pintarComparacion(c) {
   const caja = $("comparacion");
   const dias = c.dias ?? [];
@@ -440,7 +442,7 @@ function pintarComparacion(c) {
   const diasMes = Array(12).fill(0);
   dias.forEach((d) => {
     const m = Number(String(d.fecha_utc).slice(5, 7)) - 1;
-    if (m >= 0 && m < 12) { suma[m] = (suma[m] ?? 0) + (d.n_brutas || 0); diasMes[m] += 1; }
+    if (m >= 0 && m < 12) { suma[m] = (suma[m] ?? 0) + valorDia(d); diasMes[m] += 1; }
   });
   // Un mes es incompleto si el rango cubierto no tiene todos sus días (p. ej. el año en curso).
   const incompleto = diasMes.map((n, i) => n > 0 && n < new Date(Date.UTC(Number(anio), i + 1, 0)).getUTCDate());
@@ -476,17 +478,17 @@ function pintarComparacion(c) {
   }
   const conDato = suma.filter((v) => v != null);
   const total = conDato.reduce((s, v) => s + v, 0);
-  const etiqueta = `Focos de calor por mes en ${anio}: ${fmt(total)} en total` +
+  const etiqueta = `Actividad armonizada por mes en ${anio}: ${fmt(total)} celdas activas en total` +
     (clim ? `, frente al promedio histórico mensual (línea). Meses pico: ${picos.map((m) => MESES_LARGOS[m - 1]).join(", ") || "ninguno"}.`
       : ". Sin promedio histórico: base insuficiente.");
   const filas = MESES.map((m, i) =>
     `<tr><th scope="row">${picos.includes(i + 1) ? `<strong>${m}</strong>` : m}</th>` +
-    `<td>${suma[i] == null ? "sin datos" : `${esc(fmt(suma[i]))} focos${incompleto[i] ? ` (mes incompleto: ${diasMes[i]} días)` : ""}`}</td>` +
-    (clim ? `<td>${media[i] == null ? "—" : `${esc(fmt(media[i], 1))} focos`}</td>` : "") + `</tr>`).join("");
+    `<td>${suma[i] == null ? "sin datos" : `${esc(fmt(suma[i], 1))} celdas activas${incompleto[i] ? ` (mes incompleto: ${diasMes[i]} días)` : ""}`}</td>` +
+    (clim ? `<td>${media[i] == null ? "—" : `${esc(fmt(media[i], 1))} celdas activas`}</td>` : "") + `</tr>`).join("");
   caja.innerHTML =
     `<h3 class="cmp-titulo">Este año frente al promedio histórico</h3>` +
     `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(etiqueta)}" preserveAspectRatio="xMidYMid meet">${p.join("")}</svg>` +
-    `<p class="tenue">Barras: focos de calor de ${esc(anio)} por mes${clim ? ". Línea: promedio histórico mensual" : ""}.` +
+    `<p class="tenue">Barras: ${ETIQUETA_METRICA} de ${esc(anio)} por mes${clim ? ". Línea: promedio histórico mensual" : ""}.` +
     `${incompleto.some(Boolean) ? " Las barras con borde punteado son meses incompletos y no se comparan de igual a igual con el promedio." : ""}</p>` +
     (clim ? `<p class="tenue">El promedio histórico usa los meses completos de todos los años disponibles, incluido este año si el mes está completo.</p>`
       : `<p class="tenue">Sin promedio: base insuficiente.</p>`) +
@@ -510,7 +512,7 @@ function pintarPeriodos(c) {
   lista.innerHTML = orden.map((p) =>
     `<li><a href="#" data-dia="${esc(p.inicio)}">${esc(textoPeriodo(p))}</a> ` +
     `<span class="tenue">(${esc(p.inicio)}${p.fin !== p.inicio ? ` → ${esc(p.fin)}` : ""})</span>` +
-    ` · ${fmt(p.dias)} día(s), máx. ${fmt(p.maximo)} focos en un día</li>`).join("");
+    ` · ${fmt(p.dias)} día(s), máx. ${fmt(p.maximo, 1)} celdas activas en un día</li>`).join("");
   lista.querySelectorAll("a").forEach((a) => a.addEventListener("click", (ev) => {
     ev.preventDefault(); seleccionarDia(a.dataset.dia);
   }));
@@ -568,6 +570,10 @@ function listaY(items) {
   return `${items.slice(0, -1).join(", ")} y ${items[items.length - 1]}`;
 }
 
+/** Valor del día en la métrica activa (por defecto, celdas activas equivalentes; ADR 0011). */
+const valorDia = (d) => (d.valor ?? d.n_brutas ?? 0);
+const ETIQUETA_METRICA = "celdas activas (armonizado)";
+
 function resumir(c) {
   const anio = estado.anio;
   if (!hayDatos(c)) return `No hay observaciones para esta área en ${anio}.`;
@@ -579,8 +585,10 @@ function resumir(c) {
   const cabeza = completo ? `En ${anio}` : `En ${anio} (del ${rango} al ${finRango})`;
   const total = dias.reduce((s, d) => s + (d.n_brutas || 0), 0);
   const conFocos = dias.filter((d) => d.n_brutas > 0).length;
+  const armonizado = dias.reduce((s, d) => s + valorDia(d), 0);
   if (total === 0) return `${cabeza} no se detectaron focos de calor en esta área.` + (c.preliminar ? " Incluye datos preliminares (NRT) que pueden cambiar." : "");
-  const partes = [`${cabeza} el área tuvo ${fmt(total)} ${total === 1 ? "foco" : "focos"} de calor en ${fmt(conFocos)} ${conFocos === 1 ? "día" : "días"}.`];
+  const partes = [`${cabeza} el área tuvo ${fmt(total)} ${total === 1 ? "foco" : "focos"} de calor en ${fmt(conFocos)} ${conFocos === 1 ? "día" : "días"} ` +
+    `(${fmt(armonizado)} celdas activas en la serie armonizada, comparable entre años).`];
   const b = c.linea_base;
   if (b && b.estado !== "suficiente") {
     partes.push(`Todavía no se puede decir qué días fueron inusuales: hay ${fmt(b.anios_disponibles)} años de datos y se necesitan ${fmt(b.anios_minimos)}.`);
@@ -592,8 +600,9 @@ function resumir(c) {
       let frase = `${fmt(inusuales)} ${inusuales === 1 ? "día estuvo" : "días estuvieron"} fuera de lo normal`;
       const p = periodosOrdenados(c)[0];
       if (p) {
-        frase += `; el periodo más crítico fue del ${fechaLegible(p.inicio)} al ${fechaLegible(p.fin)} ` +
-          `(${fmt(p.dias)} ${p.dias === 1 ? "día" : "días seguidos"}, hasta ${fmt(p.maximo)} focos en un día)`;
+        frase += (p.inicio === p.fin ? `; el día más crítico fue el ${fechaLegible(p.inicio)} `
+          : `; el periodo más crítico fue del ${fechaLegible(p.inicio)} al ${fechaLegible(p.fin)} `) +
+          `(${fmt(p.dias)} ${p.dias === 1 ? "día" : "días seguidos"}, hasta ${fmt(p.maximo, 1)} celdas activas en un día)`;
       }
       partes.push(frase + ".");
     }
@@ -616,7 +625,7 @@ let diasCal = []; // c.dias del calendario pintado
 
 function descripcionDia(d) {
   const n = d.n_brutas || 0;
-  let t = `${fechaLegible(d.fecha_utc)}: ${fmt(n)} ${n === 1 ? "foco" : "focos"} de calor`;
+  let t = `${fechaLegible(d.fecha_utc)}: ${fmt(valorDia(d), 1)} ${ETIQUETA_METRICA}; ${fmt(n)} ${n === 1 ? "foco" : "focos"} de calor`;
   if (d.inusual) t += d.umbral != null ? `; día inusual (umbral ${fmt(d.umbral, 1)})` : "; día inusual";
   if (d.preliminar) t += "; incluye datos preliminares";
   return t;
@@ -637,9 +646,10 @@ function mostrarTooltip(rect) {
   rect.setAttribute("aria-describedby", "tooltip-cal");
   const n = d.n_brutas || 0;
   let h = `<strong>${esc(fechaLegible(d.fecha_utc))}</strong> <span class="tenue">(${esc(d.fecha_utc)})</span><br>` +
+    `<strong>${esc(fmt(valorDia(d), 1))}</strong> ${ETIQUETA_METRICA}${d.metodo && d.metodo !== "referencia" ? ` <span class="tenue">(${esc(d.metodo)})</span>` : ""}<br>` +
     `${esc(fmt(n))} ${n === 1 ? "foco" : "focos"} de calor (${esc(fmt(d.n_detecciones))} tras quitar duplicados)<br>` +
     `MODIS ${esc(fmt(d.n_modis))} · VIIRS ${esc(fmt(d.n_viirs))}`;
-  if (d.umbral != null) h += `<br>Lo habitual para esta fecha: hasta ${esc(fmt(d.umbral, 1))} focos`;
+  if (d.umbral != null) h += `<br>Lo habitual para esta fecha: hasta ${esc(fmt(d.umbral, 1))} celdas activas`;
   if (d.inusual) h += `<br><strong>Fuera de lo normal</strong>`;
   if (d.preliminar) h += `<br>Preliminar (NRT)`;
   tip.innerHTML = h;
@@ -717,12 +727,14 @@ function pintarLeyendaEscala(cortes, hayValores) {
   const caja = $("leyenda-escala");
   if (!caja) return;
   const [a, b, c] = cortes;
-  const rango = (lo, hi) => (hi < lo ? "—" : lo === hi ? fmt(lo) : `${fmt(lo)}–${fmt(hi)}`);
+  // La métrica armonizada puede tener decimales (eras calibradas): cortes como «hasta», «–», «más de».
+  const v = (x) => fmt(x, x < 10 ? 1 : 0);
   const tramos = hayValores
-    ? [["e0", "0"], ["e1", rango(1, a)], ["e2", rango(a + 1, b)], ["e3", rango(b + 1, c)], ["e4", `${fmt(c + 1)}+`]]
+    ? [["e0", "0"], ["e1", `hasta ${v(a)}`], ["e2", b > a ? `${v(a)}–${v(b)}` : "—"], ["e3", c > b ? `${v(b)}–${v(c)}` : "—"], ["e4", `más de ${v(c)}`]]
     : [["e0", "0"]];
-  caja.innerHTML = tramos.map(([cls, txt]) => `<span class="tramo"><i class="esc ${cls}"></i>${esc(txt)}</span>`).join("") +
-    `<span class="tenue"> focos por día</span>`;
+  caja.innerHTML = tramos.filter(([, txt]) => txt !== "—")
+    .map(([cls, txt]) => `<span class="tramo"><i class="esc ${cls}"></i>${esc(txt)}</span>`).join("") +
+    `<span class="tenue"> ${ETIQUETA_METRICA} por día</span>`;
 }
 
 function pintarCalendario(c) {
@@ -737,7 +749,7 @@ function pintarCalendario(c) {
     return;
   }
   diasCal = dias;
-  const valores = dias.map((d) => d.n_brutas).filter((v) => v > 0).sort((a, b) => a - b);
+  const valores = dias.map(valorDia).filter((v) => v > 0).sort((a, b) => a - b);
   const q = (p) => valores.length ? valores[Math.min(valores.length - 1, Math.floor(p * valores.length))] : 1;
   const cortes = [q(0.25), q(0.5), q(0.75)];
   pintarLeyendaEscala(cortes, valores.length > 0);
@@ -763,7 +775,7 @@ function pintarCalendario(c) {
     if (fecha.endsWith("-01")) {
       textos.push(`<text class="cal-texto" x="${x}" y="11" font-size="10" aria-hidden="true">${MESES[Number(fecha.slice(5, 7)) - 1]}</text>`);
     }
-    const lv = nivel(d.n_brutas, cortes);
+    const lv = nivel(valorDia(d), cortes);
     const sel = estado.dia === fecha;
     const clases = `dia${d.inusual ? " inusual" : ""}${sel ? " sel" : ""}`;
     filas[fila].push(`<rect class="${clases}" role="gridcell" data-dia="${esc(fecha)}" tabindex="${k === inicial ? 0 : -1}" ` +
@@ -788,8 +800,181 @@ function pintarCalendario(c) {
     r.addEventListener("blur", ocultarTooltip);
   });
   const total = dias.reduce((s, d) => s + d.n_brutas, 0);
-  $("cal-resumen").textContent = `${fmt(total)} focos brutos en ${fmt(dias.filter((d) => d.n_brutas).length)} días. ` +
+  const arm = dias.reduce((s, d) => s + valorDia(d), 0);
+  $("cal-resumen").textContent = `${fmt(arm)} ${ETIQUETA_METRICA} y ${fmt(total)} focos brutos en ${fmt(dias.filter((d) => d.n_brutas).length)} días. ` +
     `Haga clic o use el teclado en un día para verlo en el mapa.`;
+}
+
+// ------------------------------------------------------------------ resumen plurianual (H8-04)
+let resumenGen = 0;
+
+async function cargarResumen() {
+  const gen = ++resumenGen;
+  const caja = $("matriz");
+  if (caja) caja.innerHTML = `<p class="tenue">Calculando el calendario de quema…</p>`;
+  try {
+    const r = await pedir(`/resumen?${filtroArea()}`);
+    if (gen !== resumenGen) return;
+    estado.resumen = r;
+    pintarMatriz(r);
+    pintarMesReciente(r);
+  } catch (err) {
+    if (gen !== resumenGen) return;
+    if (caja) caja.innerHTML = `<p class="tenue">No se pudo calcular el calendario de quema: ${esc(mensajeDe(err))}</p>`;
+  }
+}
+
+/** «Calendario de quema»: años (filas) × meses (columnas), color por la métrica armonizada. */
+function pintarMatriz(r) {
+  const caja = $("matriz");
+  if (!caja) return;
+  const celdasM = r.matriz ?? [];
+  if (!celdasM.length) { caja.innerHTML = `<p class="tenue">Sin datos.</p>`; return; }
+  const anios = r.anios.map((a) => a.anio);
+  const vals = celdasM.filter((c) => c.completo && c.valor > 0).map((c) => c.valor).sort((a, b) => a - b);
+  const q = (p) => vals.length ? vals[Math.min(vals.length - 1, Math.floor(p * vals.length))] : 1;
+  const cortes = [q(0.25), q(0.5), q(0.75)];
+  const v = (x) => fmt(x, x < 10 ? 1 : 0);
+  const maxAnio = Math.max(1, ...r.anios.map((a) => a.valor));
+  const T = 22, G = 2, X0 = 44, Y0 = 18, BARRA = 120;
+  const ancho = X0 + 12 * (T + G) + 12 + BARRA + 60, alto = Y0 + (anios.length + 1) * (T + G) + 4;
+  const partes = [];
+  MESES.forEach((m, i) => partes.push(`<text class="cmp-texto" x="${X0 + i * (T + G) + T / 2}" y="12" font-size="10" text-anchor="middle">${m}</text>`));
+  const porClave = new Map(celdasM.map((c) => [`${c.anio}-${c.mes}`, c]));
+  anios.forEach((a, fila) => {
+    const y = Y0 + fila * (T + G);
+    const sel = a === Number(estado.anio);
+    partes.push(`<text class="cmp-texto${sel ? " anio-sel" : ""}" x="${X0 - 6}" y="${y + T / 2 + 4}" font-size="11" text-anchor="end">${a}</text>`);
+    for (let m = 1; m <= 12; m++) {
+      const c = porClave.get(`${a}-${m}`);
+      const x = X0 + (m - 1) * (T + G);
+      if (!c) { partes.push(`<rect x="${x}" y="${y}" width="${T}" height="${T}" rx="2" fill="none" stroke="var(--borde)" stroke-dasharray="2 2"><title>${MESES_LARGOS[m - 1]} ${a}: sin datos</title></rect>`); continue; }
+      const lv = nivel(c.valor, cortes);
+      const t = `${MESES_LARGOS[m - 1]} ${a}: ${v(c.valor)} celdas activas (armonizado), ${fmt(c.n_brutas)} focos brutos` +
+        (c.completo ? "" : ` · mes incompleto (${c.dias} días)`);
+      partes.push(`<rect class="celda-mat" data-anio="${a}" x="${x}" y="${y}" width="${T}" height="${T}" rx="2" fill="var(--e${lv})"` +
+        `${c.completo ? "" : ' fill-opacity="0.45" stroke="var(--tinta)" stroke-dasharray="2 2"'}><title>${esc(t)}</title></rect>`);
+    }
+    const a_ = r.anios[fila];
+    const bx = X0 + 12 * (T + G) + 12, bw = Math.max(1, (BARRA * a_.valor) / maxAnio);
+    partes.push(`<rect x="${bx}" y="${y + 4}" width="${bw}" height="${T - 8}" rx="2" fill="var(--e3)"><title>${a}: ${v(a_.valor)} celdas activas en el año</title></rect>`);
+    partes.push(`<text class="cmp-texto" x="${bx + bw + 4}" y="${y + T / 2 + 4}" font-size="10">${v(a_.valor)}${a_.completo ? "" : "*"}</text>`);
+  });
+  const yM = Y0 + anios.length * (T + G) + 2;
+  partes.push(`<text class="cmp-texto" x="${X0 - 6}" y="${yM + T / 2 + 4}" font-size="10" text-anchor="end">mediana</text>`);
+  for (let m = 1; m <= 12; m++) {
+    const md = r.mediana_mensual[String(m)]?.mediana;
+    const x = X0 + (m - 1) * (T + G);
+    partes.push(`<rect x="${x}" y="${yM}" width="${T}" height="${T}" rx="2" fill="${md == null ? "none" : `var(--e${nivel(md, cortes)})`}" stroke="var(--tinta)" stroke-width="1.2"><title>Mediana de ${MESES_LARGOS[m - 1]} (${fmt(r.mediana_mensual[String(m)]?.n_anios)} años): ${md == null ? "—" : v(md)} celdas activas</title></rect>`);
+  }
+  const top = [...r.anios].filter((a) => a.completo).sort((a, b) => b.valor - a.valor).slice(0, 3).map((a) => a.anio);
+  caja.innerHTML =
+    `<div class="leyenda-cal leyenda-matriz"><span class="tramo"><i class="esc e1"></i>hasta ${v(cortes[0])}</span>` +
+    `<span class="tramo"><i class="esc e2"></i>${v(cortes[0])}–${v(cortes[1])}</span><span class="tramo"><i class="esc e3"></i>${v(cortes[1])}–${v(cortes[2])}</span>` +
+    `<span class="tramo"><i class="esc e4"></i>más de ${v(cortes[2])}</span><span class="tenue"> celdas activas por mes (armonizado)</span></div>` +
+    `<div class="matriz-scroll"><svg id="svg-matriz" width="${ancho}" height="${alto}" role="img" ` +
+    `aria-label="Calendario de quema ${anios[0]}–${anios[anios.length - 1]}: actividad armonizada por mes y año">${partes.join("")}</svg></div>` +
+    `<p class="tenue">Años con más actividad: ${top.join(", ") || "—"}. Haga clic en una fila para ver ese año en el calendario diario. ` +
+    `* año incompleto. Los meses con borde punteado están incompletos. La serie armonizada (ADR 0011) es comparable entre eras de sensores.</p>` +
+    `<details><summary>Ver como tabla</summary><table class="tabla-cmp"><thead><tr><th scope="col">Año</th><th scope="col">Celdas activas (armonizado)</th><th scope="col">Focos brutos</th></tr></thead><tbody>` +
+    r.anios.map((a) => `<tr><th scope="row">${a.anio}</th><td>${v(a.valor)}${a.completo ? "" : " (incompleto)"}</td><td>${fmt(a.n_brutas)}</td></tr>`).join("") +
+    `</tbody></table></details>`;
+  caja.querySelectorAll("rect.celda-mat").forEach((rc) => rc.addEventListener("click", () => {
+    const anio = Number(rc.dataset.anio);
+    if (anio === Number(estado.anio)) return;
+    const sel = $("sel-anio");
+    if (![...sel.options].some((o) => Number(o.value) === anio)) sel.insertAdjacentHTML("beforeend", `<option>${anio}</option>`);
+    sel.value = anio; estado.anio = anio; estado.dia = null; cargar();
+  }));
+}
+
+function pintarMesReciente(r) {
+  const caja = $("mes-reciente");
+  if (!caja) return;
+  const m = r.mes_reciente;
+  if (!m) { caja.innerHTML = `<p class="tenue">Sin datos.</p>`; return; }
+  const nombre = `${MESES_LARGOS[m.mes - 1]} de ${m.anio}`;
+  const v = (x) => fmt(x, x < 10 ? 1 : 0);
+  if (m.mediana == null) {
+    caja.innerHTML = `<p><strong>${esc(nombre)}</strong>: ${v(m.valor)} celdas activas. No hay años suficientes para calcular la mediana.</p>`;
+    return;
+  }
+  const signo = m.anomalia_pct == null ? "" : m.anomalia_pct > 0 ? "por encima de" : m.anomalia_pct < 0 ? "por debajo de" : "igual a";
+  const pct = m.anomalia_pct == null ? "—" : `${fmt(Math.abs(m.anomalia_pct), 0)} %`;
+  caja.innerHTML =
+    `<p class="cifra-grande ${m.anomalia_pct > 0 ? "sube" : "baja"}">${m.anomalia_pct > 0 ? "+" : m.anomalia_pct < 0 ? "−" : ""}${esc(pct)}</p>` +
+    `<p><strong>${esc(nombre)}</strong>${m.completo ? "" : ` (en curso, ${m.dias} días)`}: ${v(m.valor)} celdas activas, ` +
+    `${esc(pct)} ${signo} la mediana histórica (${v(m.mediana)}; ${fmt(m.n_anios_ref)} años).</p>` +
+    `<p class="tenue">${esc(m.nota)}. Métrica armonizada (ADR 0011).</p>`;
+}
+
+// ------------------------------------------------------------------ rango, coordenadas y descargas (H8-05, H8-06)
+function actualizarDescargas() {
+  const desde = estado.rango?.desde ?? `${estado.anio}-01-01`;
+  const hasta = estado.rango?.hasta ?? `${estado.anio}-12-31`;
+  $("btn-csv").href = `/calendario.csv?${consulta(desde, hasta)}`;
+  const focos = $("btn-csv-focos");
+  if (focos) focos.href = `/detecciones.csv?${consulta(estado.dia ?? desde, estado.dia ?? hasta)}`;
+}
+
+function aplicarRango() {
+  const d = $("rango-desde").value, h = $("rango-hasta").value;
+  if (!d && !h) { estado.rango = null; actualizarDescargas(); cargarFocos(); mostrarEstado(""); return; }
+  if (!d || !h) { mostrarEstado("error", "Indique las dos fechas del rango (desde y hasta)."); return; }
+  if (d > h) { mostrarEstado("error", "La fecha «desde» debe ser anterior o igual a «hasta»."); return; }
+  estado.rango = { desde: d, hasta: h };
+  estado.dia = null;
+  actualizarDescargas();
+  mostrarEstado("cargando", "Cargando focos del rango…");
+  cargarFocos().then(() => mostrarEstado("")).catch((err) => mostrarEstado("error", `No se pudieron cargar los focos: ${mensajeDe(err)}`));
+}
+
+function aplicarCoordenadas() {
+  const ids = ["coord-w", "coord-s", "coord-e", "coord-n"];
+  const v = ids.map((id) => Number(String($(id).value).replace(",", ".")));
+  const [w, s, e, n] = v;
+  if (v.some((x) => !Number.isFinite(x)) || ids.some((id) => $(id).value.trim() === "")) {
+    mostrarEstado("error", "Escriba las cuatro coordenadas en grados decimales (oeste, sur, este, norte)."); return;
+  }
+  if (w < -180 || e > 180 || s < -90 || n > 90) { mostrarEstado("error", "Coordenadas fuera de rango: longitud ±180, latitud ±90."); return; }
+  if (w >= e || s >= n) { mostrarEstado("error", "El oeste debe ser menor que el este y el sur menor que el norte."); return; }
+  estado.bbox = [w, s, e, n];
+  estado.area = null;
+  estado.dia = null;
+  const opcion = $("sel-area").querySelector('option[value="dibujo"]');
+  opcion.disabled = false;
+  opcion.textContent = "Coordenadas o rectángulo";
+  $("sel-area").value = "dibujo";
+  resaltarMunicipio(null);
+  cargar();
+}
+
+/** Descarga un SVG autónomo: resuelve las variables CSS, añade título, área y cita. */
+function descargarSVG(svg, nombre, titulo) {
+  if (!svg) return;
+  const copia = svg.cloneNode(true);
+  const resolver = (txt) => String(txt).replace(/var\((--[\w-]+)\)/g, (_, n) => token(n) || "#888");
+  copia.querySelectorAll("*").forEach((el) => {
+    for (const at of ["fill", "stroke"]) if (el.getAttribute(at)?.includes("var(")) el.setAttribute(at, resolver(el.getAttribute(at)));
+    if (el.classList.contains("cmp-texto")) el.setAttribute("fill", token("--tenue"));
+    if (el.tagName === "rect" && el.classList.contains("dia") && !el.getAttribute("fill")) el.setAttribute("fill", token("--e0"));
+  });
+  const ancho = Number(copia.getAttribute("width")) || 800, alto = Number(copia.getAttribute("height")) || 200;
+  const area = estado.calendario?.area?.nombre ?? `recuadro ${estado.bbox.join(", ")}`;
+  copia.setAttribute("xmlns", svg.namespaceURI);
+  copia.setAttribute("height", alto + 58);
+  copia.setAttribute("viewBox", `0 -18 ${ancho} ${alto + 58}`);
+  copia.insertAdjacentHTML("afterbegin", `<rect x="0" y="-18" width="${ancho}" height="${alto + 58}" fill="${token("--tarjeta")}"/>` +
+    `<text x="0" y="-4" font-size="12" font-weight="700" fill="${token("--tinta")}">${esc(titulo)} · ${esc(area)}</text>`);
+  copia.insertAdjacentHTML("beforeend",
+    `<text x="0" y="${alto + 14}" font-size="9" fill="${token("--tenue")}">Datos: NASA FIRMS (LANCE / ESDIS). Métrica armonizada (ADR 0011), ${esc(estado.calendario?.rules_version ?? "")}.</text>` +
+    `<text x="0" y="${alto + 28}" font-size="9" fill="${token("--tenue")}">Detecciones térmicas, no incendios confirmados. Harmonized Heat Neiva.</text>`);
+  const blob = new Blob([new XMLSerializer().serializeToString(copia)], { type: "image/svg+xml" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 // ------------------------------------------------------------------ estado de carga
@@ -830,8 +1015,8 @@ function iniciarCarga(tipo) {
 /** Devuelve true si pintó; false si quedó obsoleta. Lanza el resto de errores. */
 async function cargarFocos() {
   const h = iniciarCarga("focos");
-  const desde = estado.dia ?? `${estado.anio}-01-01`;
-  const hasta = estado.dia ?? `${estado.anio}-12-31`;
+  const desde = estado.dia ?? estado.rango?.desde ?? `${estado.anio}-01-01`;
+  const hasta = estado.dia ?? estado.rango?.hasta ?? `${estado.anio}-12-31`;
   try {
     const datos = await pedir(`/detecciones?${consulta(desde, hasta)}&limite=20000`, h.señal);
     if (!h.vigente()) return false;
@@ -846,6 +1031,7 @@ async function cargarFocos() {
 async function seleccionarDia(dia) {
   estado.dia = dia;
   actualizarEnlaceFirms();
+  actualizarDescargas();
   actualizarImagen();
   pintarMeteo();
   celdas.forEach((r, k) => {
@@ -891,8 +1077,9 @@ async function cargar() {
     if (!h.vigente()) return;
     estado.calendario = c;
     $("cal-anio").textContent = estado.anio;
-    $("btn-csv").href = `/calendario.csv?${q}`;
+    actualizarDescargas();
     pintarCabecera(c); pintarBase(c); pintarClima(c); pintarComparacion(c); pintarPeriodos(c); pintarIncertidumbre(c); pintarCalendario(c);
+    cargarResumen();
     if (!hayDatos(c)) {
       pintarVacio(c);
       mapa.fitBounds([[s, w], [n, e]], { padding: [10, 10] });
@@ -928,6 +1115,12 @@ $("sel-area").addEventListener("change", (ev) => {
   }
 });
 $("sel-imagen").addEventListener("change", actualizarImagen);
+$("btn-rango").addEventListener("click", aplicarRango);
+$("btn-coordenadas").addEventListener("click", aplicarCoordenadas);
+$("btn-svg-calendario").addEventListener("click", () =>
+  descargarSVG($("calendario").querySelector("svg"), `calendario_${estado.anio}.svg`, `Calendario de actividad ${estado.anio}`));
+$("btn-svg-matriz").addEventListener("click", () =>
+  descargarSVG($("svg-matriz"), "calendario_de_quema.svg", "Calendario de quema (año × mes)"));
 $("sel-anio").addEventListener("change", (ev) => { estado.anio = Number(ev.target.value); estado.dia = null; cargar(); });
 $("btn-dibujar").addEventListener("click", activarDibujo);
 $("btn-reintentar").addEventListener("click", () => { if (reintento) reintento(); });

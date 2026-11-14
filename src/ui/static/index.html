@@ -40,7 +40,8 @@
     <label>Año
       <select id="sel-anio"></select>
     </label>
-    <a id="btn-csv" class="boton" href="#" download>Exportar CSV</a>
+    <a id="btn-csv" class="boton" href="#" download>Calendario (CSV)</a>
+    <a id="btn-csv-focos" class="boton" href="#" download>Focos de la búsqueda (CSV)</a>
     <label>Tema
       <select id="sel-tema">
         <option value="sistema">Sistema</option>
@@ -49,6 +50,27 @@
       </select>
     </label>
   </section>
+
+  <details class="controles-avanzados" aria-label="Rango de fechas y coordenadas">
+    <summary>Rango de fechas y coordenadas</summary>
+    <div class="fila-avanzada">
+      <fieldset>
+        <legend>Rango para el mapa y las descargas</legend>
+        <label>Desde <input type="date" id="rango-desde" min="2000-11-01"></label>
+        <label>Hasta <input type="date" id="rango-hasta" min="2000-11-01"></label>
+        <button id="btn-rango" type="button">Aplicar rango</button>
+        <span class="tenue">Vacío = el año elegido.</span>
+      </fieldset>
+      <fieldset>
+        <legend>Área por coordenadas (grados decimales)</legend>
+        <label>Oeste <input type="text" inputmode="decimal" id="coord-w" placeholder="-75,6" size="7"></label>
+        <label>Sur <input type="text" inputmode="decimal" id="coord-s" placeholder="2,7" size="6"></label>
+        <label>Este <input type="text" inputmode="decimal" id="coord-e" placeholder="-74,9" size="7"></label>
+        <label>Norte <input type="text" inputmode="decimal" id="coord-n" placeholder="3,3" size="6"></label>
+        <button id="btn-coordenadas" type="button">Usar coordenadas</button>
+      </fieldset>
+    </div>
+  </details>
 
   <div id="estado-carga" role="status" aria-live="polite" class="estado">
     <span id="estado-texto"></span>
@@ -125,6 +147,10 @@
           </dl>
         </details>
       </section>
+      <section class="tarjeta" id="tarjeta-mes-reciente">
+        <h2>Mes más reciente frente a la mediana</h2>
+        <div id="mes-reciente" aria-live="polite"><p class="tenue">Calculando…</p></div>
+      </section>
       <section class="tarjeta" id="tarjeta-meteo">
         <h2>Clima (reanálisis)</h2>
         <div id="meteo" aria-live="polite"><p class="tenue">Elija un día en el calendario para ver el clima de esos días.</p></div>
@@ -141,9 +167,17 @@
       </section>
     </aside>
 
+    <section class="tarjeta matriz-tarjeta">
+      <div class="tarjeta-cabeza">
+        <h2>Calendario de quema: actividad por mes y año</h2>
+        <button id="btn-svg-matriz" type="button">Descargar (SVG)</button>
+      </div>
+      <div id="matriz"></div>
+    </section>
+
     <section class="tarjeta calendario-tarjeta">
       <div class="tarjeta-cabeza">
-        <h2>Calendario de actividad <span id="cal-anio"></span></h2>
+        <h2>Calendario de actividad <span id="cal-anio"></span> <button id="btn-svg-calendario" type="button" class="boton-mini">Descargar (SVG)</button></h2>
         <div class="leyenda-cal">
           <span id="leyenda-escala" class="leyenda-escala"><span>menos</span><i class="esc e0"></i><i class="esc e1"></i><i class="esc e2"></i><i class="esc e3"></i><i class="esc e4"></i><span>más</span></span>
           <span class="sep"></span><i class="esc e2 inusual"></i><span>inusual</span>
