@@ -5,6 +5,8 @@ Verificado el 2026-11-13 contra:
   [C] CSV reales públicos 24 h South America, descargados 2026-11-13 (calidad NRT);
       recortes en tests/fixtures/firms_real/ (ver ORIGEN.md).
   [P] Documentación de la API area (URL_FUENTES["api_area"]).
+  [K] CSV anuales por país, públicos y sin clave (URL_FUENTES["archivo_pais"]), descargados
+      2026-11-13: Colombia 2023 y 2025 (calidad estándar); recortes en tests/fixtures/firms_real/.
 Lo que no figura en esas fuentes sigue marcado "por confirmar". Ver docs/esquema_firms.md.
 """
 
@@ -15,6 +17,9 @@ URL_FUENTES = {
     "api_area": "https://firms.modaps.eosdis.nasa.gov/api/area/",
     "api_data_availability": "https://firms.modaps.eosdis.nasa.gov/api/data_availability/",
     "descargas_24h": "https://firms.modaps.eosdis.nasa.gov/data/active_fire/",
+    # Plantilla: <base>/<sensor>/<año>/<sensor>_<año>_<País>.csv; sensor en modis, viirs-snpp,
+    # viirs-jpss1 (viirs-jpss2 devolvió 404 para 2023-2025 el 2026-11-13).
+    "archivo_pais": "https://firms.modaps.eosdis.nasa.gov/data/country/",
 }
 
 # Nombre de fuente API -> metadatos. Nombres confirmados en [P].
@@ -41,6 +46,18 @@ FUENTES_API = {
                          "coleccion": "2", "confirmado": True, "fuente": "P,C"},
     "VIIRS_NOAA21_SP": {"sensor": "VIIRS", "satelite": ("NOAA-21",), "calidad": "estandar",
                         "coleccion": "por confirmar", "confirmado": True, "fuente": "P"},
+    # Ruta pública temporal (sin MAP_KEY): archivo anual por país [K]. Calidad estándar
+    # (version "61.03" MODIS y "2" VIIRS, sin sufijo NRT). Años disponibles el 2026-11-13:
+    # MODIS 2000-2025, Suomi NPP 2012-2025, NOAA-20 2018-2025; 2026 aún no publicado.
+    "PAIS_MODIS_SP": {"sensor": "MODIS", "satelite": ("Terra", "Aqua"), "calidad": "estandar",
+                      "coleccion": "6.1", "confirmado": True, "fuente": "K", "variante": "pais",
+                      "ruta": "modis", "desde_anio": 2000},
+    "PAIS_VIIRS_SNPP_SP": {"sensor": "VIIRS", "satelite": ("Suomi NPP",), "calidad": "estandar",
+                           "coleccion": "2", "confirmado": True, "fuente": "K", "variante": "pais",
+                           "ruta": "viirs-snpp", "desde_anio": 2012, "solo_historico": True},
+    "PAIS_VIIRS_NOAA20_SP": {"sensor": "VIIRS", "satelite": ("NOAA-20",), "calidad": "estandar",
+                             "coleccion": "2", "confirmado": True, "fuente": "K", "variante": "pais",
+                             "ruta": "viirs-jpss1", "desde_anio": 2018},
 }
 
 # Cabeceras exactas de los CSV 24 h [C]. No existe columna "instrument".
@@ -59,29 +76,35 @@ COLUMNAS_REQUERIDAS = {
     ("VIIRS", "api_nrt"): _COLS_VIIRS,
     ("VIIRS", "api_sp"): _COLS_VIIRS,
     ("VIIRS", "24h"): _COLS_VIIRS,
+    # [K] añade "instrument" y "type" (tolerados como extra).
+    ("MODIS", "pais"): _COLS_MODIS,
+    ("VIIRS", "pais"): _COLS_VIIRS,
 }
 COLUMNAS_ESTADO = {
     "24h": "confirmado [C]",
     "api_nrt": "por confirmar (se asume igual a 24h)",
     "api_sp": "por confirmar (MODIS SP puede traer 'type' [A]; se tolera como extra)",
+    "pais": "confirmado [K]: columnas de 24h + instrument + type",
 }
 
 # Códigos del campo satellite. Confirmados en [A]; N20, N21, T y A observados en [C].
-# Los códigos del prototipo "1"/"2" y los nombres "Terra"/"Aqua" quedan refutados.
+# El archivo anual por país [K] usa "Terra"/"Aqua" (nombre completo) para MODIS.
+# Los códigos del prototipo "1"/"2" quedan refutados.
 SATELITES = {
     "N": {"sensor": "VIIRS", "nombre": "Suomi NPP", "confirmado": True, "fuente": "A"},
     "N20": {"sensor": "VIIRS", "nombre": "NOAA-20", "confirmado": True, "fuente": "A,C"},
     "N21": {"sensor": "VIIRS", "nombre": "NOAA-21", "confirmado": True, "fuente": "A,C"},
     "T": {"sensor": "MODIS", "nombre": "Terra", "confirmado": True, "fuente": "A,C"},
     "A": {"sensor": "MODIS", "nombre": "Aqua", "confirmado": True, "fuente": "A,C"},
+    "Terra": {"sensor": "MODIS", "nombre": "Terra", "confirmado": True, "fuente": "K"},
+    "Aqua": {"sensor": "MODIS", "nombre": "Aqua", "confirmado": True, "fuente": "K"},
 }
 
-# Confianza VIIRS: "low", "nominal", "high" ([A], FAQ y [C]).
-# "l","n","h" (prototipo) no aparece en ninguna fuente consultada; se acepta solo como
-# variante por confirmar de la API area, para no perder filas si la API la usa (R-23).
+# Confianza VIIRS: "low", "nominal", "high" ([A], FAQ y [C], archivos de 24 h NRT).
+# "l","n","h": confirmados en el archivo anual por país [K]; en la API area, por confirmar (R-23).
 CONFIANZA_VIIRS_VALORES = ("low", "nominal", "high", "l", "n", "h")
-CONFIANZA_VIIRS_CONFIRMADOS = ("low", "nominal", "high")
-CONFIANZA_VIIRS_ESTADO = "confirmado (low/nominal/high); l/n/h por confirmar en API"
+CONFIANZA_VIIRS_CONFIRMADOS = ("low", "nominal", "high", "l", "n", "h")
+CONFIANZA_VIIRS_ESTADO = "confirmado: low/nominal/high (24h) y l/n/h (archivo país); API por confirmar"
 CONFIANZA_MODIS_RANGO = (0, 100)  # [A] y FAQ: 0 a 100 %
 CONFIANZA_MODIS_ESTADO = "confirmado"
 # [A] y FAQ dicen que el porcentaje se agrupa en baja/nominal/alta pero NO publican
@@ -89,7 +112,8 @@ CONFIANZA_MODIS_ESTADO = "confirmado"
 CLASES_CONFIANZA_FIRMS_DOC = None  # por confirmar
 
 # version: [A] da 6.1URT, 6.1RT, 6.1NRT (MODIS NRT) y 6.1 (estándar); [C] muestra
-# 6.1NRT y 2.0NRT. URT y RT son productos aún más preliminares: se tratan como NRT.
+# 6.1NRT y 2.0NRT; [K] muestra "61.03" (MODIS) y "2" (VIIRS) como estándar.
+# URT y RT son productos aún más preliminares: se tratan como NRT.
 PATRONES_VERSION = {
     "NRT": r"^\d+(\.\d+)*(NRT|URT|RT)$",
     "estandar": r"^\d+(\.\d+)*$",

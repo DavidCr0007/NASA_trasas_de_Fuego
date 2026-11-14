@@ -19,3 +19,14 @@ sha256 `fe0401e4…40`) solo trae la cabecera, porque el satélite ya no entrega
 Por eso no tiene recorte.
 
 Cita obligatoria: ver `docs/cita.md`.
+
+## Archivo anual por país [K] (ADR 0009)
+
+Recortes `head -26` (cabecera y 25 filas) de los CSV públicos por país, calidad **estándar**,
+descargados el 2026-11-13 desde `https://firms.modaps.eosdis.nasa.gov/data/country/`.
+
+| recorte | URL (relativa a la base) | sha256 archivo completo | sha256 recorte |
+|---|---|---|---|
+| `modis_2023_Colombia_head.csv` | `modis/2023/modis_2023_Colombia.csv` | `f02b67a80dcd009aa5642bb2ece7b6f5b33293be9e4328ce326689bfd8c19431` | `fb006942b4a682b835f00d17e6c5a4ba318d4ad2d359cff40e49dacdc7bd284c` |
+| `viirs-snpp_2023_Colombia_head.csv` | `viirs-snpp/2023/viirs-snpp_2023_Colombia.csv` | `87496b82ae9bda4bec211c20d64d0dcb554c17aaa8c80c01a0c4438612596f51` | `7f577602037e8e886c674138271ea3422a7ae57d0a9633d8e7d08ab469b83018` |
+| `viirs-jpss1_2023_Colombia_head.csv` | `viirs-jpss1/2023/viirs-jpss1_2023_Colombia.csv` | `300594a1573516282222b40692764e86679584647ebe2385ecd7fc51e8645f01` | `25f1951a0afb830829d1fe8b485cc3969ab2b39fab43e6f2b2d0de8b007abfec` |

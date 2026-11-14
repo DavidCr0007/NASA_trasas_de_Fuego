@@ -50,3 +50,32 @@ def test_informe_markdown_lleva_fuente_fecha_y_calidad(salida):
     md = vc.informe_markdown(r)
     for texto in ("2026-11-10", "sintético", "NRT", "estandar", "n_brutas", "cuarentena"):
         assert texto in md, texto
+
+
+def test_efecto_de_borde_se_explica(tmp_path):
+    # Un punto dentro del bbox cuya celda de ~1 km tiene el centroide fuera: no es una pérdida.
+    import csv as _csv
+    import json as _json
+
+    from ingest.manifest import append_entry, build_entry
+
+    vc = _herramienta()
+    crudo = tmp_path / "crudo"
+    crudo.mkdir()
+    cab = ["latitude", "longitude", "bright_ti4", "scan", "track", "acq_date", "acq_time", "satellite",
+           "confidence", "version", "bright_ti5", "frp", "daynight"]
+    ruta = crudo / "v.csv"
+    with ruta.open("w", newline="") as f:
+        w = _csv.writer(f)
+        w.writerow(cab)
+        w.writerow(["2.5", "-75.0", "330", "0.4", "0.4", "2025-01-01", "1800", "N20", "n", "2", "300", "3", "D"])
+        w.writerow(["1.4001", "-75.0", "330", "0.4", "0.4", "2025-01-01", "1800", "N20", "n", "2", "300", "3", "D"])
+    append_entry(crudo / "manifest.jsonl", build_entry(
+        ruta, crudo, fuente="PAIS_VIIRS_NOAA20_SP", sensor="VIIRS", calidad="estandar", coleccion="2",
+        variante="pais", fecha_descarga="2026-11-13T00:00:00Z", url_sin_clave=None, bbox=None,
+        fecha_inicio=None, fecha_fin=None, sintetico=False))
+    assert pipeline_main(["--input", str(crudo), "--output", str(tmp_path / "out")]) == 0
+    r = vc.comparar(crudo, tmp_path / "out", (-76.7, 1.4, -74.3, 3.9), "2025-01-01")
+    assert r["crudas"]["total"] == 2 and r["pipeline"]["n_brutas"] == 1
+    assert r["borde"] == 1 and r["diferencia"] == 1 and r["diferencia_sin_explicar"] == 0
+    assert "borde" in vc.informe_markdown(r)

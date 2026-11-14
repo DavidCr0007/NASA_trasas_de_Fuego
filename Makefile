@@ -1,7 +1,7 @@
-.PHONY: help sync test demo api download secrets verify-raw
+.PHONY: help sync test demo api real api-real download secrets verify-raw
 
 help:
-	@echo "Objetivos: sync test demo api download secrets verify-raw"
+	@echo "Objetivos: sync test demo api real api-real download secrets verify-raw"
 
 sync:
 	uv sync
@@ -16,6 +16,15 @@ demo:
 
 api: demo
 	uv run python -m api --datos data/processed/demo_historica
+
+# Ruta pública temporal sin MAP_KEY (ADR 0009): archivo anual por país, calidad estándar.
+# Requiere red la primera vez; los crudos se reutilizan si ya están en data/raw.
+real:
+	uv run python -m ingest.firms_publico --pais Colombia --desde 2016 --hasta 2025 --salida data/processed/recortes_pais/huila
+	uv run python -m harmonize.pipeline --input data/processed/recortes_pais/huila --output data/processed/huila_real
+
+api-real:
+	uv run python -m api --datos data/processed/huila_real
 
 download:
 	uv run python -m ingest.firms_download

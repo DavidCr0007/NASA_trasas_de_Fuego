@@ -10,6 +10,7 @@ Verificado el 2026-11-13. Las constantes viven en `src/ingest/firms_schema.py`.
 | [F] | FAQ de FIRMS: <https://www.earthdata.nasa.gov/data/tools/firms/faq> | 2026-11-13 |
 | [P] | Documentación de la API area: <https://firms.modaps.eosdis.nasa.gov/api/area/> | 2026-11-13 |
 | [C] | CSV públicos de 24 h para South America (NRT), descargados el 2026-11-13 22:54 UTC; recortes en `tests/fixtures/firms_real/` | 2026-11-13 |
+| [K] | CSV anuales por país, públicos y sin clave (`/data/country/`), de Colombia 2016–2025 (estándar); recortes `*_Colombia_head.csv` en `tests/fixtures/firms_real/` | 2026-11-13 |
 
 Los conteos de [C] son de calidad **NRT** (preliminar), fueron descargados el 2026-11-13 y cubren South America entre el 2026-11-12 y el 2026-11-13 UTC:
 
@@ -37,6 +38,19 @@ El archivo de Suomi NPP llega vacío, lo que coincide con el aviso de [A]: «Suo
 - `acq_time` va en HHMM UTC con 4 dígitos y ceros a la izquierda, por ejemplo `0017` [C]. El lector también acepta 1 a 3 dígitos por robustez.
 - `daynight` toma los valores `D` y `N` [A][C].
 
+## Variante «archivo por país» [K]
+
+Columnas: las de [C] más `instrument` y `type`.
+
+| campo | archivo de 24 h [C] | archivo por país [K] |
+|---|---|---|
+| `satellite` MODIS | `T`, `A` | `Terra`, `Aqua` |
+| `confidence` VIIRS | `low`, `nominal`, `high` | `l`, `n`, `h` |
+| `version` | `6.1NRT`, `2.0NRT` | `61.03` (MODIS), `2` (VIIRS) |
+| calidad | NRT | estándar |
+
+Valores en Colombia 2023: MODIS con 22 771 filas (Terra 7 763, Aqua 15 008); NOAA-20 con 98 684 (n 88 096, l 6 813, h 3 775); Suomi NPP con 99 568. Los tres traen `type` 0 a 3. Ver ADR 0009.
+
 ## Códigos de satélite
 
 | código | satélite | fuente |
@@ -47,7 +61,7 @@ El archivo de Suomi NPP llega vacío, lo que coincide con el aviso de [A]: «Suo
 | `T` | Terra | [A][C] |
 | `A` | Aqua | [A][C] |
 
-Quedan **refutados** los códigos del prototipo `1` y `2` para VIIRS y los nombres `Terra` y `Aqua` en MODIS: no aparecen en [A] ni en [C].
+Quedan **refutados** los códigos del prototipo `1` y `2` para VIIRS: no aparecen en ninguna fuente. `Terra` y `Aqua` (nombre completo) solo aparecen en el archivo por país [K]; en NRT [C] son `T` y `A`.
 
 ## Confianza
 
@@ -56,7 +70,7 @@ Quedan **refutados** los códigos del prototipo `1` y `2` para VIIRS y los nombr
   - `nominal`: sin reflejo solar y con anomalía mayor de 15 K.
   - `high`: píxeles saturados, de día o de noche.
   - FIRMS NRT elimina los `low` nocturnos de la Anomalía Magnética del Atlántico Sur.
-- La variante `l`/`n`/`h` del prototipo no aparece en ninguna fuente. Se acepta solo como posible formato de la API area, **por confirmar** (R-23).
+- La variante `l`/`n`/`h` está **confirmada en el archivo por país [K]**. En la API area sigue por confirmar (R-23).
 - **MODIS:** de 0 a 100 % [A][F]. Las fuentes dicen que el porcentaje se agrupa en baja, nominal y alta, pero **no publican los cortes** en las páginas consultadas. Los umbrales 30/80 siguen PROVISIONALES (ADR 0002).
 
 ## `version` y calidad
@@ -80,5 +94,5 @@ Quedan **refutados** los códigos del prototipo `1` y `2` para VIIRS y los nombr
 
 1. Cabecera y formato de `confidence` en la API area (R-23).
 2. Cortes oficiales de confianza MODIS, si existen en la documentación del algoritmo C6.1.
-3. Colección de los productos VIIRS estándar (SP) y DOI de cada producto (R-24).
+3. Colección y DOI de los productos VIIRS estándar (SP). Los DOI NRT ya están en `docs/cita.md` (R-24).
 4. Bbox del Huila con fuente autoritativa: IGAC, DANE o geoBoundaries (R-14).

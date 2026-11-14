@@ -273,9 +273,17 @@ def test_recortes_reales_sin_cuarentena_por_esquema(tmp_path):
         with copia.open(encoding="utf-8-sig", newline="") as f:
             cabecera = next(csv.reader(f))
         sensor = "VIIRS" if "bright_ti4" in cabecera else "MODIS"
+        # Archivo anual por país (estándar, variante "pais") frente a archivo de 24 h (NRT).
+        es_pais = "_Colombia_" in recorte.name
+        if es_pais:
+            fuente = {"modis": "PAIS_MODIS_SP", "viirs-snpp": "PAIS_VIIRS_SNPP_SP",
+                      "viirs-jpss1": "PAIS_VIIRS_NOAA20_SP"}[recorte.name.split("_")[0]]
+        else:
+            fuente = f"FIRMS_24H_{recorte.stem}"
         entrada = build_entry(
-            copia, tmp_path, fuente=f"FIRMS_24H_{recorte.stem}", sensor=sensor,
-            calidad="NRT", coleccion="por confirmar", variante="24h",
+            copia, tmp_path, fuente=fuente, sensor=sensor,
+            calidad="estandar" if es_pais else "NRT", coleccion="por confirmar",
+            variante="pais" if es_pais else "24h",
             fecha_descarga="2099-01-01T00:00:00Z", url_sin_clave=None,
             bbox=None, fecha_inicio=None, fecha_fin=None, sintetico=False,
         )
@@ -286,16 +294,25 @@ def test_recortes_reales_sin_cuarentena_por_esquema(tmp_path):
         # debe ir a cuarentena y los satélites deben resolverse a nombres oficiales.
         assert res.cuarentena == [], (recorte.name, res.cuarentena[:1])
         assert res.n_input == 25, recorte.name
-        esperados = {"MODIS": {"Terra", "Aqua"}, "VIIRS": {"NOAA-20", "NOAA-21"}}[sensor]
+        esperados = {"MODIS": {"Terra", "Aqua"}, "VIIRS": {"NOAA-20", "NOAA-21", "Suomi NPP"}}[sensor]
         assert {r["satelite"] for r in res.registros} <= esperados, recorte.name
         assert all(r["satelite_confirmado"] for r in res.registros), recorte.name
         check_invariant(IngestResult(res.registros, res.cuarentena, res.n_input, {}))
 
 
 def test_codigos_refutados_no_se_aceptan():
-    # Los códigos del prototipo "1"/"2" (VIIRS) y "Terra"/"Aqua" (MODIS) no aparecen
-    # en la tabla oficial de atributos ni en los CSV reales: deben ser rechazados.
-    for codigo in ("1", "2", "Terra", "Aqua"):
+    # "1"/"2" (prototipo) no aparecen en ninguna fuente: se rechazan.
+    for codigo in ("1", "2"):
         assert codigo not in fs.SATELITES, codigo
     for codigo in ("N", "N20", "N21", "T", "A"):
         assert fs.SATELITES[codigo]["confirmado"] is True, codigo
+    # "Terra"/"Aqua" solo aparecen en el archivo anual por país [K].
+    for codigo in ("Terra", "Aqua"):
+        assert fs.SATELITES[codigo]["confirmado"] is True and "K" in fs.SATELITES[codigo]["fuente"]
+
+
+def test_variante_pais_declara_fuentes_estandar():
+    for fuente in ("PAIS_MODIS_SP", "PAIS_VIIRS_SNPP_SP", "PAIS_VIIRS_NOAA20_SP"):
+        meta = fs.FUENTES_API[fuente]
+        assert meta["calidad"] == "estandar" and meta["variante"] == "pais"
+    assert ("MODIS", "pais") in fs.COLUMNAS_REQUERIDAS and ("VIIRS", "pais") in fs.COLUMNAS_REQUERIDAS
