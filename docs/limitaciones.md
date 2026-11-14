@@ -71,7 +71,14 @@ El hash del Parquet (D-06) depende de las versiones de las librerías fijadas en
 - **Métrica.** Se usa `n_brutas` y no `n_detecciones`, para no depender de la deduplicación (R-25).
 - **Sensores en el tiempo.** La línea base mezcla años con distinta combinación de sensores (Suomi NPP hasta su fin, NOAA-21 desde su lanzamiento). Un cambio de sensores puede desplazar la serie sin que cambie el fuego.
 
-## 12. Lo que sigue por confirmar
+## 12. Fuentes complementarias (H7)
+
+- **Clima:** es un **reanálisis** (modelo) en el punto central del área, no una observación de estación. En áreas grandes y montañosas como el Huila, un solo punto no representa todo el territorio. Además, el archivo de Open-Meteo tiene unos días de retraso.
+- **Imagen GIBS:** las nubes pueden ocultar el humo, y las franjas negras son zonas por donde el satélite no pasó ese día. La imagen muestra el momento de la pasada, no el día entero.
+- **Selector por municipio:** consulta el **recuadro** del municipio, no su polígono. El conteo puede incluir focos de municipios vecinos dentro de ese recuadro. Lo mismo pasa con el recuadro del Huila (R-40).
+- **Dependencia de red:** la imagen y el clima requieren internet; sin red, la herramienta sigue funcionando sin esas capas.
+
+## 13. Lo que sigue por confirmar
 
 El esquema se verificó el 2026-11-13 (`docs/esquema_firms.md`). Queda pendiente:
 
