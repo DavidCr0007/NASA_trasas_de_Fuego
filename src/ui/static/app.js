@@ -87,6 +87,12 @@ function iniciarTema() {
   });
 }
 
+/** Tema efectivo: el elegido en el selector o, en «Sistema», la preferencia del sistema. */
+function temaOscuro() {
+  const elegido = document.documentElement.getAttribute("data-tema");
+  return elegido ? elegido === "oscuro" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
 /** Vuelve a pintar lo que se dibuja en JS; los colores salen de CSS, así que basta con repintar. */
 function repintarTema() {
   if (ultimosFocos) pintarFocos(ultimosFocos);
@@ -241,7 +247,7 @@ function pintarFocos(datos) {
   if (modo) {
     modo.textContent = estado.dia
       ? "Vista del día: cada foco con su huella nominal; el círculo es el píxel, no la posición exacta del fuego."
-      : "Vista del año: cuadros de densidad; más oscuro = más focos en el año. El tamaño del cuadro se ajusta al zoom. Elija un día en el calendario para ver cada foco con su huella.";
+      : `Vista del año: cuadros de densidad; ${temaOscuro() ? "más claro" : "más oscuro"} = más focos en el año (misma escala que el calendario). El tamaño del cuadro se ajusta al zoom. Elija un día en el calendario para ver cada foco con su huella.`;
   }
 }
 
