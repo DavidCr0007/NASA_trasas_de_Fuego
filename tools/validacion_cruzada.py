@@ -4,7 +4,11 @@ Cuenta, con el módulo ``csv`` y sin reutilizar el lector del proyecto, las fila
 de cada archivo crudo del manifiesto que caen en el bbox y el día UTC pedidos.
 Luego compara con la salida del pipeline:
 
-    crudas = n_brutas (celda_dia) + cuarentena (misma área y día)
+    crudas = n_brutas (celda_dia) + cuarentena (misma área y día) + borde
+
+«borde» son los puntos dentro del bbox cuya celda de ~1 km tiene el centroide fuera: el
+pipeline filtra celdas-día por centroide. Se calcula con la grilla del proyecto (R1) solo
+como diagnóstico; el resto del conteo es independiente.
 
 Uso:
     uv run python -I tools/validacion_cruzada.py CRUDO PROCESADO W,S,E,N AAAA-MM-DD
@@ -20,6 +24,10 @@ from pathlib import Path
 
 import duckdb
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from harmonize.config import RulesConfig  # noqa: E402
+from harmonize.rules import cell_centroid, cell_index  # noqa: E402
+
 
 def _en_area(lat: str, lon: str, bbox) -> bool:
     try:
@@ -30,8 +38,16 @@ def _en_area(lat: str, lon: str, bbox) -> bool:
     return s <= la <= n and w <= lo <= e
 
 
+def _centroide_fuera(lat: str, lon: str, bbox, cfg: RulesConfig) -> bool:
+    w, s, e, n = bbox
+    cla, clo = cell_centroid(*cell_index(float(lat), float(lon), cfg), cfg)
+    return not (s <= cla <= n and w <= clo <= e)
+
+
 def comparar(crudo: Path, procesado: Path, bbox, fecha: str) -> dict:
     crudo, procesado = Path(crudo), Path(procesado)
+    cfg = RulesConfig()
+    borde = 0
     entradas = [json.loads(ln) for ln in (crudo / "manifest.jsonl").read_text().splitlines() if ln.strip()]
     por_sensor: Counter = Counter()
     por_fuente: Counter = Counter()
@@ -42,6 +58,8 @@ def comparar(crudo: Path, procesado: Path, bbox, fecha: str) -> dict:
             for fila in csv.DictReader(f):
                 if fila.get("acq_date") == fecha and _en_area(fila.get("latitude"), fila.get("longitude"), bbox):
                     n += 1
+                    if _centroide_fuera(fila["latitude"], fila["longitude"], bbox, cfg):
+                        borde += 1
         por_sensor[e["sensor"]] += n
         por_fuente[e["fuente"]] += n
         archivos.append({k: e.get(k) for k in ("archivo", "sha256", "fuente", "calidad", "fecha_descarga", "sintetico")})
@@ -68,7 +86,9 @@ def comparar(crudo: Path, procesado: Path, bbox, fecha: str) -> dict:
         "crudas": {"total": total, "por_sensor": dict(por_sensor), "por_fuente": dict(por_fuente)},
         "pipeline": {"n_brutas": int(nb), "n_detecciones": int(nd)},
         "cuarentena": cuarentena,
+        "borde": borde,
         "diferencia": total - int(nb) - cuarentena,
+        "diferencia_sin_explicar": total - int(nb) - cuarentena - borde,
     }
 
 
@@ -90,6 +110,8 @@ def informe_markdown(r: dict) -> str:
         f"| filas en cuarentena en el área y el día | {r['cuarentena']} |",
         f"| `n_detecciones` (representantes tras R3) | {r['pipeline']['n_detecciones']} |",
         f"| diferencia: crudas − n_brutas − cuarentena | {r['diferencia']} |",
+        f"| — por efecto de borde (punto dentro, centroide de celda fuera) | {r['borde']} |",
+        f"| — sin explicar | {r['diferencia_sin_explicar']} |",
         "",
         "Archivos fuente:",
         "",
@@ -109,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
     bbox = tuple(float(v) for v in bbox_txt.split(","))
     r = comparar(Path(crudo), Path(procesado), bbox, fecha)
     print(informe_markdown(r))
-    return 0 if r["diferencia"] == 0 else 1
+    return 0 if r["diferencia_sin_explicar"] == 0 else 1
 
 
 if __name__ == "__main__":
