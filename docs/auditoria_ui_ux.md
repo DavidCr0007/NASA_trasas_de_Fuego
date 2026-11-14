@@ -34,3 +34,18 @@
 ## Fuera de la base de la skill
 
 La consulta «map data density clustering» no devolvió coincidencias en la base de la skill. La recomendación de densidad por celda del hallazgo 2 se apoya en la guía `chart` para datos geográficos (Canvas a partir de 1 000 elementos; leyenda con cortes claros) y en el criterio propio del proyecto. No es una regla literal de la base.
+
+## Correcciones aplicadas (2026-11-14, rama `tarea/ux-auditoria`)
+
+Verificadas en el navegador con datos reales (Huila 2024 y 2025):
+
+| # | estado | qué cambió | medición después |
+|---|---|---|---|
+| 1 | corregido por Orquesta (plan `20261114-050443-793b`) | `:focus` y `:hover` tematizados en los controles de Leaflet | ver la integración con el plan |
+| 2 | corregido | Mapa en Canvas (`preferCanvas`). Vista anual como **rejilla de densidad** que se adapta al zoom (~11 km a escala departamental, 1 km de cerca); vista del día con cada foco y su huella | 2024: **0 elementos SVG** (antes 15 931); pintar el mapa, **90 ms**; cambiar de año, **0,81 s** con la red incluida (antes 1,56–2,27 s) |
+| 3 | corregido | Leyenda numérica con los mismos cortes que pintan las celdas | «0 · 1–3 · 4–10 · 11–39 · 40+ focos por día» (2024) |
+| 4 | corregido | Celdas de 24 px por debajo de 600 px, con desplazamiento dentro de la tarjeta | 24×24 px a 375 px; página sin desborde (375 px) |
+| 5 | corregido | Etiquetas de mes de la temporada a 12 px | — |
+| 6 | corregido | «Incertidumbre» pasa a la columna del mapa | Mapa a todo el ancho de su columna (714 de 744 px) |
+| 7 | mejorado | Enlaces de periodos con `padding-block: 4px` | — |
+| — | nuevo | La API envía `Cache-Control: no-cache` en `/ui/`: durante la verificación el navegador seguía usando un `app.js` viejo de su caché | prueba `test_interfaz_se_revalida_tras_cada_actualizacion` |

@@ -277,6 +277,15 @@ def create_app(
     def raiz():
         return RedirectResponse("/ui/")
 
+    @app.middleware("http")
+    async def revalidar_interfaz(request, call_next):
+        # La interfaz cambia con cada versión: el navegador debe revalidar (ETag) y no
+        # reutilizar un app.js o styles.css viejos de su caché.
+        respuesta = await call_next(request)
+        if request.url.path.startswith("/ui"):
+            respuesta.headers["Cache-Control"] = "no-cache"
+        return respuesta
+
     app.mount("/ui", StaticFiles(directory=UI_DIR, html=True), name="ui")
 
     @app.get("/salud")

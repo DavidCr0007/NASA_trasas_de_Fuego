@@ -342,3 +342,9 @@ def test_origen_datos_mixto_si_hay_filas_de_ambos_tipos(salida, tmp_path):
 def test_csv_lleva_la_linea_origen_datos(cliente):
     lineas = cliente.get(f"/calendario.csv?bbox={BBOX}").text.splitlines()
     assert "# origen_datos: sintetico" in lineas
+
+
+def test_interfaz_se_revalida_tras_cada_actualizacion(cliente):
+    # Sin esto, el navegador puede seguir usando un app.js viejo después de actualizar.
+    for ruta in ("/ui/", "/ui/app.js", "/ui/styles.css"):
+        assert "no-cache" in cliente.get(ruta).headers.get("cache-control", ""), ruta

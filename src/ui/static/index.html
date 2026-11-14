@@ -65,27 +65,40 @@
   </div>
 
   <main class="rejilla">
-    <section class="tarjeta mapa-tarjeta">
-      <div class="tarjeta-cabeza">
-        <h2>Mapa de focos</h2>
-        <span id="mapa-filtro" class="tenue"></span>
-      </div>
-      <div id="mapa" aria-label="Mapa de focos de calor"></div>
-      <div class="leyenda">
-        <span><i class="punto modis"></i> MODIS (huella nominal 1 km)</span>
-        <span><i class="punto viirs"></i> VIIRS (huella nominal 375 m)</span>
-        <span class="tenue">El círculo es el píxel, no la posición exacta del fuego.</span>
-      </div>
-      <details class="que-significa">
-        <summary>¿Qué significa?</summary>
-        <dl>
-          <dt>Foco de calor</dt>
-          <dd>Es una detección térmica de un satélite en un píxel. No es un incendio confirmado: puede ser una quema agrícola, un fuego o una superficie muy caliente.</dd>
-          <dt>Huella del píxel</dt>
-          <dd>El círculo es el tamaño nominal del píxel: MODIS ~1 km y VIIRS ~375 m. El fuego está en algún punto dentro del círculo. Hacia el borde del barrido el píxel crece.</dd>
-        </dl>
-      </details>
-    </section>
+    <div class="columna-izq">
+      <section class="tarjeta mapa-tarjeta">
+        <div class="tarjeta-cabeza">
+          <h2>Mapa de focos</h2>
+          <span id="mapa-filtro" class="tenue"></span>
+        </div>
+        <div id="mapa" aria-label="Mapa de focos de calor"></div>
+        <div class="leyenda">
+          <span><i class="punto modis"></i> MODIS (huella nominal 1 km)</span>
+          <span><i class="punto viirs"></i> VIIRS (huella nominal 375 m)</span>
+        </div>
+        <p id="mapa-modo" class="tenue mapa-modo" aria-live="polite"></p>
+        <details class="que-significa">
+          <summary>¿Qué significa?</summary>
+          <dl>
+            <dt>Foco de calor</dt>
+            <dd>Es una detección térmica de un satélite en un píxel. No es un incendio confirmado: puede ser una quema agrícola, un fuego o una superficie muy caliente.</dd>
+            <dt>Huella del píxel</dt>
+            <dd>El círculo es el tamaño nominal del píxel: MODIS ~1 km y VIIRS ~375 m. El fuego está en algún punto dentro del círculo. Hacia el borde del barrido el píxel crece.</dd>
+          </dl>
+        </details>
+      </section>
+        <section class="tarjeta">
+          <h2>Incertidumbre</h2>
+          <dl id="incertidumbre" class="datos"></dl>
+          <details class="que-significa">
+            <summary>¿Qué significa?</summary>
+            <dl>
+              <dt>Efecto de borde</dt>
+              <dd>El calendario cuenta las celdas de ~1 km cuyo centro cae dentro del área. El mapa muestra los focos por su posición. Cerca del límite del área ambos conteos pueden diferir un poco.</dd>
+            </dl>
+          </details>
+        </section>
+    </div>
 
     <aside class="panel">
       <section class="tarjeta" id="tarjeta-base">
@@ -110,24 +123,13 @@
         <h2>Periodos críticos del año</h2>
         <ol id="periodos" class="lista"></ol>
       </section>
-      <section class="tarjeta">
-        <h2>Incertidumbre</h2>
-        <dl id="incertidumbre" class="datos"></dl>
-        <details class="que-significa">
-          <summary>¿Qué significa?</summary>
-          <dl>
-            <dt>Efecto de borde</dt>
-            <dd>El calendario cuenta las celdas de ~1 km cuyo centro cae dentro del área. El mapa muestra los focos por su posición. Cerca del límite del área ambos conteos pueden diferir un poco.</dd>
-          </dl>
-        </details>
-      </section>
     </aside>
 
     <section class="tarjeta calendario-tarjeta">
       <div class="tarjeta-cabeza">
         <h2>Calendario de actividad <span id="cal-anio"></span></h2>
         <div class="leyenda-cal">
-          <span>menos</span><i class="esc e0"></i><i class="esc e1"></i><i class="esc e2"></i><i class="esc e3"></i><i class="esc e4"></i><span>más</span>
+          <span id="leyenda-escala" class="leyenda-escala"><span>menos</span><i class="esc e0"></i><i class="esc e1"></i><i class="esc e2"></i><i class="esc e3"></i><i class="esc e4"></i><span>más</span></span>
           <span class="sep"></span><i class="esc e2 inusual"></i><span>inusual</span>
           <i class="esc e2 nrt"></i><span>NRT (preliminar)</span>
         </div>
