@@ -191,9 +191,9 @@ La demo usa `data/sample_historica/`: datos **sintéticos** de 2020 a 2026 gener
   - *NRT / preliminar*: datos casi en tiempo real que pueden corregirse después (D-02).
   - *Huella del píxel*: MODIS ~1 km y VIIRS ~375 m; el fuego está en algún punto del círculo.
   - *Base insuficiente*: el área tiene menos de 5 años de referencia, así que no se marcan días inusuales.
-  - *Efecto de borde*: hacia los extremos del barrido el píxel crece.
+  - *Efecto de borde*: un foco puede estar dentro del área pero contarse fuera, porque cada celda de ~1 km se asigna al área por su centroide (§10.1). Distinto de la huella: el píxel también crece hacia los extremos del barrido.
 - **Aviso de FIRMS.** La interfaz muestra la traducción «No usar para proteger vidas ni bienes» y cita el original en inglés, «Do not use for the preservation of life or property» (aviso de NASA FIRMS). El aviso va en un recuadro debajo del resumen, antes del mapa; la cita y el aviso completos siguen en el pie (D-10).
-- **Formato.** Fechas legibles («12 ago 2026») con la fecha ISO al lado; números con formato es-CO (coma decimal, punto de miles) y unidades explícitas (focos, MW, metros, %).
+- **Formato.** Fechas legibles («12 ago 2026») con la fecha ISO al lado en el detalle del día, en la ventana de cada foco y en los periodos críticos; la comparación mensual marca los meses incompletos; números con formato es-CO (coma decimal, punto de miles) y unidades explícitas (focos, MW, metros, %).
 
 **Tema claro y oscuro (H6-03)**
 
