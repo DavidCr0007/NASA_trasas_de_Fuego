@@ -16,6 +16,8 @@ Para regenerarlas: `make api` y abrir http://127.0.0.1:8000. Para la cuarta: `uv
 
 Las cuatro capturas anteriores muestran la interfaz H4: solo tema claro y sin insignia de origen de los datos. **Deben retomarse** con la interfaz H6 (tema claro y oscuro, insignia de origen, resumen en lenguaje sencillo y calendario accesible).
 
+Las capturas con datos reales de la sección final (`05_real_*` a `08_real_*`) ya muestran la interfaz H6. Los nombres previstos en esta tabla (`05_movil_375_*`, `06_datos_reales_*`) son solo para la demo sintética: al tomarlas, usa otro prefijo numérico (p. ej. `09_`) para no confundirlas con las existentes.
+
 | archivo | qué muestra | estado |
 |---|---|---|
 | `01_vista_general_claro.jpg` | Vista general en tema claro: mapa, resumen, insignias de calidad y de origen. | pendiente |
@@ -27,9 +29,9 @@ Las cuatro capturas anteriores muestran la interfaz H4: solo tema claro y sin in
 | `04_base_insuficiente_claro.jpg` | Línea base insuficiente, tema claro. | pendiente |
 | `04_base_insuficiente_oscuro.jpg` | Línea base insuficiente, tema oscuro. | pendiente |
 | `05_movil_375_claro.jpg` | Ventana de 375 px de ancho, tema claro. Sin scroll horizontal. | pendiente |
-| `05_movil_375_oscuro.jpg` | Ventana de 375 px de ancho, tema oscuro. | pendiente |
-| `06_datos_reales_claro.jpg` | Con `make api-real`: insignia «Datos reales NASA FIRMS». Solo si existe `data/processed/huila_real`. | pendiente |
-| `06_datos_reales_oscuro.jpg` | Con `make api-real`, tema oscuro. Solo si existe `data/processed/huila_real`. | pendiente |
+| `05_movil_375_oscuro.jpg` | Ventana de 375 px de ancho, tema oscuro. | cubierta con datos reales por `08_real_movil_oscuro.jpg`; falta con la demo sintética |
+| `06_datos_reales_claro.jpg` | Con `make api-real`: insignia «Datos reales NASA FIRMS». Solo si existe `data/processed/huila_real`. | hecha: ver `05_real_claro.jpg` |
+| `06_datos_reales_oscuro.jpg` | Con `make api-real`, tema oscuro. Solo si existe `data/processed/huila_real`. | hecha: ver `06_real_oscuro.jpg` |
 
 **Cómo tomar cada captura**
 

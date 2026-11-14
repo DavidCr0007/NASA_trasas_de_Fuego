@@ -50,4 +50,4 @@ Consecuencias:
 
 - El contraste WCAG AA (texto ≥ 4,5:1; gráficos y foco ≥ 3:1) se calcula en `tests/test_interfaz.py` para ambos temas.
 - El filtro CSS altera los colores de las teselas de OpenStreetMap en el tema oscuro. Es una aproximación visual, no un mapa oscuro de origen.
-- Las capturas de la interfaz H6 en claro y oscuro quedan pendientes (`docs/capturas/LEEME.md`).
+- Las capturas de la interfaz H6 con datos reales en claro, oscuro y 375 px están en `docs/capturas/` (`05`–`08`). Las de la demo sintética en ambos temas siguen pendientes (`docs/capturas/LEEME.md`).
