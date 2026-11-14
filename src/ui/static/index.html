@@ -30,9 +30,10 @@
   <section class="controles" aria-label="Controles">
     <label>Área
       <select id="sel-area">
-        <option value="huila">Huila (bbox aproximado)</option>
+        <option value="huila">Huila (recuadro del departamento)</option>
         <option value="neiva">Neiva ± 0,25°</option>
         <option value="dibujo" disabled>Rectángulo dibujado</option>
+        <!-- Los municipios del Huila se añaden desde datos/huila_municipios.geojson -->
       </select>
     </label>
     <button id="btn-dibujar" type="button">Dibujar área en el mapa</button>
@@ -71,7 +72,16 @@
           <h2>Mapa de focos</h2>
           <span id="mapa-filtro" class="tenue"></span>
         </div>
-        <div id="mapa" aria-label="Mapa de focos de calor"></div>
+        <div class="control-imagen">
+            <label for="sel-imagen">Imagen satelital del día</label>
+            <select id="sel-imagen" disabled>
+              <option value="">Ninguna</option>
+              <option value="viirs">VIIRS NOAA-20, color real (NASA GIBS)</option>
+              <option value="modis">MODIS Terra, color real (NASA GIBS)</option>
+            </select>
+            <span id="imagen-nota" class="tenue">Elija un día en el calendario para ver la imagen satelital de ese día.</span>
+          </div>
+          <div id="mapa" aria-label="Mapa de focos de calor"></div>
         <div class="leyenda">
           <span><i class="punto modis"></i> MODIS (huella nominal 1 km)</span>
           <span><i class="punto viirs"></i> VIIRS (huella nominal 375 m)</span>
@@ -113,6 +123,11 @@
             <dd>Con menos años de datos de los necesarios (5 por defecto) no se puede decir qué es normal. Por eso no se marcan días inusuales.</dd>
           </dl>
         </details>
+      </section>
+      <section class="tarjeta" id="tarjeta-meteo">
+        <h2>Clima (reanálisis)</h2>
+        <div id="meteo" aria-live="polite"><p class="tenue">Elija un día en el calendario para ver el clima de esos días.</p></div>
+        <p class="tenue nota-fuente">Datos meteorológicos: <a href="https://open-meteo.com/">Open-Meteo.com</a> (CC BY 4.0), a partir de los reanálisis ERA5 y ERA5-Land y del modelo IFS de ECMWF. Son estimaciones de modelo para el centro del área, no observaciones de estaciones. Requiere internet.</p>
       </section>
       <section class="tarjeta">
         <h2>Temporada (climatología mensual)</h2>
