@@ -10,6 +10,7 @@ dependencies = [
     "duckdb",
     "fastapi>=0.162.7",
     "pyarrow",
+    "tzdata>=2026.6",
     "uvicorn>=0.54.0",
 ]
 
