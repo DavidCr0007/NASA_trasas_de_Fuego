@@ -7,7 +7,7 @@
   --acento: #9a3412;
   --enlace: #075985;
   --foco: #005fcc;
-  --sel: #6d28d9;
+  --sel: #0d9488;
   --modis: #9a3412;
   --viirs: #006b5f;
   --inusual: #5b21b6;
@@ -61,7 +61,7 @@
   --acento: #fb923c;
   --enlace: #7dd3fc;
   --foco: #7dd3fc;
-  --sel: #e879f9;
+  --sel: #fde047;
   --modis: #f59e0b;
   --viirs: #2dd4bf;
   --inusual: #60a5fa;
@@ -114,7 +114,7 @@
     --acento: #fb923c;
     --enlace: #7dd3fc;
     --foco: #7dd3fc;
-    --sel: #e879f9;
+    --sel: #fde047;
     --modis: #f59e0b;
     --viirs: #2dd4bf;
     --inusual: #60a5fa;
@@ -189,12 +189,16 @@ button.activo { border-color: var(--acento); background: var(--acento); color: v
 :focus-visible, button:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--foco); outline-offset: 2px; }
 
 .rejilla { display: grid; grid-template-areas: "mapa panel" "cal cal"; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 16px; padding: 16px 20px; }
-.mapa-tarjeta { display: flex; min-width: 0; flex-direction: column; grid-area: mapa; }
-.mapa-tarjeta #mapa { min-height: 460px; flex: 1 1 auto; }
+/* Altura fija: el panel derecho puede crecer sin estirar el mapa. Sin «sticky»: su
+   contenedor es toda la rejilla y taparía el calendario al desplazarse. */
+.mapa-tarjeta { display: flex; min-width: 0; flex-direction: column; grid-area: mapa; align-self: start; }
+.mapa-tarjeta #mapa { height: min(560px, 72vh); min-height: 380px; }
 .panel { display: flex; min-width: 0; flex-direction: column; grid-area: panel; gap: 16px; }
 .calendario-tarjeta { position: relative; min-width: 0; grid-area: cal; }
 .tarjeta { min-width: 0; padding: 14px; border: 1px solid var(--borde); border-radius: var(--radio); background: var(--tarjeta); }
 .resumen { font-size: 16px; line-height: 1.55; }
+#estado-carga, #resumen, #aviso-emergencia { margin: 16px 20px 0; }
+@media (max-width: 600px) { #estado-carga, #resumen, #aviso-emergencia { margin: 12px 16px 0; } }
 .resumen p:first-child { margin-top: 0; }
 .resumen p:last-child { margin-bottom: 0; }
 .tarjeta-cabeza { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 12px; }
@@ -210,6 +214,7 @@ button.activo { border-color: var(--acento); background: var(--acento); color: v
 .aviso-caja strong, .ok-caja strong { display: block; margin-bottom: 2px; }
 .aviso-caja q, .cita, #aviso { overflow-wrap: anywhere; word-break: break-word; }
 .estado { position: relative; background: var(--info-fondo); color: var(--info-tinta); }
+.estado:not(.cargando):not(.vacio):not(.error) { display: none; }
 .estado.cargando { padding-left: 38px; }
 .estado.cargando::before { position: absolute; top: 50%; left: 13px; width: 14px; height: 14px; margin-top: -9px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: giro 0.8s linear infinite; content: ""; }
 .estado.vacio { background: var(--info-fondo); color: var(--info-tinta); }
@@ -260,7 +265,7 @@ text.cal-texto, .cmp-texto { fill: var(--tenue); }
 .tooltip[hidden] { display: none; }
 
 .leaflet-container { background: var(--mapa-fondo); color: var(--tinta); font-family: inherit; }
-.leaflet-tile-pane, .teselas-base { filter: var(--filtro-teselas); }
+.leaflet-tile-pane { filter: var(--filtro-teselas); }
 path.foco.foco-modis { fill: var(--modis); fill-opacity: 0.8; stroke: var(--tinta); stroke-width: 1px; }
 path.foco.foco-viirs { fill: var(--viirs); fill-opacity: 0.8; stroke: var(--tinta); stroke-width: 1px; }
 path.huella.huella-modis { fill: var(--modis); fill-opacity: 0.2; stroke: var(--modis); stroke-dasharray: 5 3; }
@@ -269,11 +274,12 @@ path.area-rect { fill: var(--acento); fill-opacity: 0; stroke: var(--acento); st
 path.area-dibujo { fill: var(--acento); fill-opacity: 0.14; stroke: var(--acento); stroke-dasharray: 4 3; }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--tarjeta); color: var(--tinta); }
 .leaflet-popup-content { overflow-wrap: anywhere; }
-.leaflet-container a, .leaflet-popup-close-button { color: var(--enlace); }
-.leaflet-popup-close-button { opacity: 1; }
+.leaflet-container a, .leaflet-container a.leaflet-popup-close-button { color: var(--enlace); }
+.leaflet-container a.leaflet-popup-close-button { opacity: 1; }
 .leaflet-bar a, .leaflet-bar a:hover { border-color: var(--borde); background: var(--boton-fondo); color: var(--boton-tinta); }
-.leaflet-control-attribution { max-width: 70%; background: color-mix(in srgb, var(--tarjeta) 88%, transparent); color: var(--tinta); font-size: 10px; overflow-wrap: anywhere; }
-.leaflet-control-attribution a { color: var(--enlace); }
+.leaflet-bar a.leaflet-disabled { background: var(--boton-fondo); color: var(--tenue); opacity: 0.6; }
+.leaflet-container .leaflet-control-attribution { max-width: 70%; background: color-mix(in srgb, var(--tarjeta) 88%, transparent); color: var(--tinta); font-size: 10px; overflow-wrap: anywhere; }
+.leaflet-container .leaflet-control-attribution a { color: var(--enlace); }
 
 .pie { min-width: 0; padding: 8px 20px 24px; color: var(--tenue); font-size: 12px; }
 .pie p { max-width: 1000px; margin: 4px 0; }
@@ -291,10 +297,17 @@ path.area-dibujo { fill: var(--acento); fill-opacity: 0.14; stroke: var(--acento
   #mapa, .mapa-tarjeta #mapa { height: 320px; min-height: 320px; }
   details.que-significa dl, .datos { grid-template-columns: minmax(0, 1fr); }
   details.que-significa dd, .datos dd { margin-bottom: 6px; }
-  .leaflet-control-attribution { max-width: calc(100% - 56px); }
+  .leaflet-container .leaflet-control-attribution { max-width: calc(100% - 56px); }
   .pie { padding: 8px 10px 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto; animation-duration: 0.01ms; animation-iteration-count: 1; transition-duration: 0.01ms; }
 }
+
+/* Comparación mensual (revisión H6) */
+.cmp-titulo { margin: 0 0 6px; font-size: 13px; font-weight: 650; }
+.cmp-anio.cmp-incompleto { fill-opacity: 0.45; stroke: var(--tinta); stroke-dasharray: 3 2; stroke-width: 1; }
+.tabla-cmp { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.tabla-cmp th, .tabla-cmp td { padding: 3px 6px; border-bottom: 1px solid var(--borde); text-align: left; }
+

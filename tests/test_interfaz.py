@@ -14,6 +14,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
+
+from ingest.firms_schema import HUILA_BBOX
 from fastapi.testclient import TestClient
 
 from api.app import create_app
@@ -135,6 +137,10 @@ def test_filtro_de_teselas_solo_en_teselas():
         if "var(--filtro-teselas)" in cuerpo
     ]
     assert reglas, "ninguna regla aplica --filtro-teselas"
+    # Un solo selector: si se filtran el panel y la capa a la vez, la doble inversión
+    # devuelve las teselas a sus colores claros.
+    selectores = [s.strip() for sel, _ in reglas for s in sel.split(",")]
+    assert len(selectores) == 1, selectores
     for sel, _ in reglas:
         assert "tile" in sel or "teselas" in sel, sel
         for prohibido in ("marker", "overlay", "path", "foco", "popup", "leaflet-container"):
@@ -195,7 +201,10 @@ def test_escala_del_calendario_monotona(tema, sentido):
 @pytest.mark.parametrize(
     "selector",
     [".leaflet-popup-content-wrapper", ".leaflet-popup-tip", ".leaflet-bar a",
-     ".leaflet-control-attribution", ".leaflet-container"],
+     # Misma o mayor especificidad que leaflet.css, para que el tema oscuro gane:
+     ".leaflet-container .leaflet-control-attribution",
+     ".leaflet-container a.leaflet-popup-close-button", ".leaflet-bar a.leaflet-disabled",
+     ".leaflet-container"],
 )
 def test_leaflet_tematizado(selector):
     for sel, cuerpo in re.findall(r"([^{}]+)\{([^{}]*)\}", CSS):
@@ -241,7 +250,7 @@ def test_cita_d10_en_app_js_e_index():
 
 
 def test_calendario_devuelve_cita_y_aviso(cliente):
-    c = cliente.get("/calendario", params={"anio": 2024}).json()
+    c = cliente.get("/calendario", params={"bbox": ",".join(map(str, HUILA_BBOX))}).json()
     assert c["cita"] and c["aviso"]
 
 
@@ -255,7 +264,7 @@ def test_insignia_de_origen(cliente):
 
 
 def test_calendario_de_la_muestra_es_sintetico(cliente):
-    c = cliente.get("/calendario").json()
+    c = cliente.get("/calendario", params={"bbox": ",".join(map(str, HUILA_BBOX))}).json()
     assert c["origen_datos"] == "sintetico"
 
 
@@ -284,3 +293,15 @@ def test_app_js_sintaxis_valida():
         pytest.skip("node no está instalado")
     r = subprocess.run([node, "--check", str(ESTATICOS / "app.js")], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
+
+
+def test_seleccion_distinta_de_inusual_en_ambos_temas():
+    # La selección no debe confundirse con el borde de día inusual (revisión H6).
+    for tema in ("claro", "oscuro"):
+        t = _temas()[tema]
+        assert t["--sel"].lower() != t["--inusual"].lower()
+        assert _contraste(t["--sel"], t["--inusual"]) >= 1.8, tema
+
+
+def test_estado_vacio_no_ocupa_espacio():
+    assert re.search(r"\.estado:not\(\.cargando\):not\(\.vacio\):not\(\.error\)\s*\{[^}]*display:\s*none", CSS)

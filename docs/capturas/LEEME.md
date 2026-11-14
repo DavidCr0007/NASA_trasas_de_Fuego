@@ -37,3 +37,14 @@ Las cuatro capturas anteriores muestran la interfaz H4: solo tema claro y sin in
 - **Ventana de 375 px.** Reducir el ancho de la ventana del navegador a 375 px (o usar el modo de dispositivo móvil de las herramientas de desarrollo con ese ancho).
 - **Datos.** `05` y `01`–`04` con `make api` (datos sintéticos, insignia «DATOS SINTÉTICOS (demostración)»). Para `06`, `make api-real` en otra terminal, con `data/processed/huila_real` ya generado.
 - **Registro en cada archivo.** Anotar la fecha de la captura, la versión de reglas que muestra la insignia (`armonizacion-0.3.1` o la que aparezca) y el origen de los datos (sintético o real NASA FIRMS). Añadir estos datos en la tabla de arriba al completar cada captura.
+
+## Capturas con datos reales (ruta pública, ADR 0009), 2026-11-13
+
+Datos **reales** de NASA FIRMS, calidad estándar, Huila 2025 (`make real` y `make api-real`). Interfaz H6.
+
+| archivo | qué muestra |
+|---|---|
+| `05_real_claro.jpg` | Tema claro: resumen en lenguaje sencillo, insignias «Calidad estándar» y «Datos reales NASA FIRMS», aviso de FIRMS y mapa. |
+| `06_real_oscuro.jpg` | El mismo contenido en tema oscuro, con teselas oscurecidas. |
+| `07_real_comparacion.jpg` | Comparación de 2025 con el promedio histórico mensual y periodos críticos con fecha ISO. |
+| `08_real_movil_oscuro.jpg` | 375 px en oscuro, sin desplazamiento horizontal. |
