@@ -293,3 +293,52 @@ def test_rango_sin_solapamiento_con_la_cobertura(cliente):
     cuerpo = cliente.get(f"/calendario?bbox={BBOX}&desde=2020-01-01&hasta=2020-12-31").json()
     assert cuerpo["dias"] == []
     assert cuerpo["incertidumbre"]["porcentaje_dias_con_dato"] == 0.0
+
+
+# ---------------------------------------------------------------- H6-01 (origen de los datos)
+def _copia_con_sintetico(salida: Path, destino: Path, valores: list[bool]) -> Path:
+    """Copia la salida y reescribe la columna `sintetico` conservando esquema y metadatos."""
+    import pyarrow as pa
+
+    shutil.copytree(salida, destino)
+    tabla = pq.read_table(destino / "detecciones.parquet")
+    assert len(valores) == tabla.num_rows
+    pos = tabla.schema.get_field_index("sintetico")
+    tabla = tabla.set_column(pos, tabla.schema.field(pos), pa.array(valores, type=tabla.schema.field(pos).type))
+    pq.write_table(tabla.replace_schema_metadata(tabla.schema.metadata), destino / "detecciones.parquet")
+    return destino
+
+
+def test_origen_datos_sintetico_en_calendario_y_detecciones(cliente, salida):
+    assert all(f["sintetico"] is True for f in _tabla(salida, "detecciones"))
+    assert cliente.get(f"/calendario?bbox={BBOX}").json()["origen_datos"] == "sintetico"
+    assert cliente.get(f"/detecciones?bbox={BBOX}").json()["origen_datos"] == "sintetico"
+
+
+def test_origen_datos_sintetico_tambien_en_area_sin_focos(cliente):
+    c = cliente.get("/calendario?bbox=10,10,11,11&desde=2026-11-10&hasta=2026-11-12").json()
+    d = cliente.get("/detecciones?bbox=10,10,11,11&desde=2026-11-10&hasta=2026-11-12").json()
+    assert c["origen_datos"] == "sintetico" and d["origen_datos"] == "sintetico"
+    assert d["detecciones"] == []
+
+
+def test_origen_datos_real_si_ninguna_fila_es_sintetica(salida, tmp_path):
+    n = pq.read_table(salida / "detecciones.parquet").num_rows
+    copia = _copia_con_sintetico(salida, tmp_path / "real", [False] * n)
+    cl = TestClient(create_app(copia))
+    assert cl.get(f"/calendario?bbox={BBOX}").json()["origen_datos"] == "real"
+    assert cl.get(f"/detecciones?bbox={BBOX}").json()["origen_datos"] == "real"
+
+
+def test_origen_datos_mixto_si_hay_filas_de_ambos_tipos(salida, tmp_path):
+    n = pq.read_table(salida / "detecciones.parquet").num_rows
+    assert n >= 2
+    copia = _copia_con_sintetico(salida, tmp_path / "mixto", [False] + [True] * (n - 1))
+    cl = TestClient(create_app(copia))
+    assert cl.get(f"/calendario?bbox={BBOX}").json()["origen_datos"] == "mixto"
+    assert cl.get(f"/detecciones?bbox={BBOX}").json()["origen_datos"] == "mixto"
+
+
+def test_csv_lleva_la_linea_origen_datos(cliente):
+    lineas = cliente.get(f"/calendario.csv?bbox={BBOX}").text.splitlines()
+    assert "# origen_datos: sintetico" in lineas

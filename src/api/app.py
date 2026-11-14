@@ -3,6 +3,8 @@
 Requisitos: D-02 (calidad NRT/estándar visible), D-05 (versión de reglas),
 D-07 (metadatos de incertidumbre), D-08 (mínimo de años de base) y D-10 (cita).
 No recibe ni guarda datos personales (D-09).
+H6-01: /calendario, /detecciones y la cabecera de /calendario.csv (`# origen_datos: ...`) llevan
+`origen_datos` ("sintetico", "real", "mixto" o null) según la columna `sintetico` de todo el conjunto.
 """
 
 from __future__ import annotations
@@ -174,6 +176,18 @@ def create_app(
             ),
         }
 
+    def origen(con) -> str | None:
+        """H6-01: 'sintetico', 'real', 'mixto' o None según la columna `sintetico` de TODO el conjunto."""
+        n_sint, n_real = con.execute(
+            "select count(*) filter (where sintetico), count(*) filter (where not sintetico)"
+            f" from read_parquet('{ruta['detecciones']}')"
+        ).fetchone()
+        if n_sint and n_real:
+            return "mixto"
+        if n_sint:
+            return "sintetico"
+        return "real" if n_real else None
+
     def calendario(bbox_txt: str, desde: date | None, hasta: date | None) -> dict[str, Any]:
         bbox = _parse_bbox(bbox_txt)
         desde_sol, hasta_sol = desde, hasta
@@ -217,6 +231,7 @@ def create_app(
                     [s, n, w, e],
                 ).fetchall()
             }
+            origen_datos = origen(con)
         finally:
             con.close()
         estado_base = linea_base(inc["anios_con_dato"])
@@ -244,6 +259,7 @@ def create_app(
             "nota_rango": "El rango se recorta a la cobertura de los datos; fuera de ella no hay observaciones.",
             "calidad": _calidad(calidades_global),
             "preliminar": "NRT" in calidades_global,
+            "origen_datos": origen_datos,
             "nota_conteos": (
                 "n_detecciones cuenta representantes tras deduplicar (R3); n_brutas, las detecciones "
                 "originales. Para comparar con el visor de FIRMS use n_brutas."
@@ -296,6 +312,7 @@ def create_app(
             + (" (contiene datos NRT preliminares)" if cuerpo["preliminar"] else ""),
             f"bbox: {','.join(str(v) for v in cuerpo['bbox'])} desde: {cuerpo['desde']} hasta: {cuerpo['hasta']}",
             f"linea_base: {cuerpo['linea_base']['estado']}",
+            f"origen_datos: {cuerpo['origen_datos']}",
         ):
             buf.write(f"# {linea}\n")
         campos = ["fecha_utc", "n_detecciones", "n_brutas", "n_modis", "n_viirs",
@@ -328,6 +345,7 @@ def create_app(
                 [s, n, w, e, desde, hasta, limite + 1],
             ).fetchall()
             inc = incertidumbre(con, caja, desde, hasta, None) if desde and desde <= hasta else {}
+            origen_datos = origen(con)
         finally:
             con.close()
         columnas = ["record_id", "sensor", "satelite", "fecha_hora_utc", "calidad", "confianza_clase",
@@ -343,6 +361,7 @@ def create_app(
             "bbox": list(caja),
             "desde": desde.isoformat() if desde else None,
             "hasta": hasta.isoformat() if hasta else None,
+            "origen_datos": origen_datos,
             "truncado": len(filas) > limite,
             "detecciones": detecciones,
             "incertidumbre": inc,
