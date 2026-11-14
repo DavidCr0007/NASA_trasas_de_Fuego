@@ -16,7 +16,7 @@ Para regenerarlas: `make api` y abrir http://127.0.0.1:8000. Para la cuarta: `uv
 
 Las cuatro capturas anteriores muestran la interfaz H4: solo tema claro y sin insignia de origen de los datos. **Deben retomarse** con la interfaz H6 (tema claro y oscuro, insignia de origen, resumen en lenguaje sencillo y calendario accesible).
 
-Las capturas con datos reales de la sección final (`05_real_*` a `08_real_*`) ya muestran la interfaz H6. De los nombres previstos en esta tabla, `06_datos_reales_*` ya está cubierto por `05_real_claro.jpg` y `06_real_oscuro.jpg`; `05_movil_375_*` es para la demo sintética: al tomarlas, usa otro prefijo numérico (p. ej. `09_`) para no confundirlas con las existentes. Las capturas `05`–`08` son anteriores a la rejilla de densidad del mapa (auditoría UI/UX): conviene retomarlas antes de presentar.
+Las capturas con datos reales de la sección final (`05_real_*` a `08_real_*`) ya muestran la interfaz H6. De los nombres previstos en esta tabla, `06_datos_reales_*` ya está cubierto por `05_real_claro.jpg` y `06_real_oscuro.jpg`; `05_movil_375_*` es para la demo sintética: al tomarlas, usa otro prefijo numérico (p. ej. `10_`) para no confundirlas con las existentes. Las capturas `05`–`09` se retomaron el 2026-11-14 con la rejilla de densidad del mapa (auditoría UI/UX).
 
 | archivo | qué muestra | estado |
 |---|---|---|
@@ -40,13 +40,16 @@ Las capturas con datos reales de la sección final (`05_real_*` a `08_real_*`) y
 - **Datos.** `05` y `01`–`04` con `make api` (datos sintéticos, insignia «DATOS SINTÉTICOS (demostración)»). Para `06`, `make api-real` en otra terminal, con `data/processed/huila_real` ya generado.
 - **Registro en cada archivo.** Anotar la fecha de la captura, la versión de reglas que muestra la insignia (`armonizacion-0.3.1` o la que aparezca) y el origen de los datos (sintético o real NASA FIRMS). Añadir estos datos en la tabla de arriba al completar cada captura.
 
-## Capturas con datos reales (ruta pública, ADR 0009), 2026-11-13
+## Capturas con datos reales (ruta pública, ADR 0009), retomadas el 2026-11-14
 
-Datos **reales** de NASA FIRMS, calidad estándar, Huila 2025 (`make real` y `make api-real`). Interfaz H6.
+Datos **reales** de NASA FIRMS, calidad estándar, Huila 2025 (`make real` y `make api-real`). Interfaz H6 con las correcciones de la auditoría UI/UX: mapa en Canvas con rejilla de densidad y leyenda numérica.
 
 | archivo | qué muestra |
 |---|---|
-| `05_real_claro.jpg` | Tema claro: resumen en lenguaje sencillo, insignias «Calidad estándar» y «Datos reales NASA FIRMS», aviso de FIRMS y mapa. |
-| `06_real_oscuro.jpg` | El mismo contenido en tema oscuro, con teselas oscurecidas. |
-| `07_real_comparacion.jpg` | Comparación de 2025 con el promedio histórico mensual y periodos críticos con fecha ISO. |
-| `08_real_movil_oscuro.jpg` | 375 px en oscuro, sin desplazamiento horizontal. |
+| `05_real_claro.jpg` | Tema claro: resumen en lenguaje sencillo, insignias «Calidad estándar» y «Datos reales NASA FIRMS», aviso de FIRMS y mapa con densidad en cuadros de ~11 km. |
+| `06_real_oscuro.jpg` | El mismo contenido en tema oscuro, con teselas oscurecidas (en oscuro, más claro = más focos). |
+| `07_real_comparacion.jpg` | Oscuro: temporada, comparación de 2025 con el promedio histórico mensual y periodos críticos con fecha ISO. |
+| `08_real_movil_oscuro.jpg` | 375 px en oscuro: mapa de densidad y su explicación, sin desplazamiento horizontal. |
+| `09_real_calendario_oscuro.jpg` | Oscuro: calendario 2025 con leyenda numérica («0 · 1–3 · 4–7 · 8–20 · 21+ focos por día»), días inusuales e incertidumbre bajo el mapa. |
+
+Pendiente: la vista de un día con la huella de cada foco sobre la rejilla nueva. No se pudo capturar en esta sesión porque el panel del navegador estaba en segundo plano y el lienzo del mapa no se repintaba al hacer zoom. Para tomarla: `make api-real`, elegir un día en el calendario (p. ej. el 15 sep 2024) y acercar el mapa. La captura `03_dia_seleccionado_huella.jpg` (demo sintética) muestra la misma idea con la versión anterior del mapa.
