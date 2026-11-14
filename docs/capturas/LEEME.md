@@ -11,3 +11,29 @@ Los datos son **sintéticos**: muestra histórica 2020–2026 con una anomalía 
 | `04_base_insuficiente.jpg` | Muestra de 3 días (`data/processed/demo`): la línea base responde «Base insuficiente» (1 año frente a los 5 requeridos) y no marca días inusuales. |
 
 Para regenerarlas: `make api` y abrir http://127.0.0.1:8000. Para la cuarta: `uv run python -m api --datos data/processed/demo --puerto 8001`.
+
+## Capturas a retomar (H6)
+
+Las cuatro capturas anteriores muestran la interfaz H4: solo tema claro y sin insignia de origen de los datos. **Deben retomarse** con la interfaz H6 (tema claro y oscuro, insignia de origen, resumen en lenguaje sencillo y calendario accesible).
+
+| archivo | qué muestra | estado |
+|---|---|---|
+| `01_vista_general_claro.jpg` | Vista general en tema claro: mapa, resumen, insignias de calidad y de origen. | pendiente |
+| `01_vista_general_oscuro.jpg` | Vista general en tema oscuro. | pendiente |
+| `02_calendario_claro.jpg` | Calendario con tooltip y día enfocado por teclado. | pendiente |
+| `02_calendario_oscuro.jpg` | Calendario en tema oscuro, con tooltip y día enfocado por teclado. | pendiente |
+| `03_dia_seleccionado_huella_claro.jpg` | Día seleccionado y huella del píxel (MODIS y VIIRS), tema claro. | pendiente |
+| `03_dia_seleccionado_huella_oscuro.jpg` | Día seleccionado y huella del píxel, tema oscuro. | pendiente |
+| `04_base_insuficiente_claro.jpg` | Línea base insuficiente, tema claro. | pendiente |
+| `04_base_insuficiente_oscuro.jpg` | Línea base insuficiente, tema oscuro. | pendiente |
+| `05_movil_375_claro.jpg` | Ventana de 375 px de ancho, tema claro. Sin scroll horizontal. | pendiente |
+| `05_movil_375_oscuro.jpg` | Ventana de 375 px de ancho, tema oscuro. | pendiente |
+| `06_datos_reales_claro.jpg` | Con `make api-real`: insignia «Datos reales NASA FIRMS». Solo si existe `data/processed/huila_real`. | pendiente |
+| `06_datos_reales_oscuro.jpg` | Con `make api-real`, tema oscuro. Solo si existe `data/processed/huila_real`. | pendiente |
+
+**Cómo tomar cada captura**
+
+- **Forzar el tema.** Usar el selector «Tema» de la cabecera: «Claro» u «Oscuro» fijan el tema. Para «Sistema», cambiar la preferencia de color del sistema operativo o del navegador (en el navegador, la emulación de `prefers-color-scheme` de las herramientas de desarrollo también sirve).
+- **Ventana de 375 px.** Reducir el ancho de la ventana del navegador a 375 px (o usar el modo de dispositivo móvil de las herramientas de desarrollo con ese ancho).
+- **Datos.** `05` y `01`–`04` con `make api` (datos sintéticos, insignia «DATOS SINTÉTICOS (demostración)»). Para `06`, `make api-real` en otra terminal, con `data/processed/huila_real` ya generado.
+- **Registro en cada archivo.** Anotar la fecha de la captura, la versión de reglas que muestra la insignia (`armonizacion-0.3.1` o la que aparezca) y el origen de los datos (sintético o real NASA FIRMS). Añadir estos datos en la tabla de arriba al completar cada captura.

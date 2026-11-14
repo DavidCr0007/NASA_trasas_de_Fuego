@@ -29,3 +29,25 @@ El prompt del proyecto propone React con Leaflet, o la alternativa que se docume
 - Nada que compilar: `make api` basta.
 - Si la interfaz crece, migrar a React reutiliza la misma API.
 - Las teselas de OpenStreetMap siguen su política de uso. Para un despliegue público hay que usar un proveedor propio (R-30).
+
+## Actualización 2026-11-13 (H6): tema claro y oscuro
+
+Decisión:
+
+- Los colores son tokens CSS en `:root`. Se redefinen en `@media (prefers-color-scheme: dark)` y en `:root[data-tema="oscuro"]`.
+- El selector «Tema» ofrece «Sistema», «Claro» y «Oscuro». La elección se guarda en `localStorage` con la clave `hhn-tema`, dentro de `try/catch`. Un script en línea en `<head>` aplica el tema guardado antes de cargar las hojas de estilo, para evitar el destello.
+- Los colores de Leaflet y del calendario se asignan con clases y variables CSS, sin colores en JavaScript.
+- Las teselas se oscurecen con `filter` CSS solo en el tema oscuro.
+- No se añaden librerías ni recursos remotos.
+
+Alternativas:
+
+1. **Una hoja de estilos separada por tema.** Duplica reglas y es más difícil mantener el contraste sincronizado. Se descarta.
+2. **Solo `prefers-color-scheme`.** No permite forzar el tema para una captura, una demostración o un usuario que lo necesite. Se descarta como única vía.
+3. **Teselas oscuras de un proveedor externo.** Requiere red y una clave o política de uso adicional, y rompe el modo sin internet. Se descarta.
+
+Consecuencias:
+
+- El contraste WCAG AA (texto ≥ 4,5:1; gráficos y foco ≥ 3:1) se calcula en `tests/test_interfaz.py` para ambos temas.
+- El filtro CSS altera los colores de las teselas de OpenStreetMap en el tema oscuro. Es una aproximación visual, no un mapa oscuro de origen.
+- Las capturas de la interfaz H6 en claro y oscuro quedan pendientes (`docs/capturas/LEEME.md`).

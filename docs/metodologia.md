@@ -165,7 +165,7 @@ Implementación: `src/harmonize/linea_base.py`. Parámetros: ADR 0004 y ADR 0005
 
 Interpretación: con un P95 sobre una serie estable se espera que ~5 % de los días supere el umbral aunque no pase nada raro. En la muestra histórica sintética, los años sin anomalía (2021–2025) dan entre 2,7 % y 7,9 %, con media de 4,6 %. La anomalía inyectada en agosto de 2026 se detecta como el periodo crítico más largo.
 
-## 9. Interfaz (H4)
+## 9. Interfaz (H4, H6)
 
 `make api` sirve la interfaz en http://127.0.0.1:8000/ (ADR 0008). Funciona sin internet; las teselas base son opcionales.
 
@@ -175,6 +175,42 @@ Interpretación: con un P95 sobre una serie estable se espera que ~5 % de los d�
 - **Calidad y cita.** La insignia de calidad cambia a PRELIMINAR si hay NRT. El enlace «Exportar CSV» incluye cita, aviso, versión y calidad. El mapa lleva la atribución «NASA FIRMS (LANCE / ESDIS)» y el pie, la cita y el aviso completos (D-10).
 
 La demo usa `data/sample_historica/`: datos **sintéticos** de 2020 a 2026 generados por `tools/generar_historico.py`, con un patrón estacional inventado y una anomalía inyectada del 10 al 16 de agosto de 2026.
+
+**Origen de los datos (H6-01 y H6-02)**
+
+- `origen_datos` aparece en `/calendario` y en `/detecciones` (y en la cabecera `# origen_datos:` de `/calendario.csv`). Vale `"sintetico"`, `"real"` o `"mixto"`, y `null` si no hay detecciones. Se calcula sobre la columna `sintetico` de `detecciones.parquet` de **todo** el conjunto, no solo del año o área consultados.
+- La insignia junto a la de calidad muestra «DATOS SINTÉTICOS (demostración)», «Datos reales NASA FIRMS» o «Datos mixtos: reales y sintéticos». Si el origen es sintético, el resumen añade un aviso de demostración.
+- `make api` sirve `data/processed/demo_historica/` (sintético, generado desde `data/sample_historica/`). `make api-real` sirve `data/processed/huila_real/`: historia real estándar del Huila 2016–2025, obtenida del archivo público de FIRMS por país (ADR 0009).
+
+**Resumen y explicaciones (H6-04)**
+
+- **En pocas palabras.** Resumen en lenguaje sencillo generado solo con la respuesta de `/calendario`: número de focos del año, días fuera de lo normal, periodo más crítico (con fechas) y temporada alta.
+- **¿Qué significa?** Explicaciones breves junto a cada concepto:
+  - *Foco de calor*: detección térmica de un píxel de satélite. **No es un incendio confirmado.**
+  - *Día inusual*: día cuyo número de focos supera el P95 histórico del mismo día del año, con una ventana de ±7 días y sin contar el propio año. Como el umbral es un P95, ~5 % de los días normales también lo superan.
+  - *NRT / preliminar*: datos casi en tiempo real que pueden corregirse después (D-02).
+  - *Huella del píxel*: MODIS ~1 km y VIIRS ~375 m; el fuego está en algún punto del círculo.
+  - *Base insuficiente*: el área tiene menos de 5 años de referencia, así que no se marcan días inusuales.
+  - *Efecto de borde*: hacia los extremos del barrido el píxel crece.
+- **Aviso de FIRMS.** La interfaz muestra la traducción «No usar para proteger vidas ni bienes» y cita el original en inglés, «Do not use for the preservation of life or property» (aviso de NASA FIRMS). El aviso va en un recuadro debajo del resumen, antes del mapa; la cita y el aviso completos siguen en el pie (D-10).
+- **Formato.** Fechas legibles («12 ago 2026») con la fecha ISO al lado; números con formato es-CO (coma decimal, punto de miles) y unidades explícitas (focos, MW, metros, %).
+
+**Tema claro y oscuro (H6-03)**
+
+- Los colores son tokens CSS en `:root`. Siguen la preferencia de color del sistema (`prefers-color-scheme`) y el selector «Tema» permite forzar «Sistema», «Claro» u «Oscuro». La elección se guarda en `localStorage` con la clave `hhn-tema`, con `try/catch` por si el almacenamiento no está disponible. Un script en el `<head>` aplica el tema guardado antes de pintar, para evitar un destello.
+- El contraste WCAG AA (texto ≥ 4,5:1; gráficos y foco ≥ 3:1) se calcula en `tests/test_interfaz.py` para ambos temas: escala del calendario e0..e4, días inusuales, puntos MODIS/VIIRS, insignias, cajas de aviso, popups y controles de Leaflet.
+- Las teselas de OpenStreetMap se oscurecen con un `filter` CSS en el tema oscuro. El filtro no se aplica a los focos ni a la interfaz. Sin internet el mapa conserva su fondo neutro.
+
+**Calendario accesible (H6-05)**
+
+- Las celdas del calendario son navegables con teclado: flechas para moverse, Inicio y Fin para ir al primer y último día, y Enter para seleccionar. Tienen roles ARIA (`grid`, `row`, `gridcell`) y `aria-selected`. El día seleccionado queda resaltado y el tooltip propio muestra el detalle del día, fuera del `<title>` del navegador.
+- La comparación «este año frente al promedio histórico mensual» es un SVG propio, sin librerías. El promedio incluye el año mostrado en sus meses completos, y así se indica en la propia vista.
+
+**Robustez (H6-06)**
+
+- `pedir()` lee el cuerpo de la respuesta una sola vez. Un `AbortController` y un contador por tipo de carga garantizan que solo se pinta la última respuesta, aunque el usuario cambie de área o de año mientras carga.
+- Estados de carga, vacío y error con mensaje comprensible y botón «Reintentar». Un calendario sin días (`dias=[]`) se muestra como vacío, sin errores.
+- Diseño responsive desde 375 px. La cita y el aviso rompen las palabras largas (`overflow-wrap`) y el calendario tiene desplazamiento propio, de modo que la página no tiene scroll horizontal.
 
 ## Prueba con datos reales (H0-07)
 
