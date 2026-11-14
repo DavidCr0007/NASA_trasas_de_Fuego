@@ -14,7 +14,7 @@ La serie histórica está repartida entre sensores con distinta resolución y ho
 - **R4:** cada registro conserva su satélite, su hora UTC y su calidad.
 - **R5:** línea base por día del año, para detectar días inusuales.
 
-**Estado (2026-11-13):** hitos H0 a H4 terminados y H5 en entrega (ver `docs/checklist_entrega.md`). La `FIRMS_MAP_KEY` de la API area sigue pendiente (B-01). Mientras tanto, `make real` obtiene **historia real de 2016 a 2025 del Huila** (calidad estándar, 84 833 focos) del archivo público por país de FIRMS (ADR 0009). La demo sin red (`make demo`) usa datos **sintéticos**.
+**Estado (2026-11-14):** hitos H0 a H4 y H6 (interfaz clara/oscura y origen de los datos) terminados; H5 en entrega, con la comparación con el visor pendiente (H5-02) (ver `docs/checklist_entrega.md`). La `FIRMS_MAP_KEY` de la API area sigue pendiente (B-01). Mientras tanto, `make real` obtiene **historia real de 2016 a 2025 del Huila** (calidad estándar, 84 833 focos) del archivo público por país de FIRMS (ADR 0009). La demo sin red (`make demo`) usa datos **sintéticos**.
 
 ## Estructura de carpetas
 
@@ -25,7 +25,7 @@ data/
   sample/             Muestra SINTÉTICA pequeña (3 días) para pruebas y casos borde.
   sample_historica/   Muestra SINTÉTICA 2020–2026, generada por make demo (fuera de git).
 src/
-  ingest/             Esquema FIRMS, descarga (API area), manifiesto, lector y validación.
+  ingest/             Esquema FIRMS, descarga (API area y archivo público por país), manifiesto, lector y validación.
   harmonize/          Reglas R1 a R5, configuración versionada y pipeline Parquet.
   api/                API FastAPI de solo lectura (DuckDB sobre Parquet).
   ui/static/          Interfaz: mapa Leaflet (incluido) y calendario, sin compilación.
@@ -103,7 +103,7 @@ Detalle de tablas y consultas DuckDB: [docs/metodologia.md](docs/metodologia.md#
 
 ## Interfaz y API local
 
-`make api` abre la interfaz en http://127.0.0.1:8000/: mapa de focos con su huella nominal, calendario de actividad con días inusuales, temporada mensual y periodos críticos. Sirve la muestra histórica **sintética** 2020–2026, funciona sin internet y las teselas del mapa son opcionales.
+`make api` abre la interfaz en http://127.0.0.1:8000/: mapa de focos con su huella nominal, calendario de actividad con días inusuales, temporada mensual y periodos críticos. Sirve la muestra histórica **sintética** 2020–2026, funciona sin internet y las teselas del mapa son opcionales. Tiene tema claro u oscuro (selector «Tema») y una insignia que indica si los datos son sintéticos o reales.
 
 Ejemplo de la API para el Huila:
 
