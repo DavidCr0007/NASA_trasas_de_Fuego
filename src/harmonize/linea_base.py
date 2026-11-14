@@ -9,7 +9,13 @@ Para cada día evaluado ``t`` de la cobertura:
 - si la referencia tiene menos de ``anios_minimos`` años, el umbral es nulo
   («base insuficiente» para ese día).
 
-Dentro de la cobertura ``[min(serie), max(serie)]``, un día sin entrada vale 0.
+Dentro de la cobertura, un día sin entrada vale 0. La cobertura es la del **conjunto de
+datos** (parámetro ``cobertura``); si no se da, se usa ``[min(serie), max(serie)]``.
+
+Versiones de R5 (independientes de RULES_VERSION, que versiona el pipeline):
+  r5-1.0.0  cobertura = primer y último día con focos del área.
+  r5-1.1.0  cobertura explícita del conjunto (2026-11-14): en áreas con pocos focos, los
+            días previos al primer foco cuentan como 0 en la referencia.
 El 29 de febrero se evalúa con la clave del 28 y no se usa como referencia.
 """
 
@@ -19,6 +25,8 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 # 365 claves (mes, día), sin el 29 de febrero.
+VERSION_R5 = "r5-1.1.0"
+
 _CLAVES = [(d.month, d.day) for d in (date(2001, 1, 1) + timedelta(days=i) for i in range(365))]
 _INDICE = {k: i for i, k in enumerate(_CLAVES)}
 
@@ -61,6 +69,7 @@ def calcular(
     percentil: float = 95,
     anios_minimos: int = 5,
     ventana_dias: int = 7,
+    cobertura: tuple[date, date] | None = None,
 ) -> LineaBase:
     if not 0 <= percentil <= 100:
         raise ValueError("percentil debe estar entre 0 y 100")
@@ -68,10 +77,10 @@ def calcular(
         raise ValueError("anios_minimos debe ser al menos 1")
     if ventana_dias < 0:
         raise ValueError("ventana_dias no puede ser negativa")
-    if not serie:
+    if not serie and not cobertura:
         return LineaBase({}, None, percentil, anios_minimos, ventana_dias)
 
-    inicio, fin = min(serie), max(serie)
+    inicio, fin = cobertura if cobertura else (min(serie), max(serie))
 
     def valor(d: date) -> int | None:
         return serie.get(d, 0) if inicio <= d <= fin else None
@@ -127,11 +136,11 @@ def periodos_inusuales(base: LineaBase, desde: date, hasta: date) -> list[dict]:
     return periodos
 
 
-def climatologia_mensual(serie: dict[date, int]) -> dict[int, dict]:
+def climatologia_mensual(serie: dict[date, int], cobertura: tuple[date, date] | None = None) -> dict[int, dict]:
     """Media de la suma mensual en los meses completos de la cobertura."""
-    if not serie:
+    if not serie and not cobertura:
         return {}
-    inicio, fin = min(serie), max(serie)
+    inicio, fin = cobertura if cobertura else (min(serie), max(serie))
     sumas: dict[int, list[int]] = {m: [] for m in range(1, 13)}
     for a in range(inicio.year, fin.year + 1):
         for m in range(1, 13):

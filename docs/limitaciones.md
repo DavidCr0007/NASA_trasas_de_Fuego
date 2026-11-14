@@ -75,7 +75,7 @@ El hash del Parquet (D-06) depende de las versiones de las librerías fijadas en
 
 - **Clima:** es un **reanálisis** (modelo) en el punto central del área, no una observación de estación. En áreas grandes y montañosas como el Huila, un solo punto no representa todo el territorio. Además, el archivo de Open-Meteo tiene unos días de retraso.
 - **Imagen GIBS:** las nubes pueden ocultar el humo, y las franjas negras son zonas por donde el satélite no pasó ese día. La imagen muestra el momento de la pasada, no el día entero.
-- **Selector por municipio:** consulta el **recuadro** del municipio, no su polígono. El conteo puede incluir focos de municipios vecinos dentro de ese recuadro. Lo mismo pasa con el recuadro del Huila (R-40).
+- **Área por forma real:** «Huila (límite oficial)» y cada municipio filtran por las celdas de ~1 km cuyo centroide cae en el polígono (geoBoundaries); calendario y mapa usan las mismas celdas. Un foco cerca del límite puede quedar dentro o fuera según el centroide de su celda (R-37). Las áreas dibujadas y «Neiva ± 0,25°» siguen usando un recuadro.
 - **Dependencia de red:** la imagen y el clima requieren internet; sin red, la herramienta sigue funcionando sin esas capas.
 
 ## 13. Lo que sigue por confirmar

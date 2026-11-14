@@ -329,4 +329,7 @@ path.limite-municipio.limite-sel { stroke: var(--acento); stroke-opacity: 1; str
 #imagen-nota { flex: 1 1 220px; font-size: 12px; }
 .nota-fuente { margin: 8px 0 0; font-size: 12px; }
 .tabla-cmp tr.fila-sel th, .tabla-cmp tr.fila-sel td { background: color-mix(in srgb, var(--acento) 14%, transparent); }
+.enlace-visor { margin: 0 0 8px; font-size: 13px; }
+.enlaces-firms { margin-top: 8px; font-size: 12px; line-height: 1.9; }
+.enlaces-firms a { display: inline-block; padding-block: 2px; }
 

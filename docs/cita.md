@@ -35,13 +35,16 @@ información se entrega «tal cual» y los usuarios asumen toda la responsabilid
 | VJ114IMGTDL_NRT (NOAA-20) | NRT | 10.5067/FIRMS/VIIRS/VJ114IMGT_NRT.002 |
 | VJ214IMGTDL_NRT (NOAA-21) | NRT | 10.5067/FIRMS/VIIRS/VJ214IMGT_NRT.002 |
 | MCD14ML (MODIS C6.1) | estándar | 10.5067/FIRMS/MODIS/MCD14ML (resuelve a la página de FIRMS; versión por confirmar) |
-| VIIRS 375 m estándar (SNPP, NOAA-20) | estándar | por confirmar |
+| VNP14IMG v002 (Suomi NPP, 375 m, producto estándar de origen en LP DAAC) | estándar | 10.5067/VIIRS/VNP14IMG.002 |
+| VJ114IMG v002 (NOAA-20, 375 m, producto estándar de origen en LP DAAC) | estándar | 10.5067/VIIRS/VJ114IMG.002 |
 
 Los cuatro DOI NRT se copiaron el 2026-11-13 de la página de cada producto en
 <https://modaps.modaps.eosdis.nasa.gov/services/about/products/> (`c61-nrt/MCD14DL-NRT.html`,
 `viirs-land-c2-nrt/vnp14imgtdl_nrt.html`, `vj114imgtdl_nrt.html` y `vj214imgtdl_nrt.html`).
-Los cuatro resuelven en doi.org al catálogo de Earthdata. El DOI de los productos VIIRS
-estándar sigue pendiente (R-24).
+Los cuatro resuelven en doi.org al catálogo de Earthdata. Los DOI de VIIRS estándar
+(VNP14IMG y VJ114IMG v002) se comprobaron el 2026-11-14 en doi.org, que los resuelve al
+catálogo de LP DAAC. Son los productos de origen del archivo estándar de FIRMS; no se
+encontró un DOI propio para el vector de archivo de FIRMS.
 
 ## Estudios de validación citados por FIRMS
 
@@ -66,7 +69,7 @@ de validación:
 > We acknowledge the use of imagery provided by services from NASA's Global Imagery Browse
 > Services (GIBS), part of NASA's Earth Science Data and Information System (ESDIS).
 
-**Open-Meteo**: clima histórico. Los datos de la API se publican con licencia CC BY 4.0 (<https://open-meteo.com/en/terms>). La API histórica se basa en los reanálisis ERA5 y ERA5-Land y en el modelo IFS de ECMWF (<https://open-meteo.com/en/docs/historical-weather-api>). En la interfaz figura «Datos meteorológicos: Open-Meteo.com (CC BY 4.0)». El texto exacto de crédito que pide Open-Meteo y el crédito adicional de Copernicus/ECMWF siguen **por confirmar**: su página de licencia redirigía el 2026-11-14 y no se pudo leer (R-39).
+**Open-Meteo**: clima histórico. Los datos de la API se publican con licencia CC BY 4.0 (<https://open-meteo.com/en/terms>). La API histórica se basa en los reanálisis ERA5 y ERA5-Land y en el modelo IFS de ECMWF (<https://open-meteo.com/en/docs/historical-weather-api>). La página de licencia (<https://open-meteo.com/en/licence>, consultada el 2026-11-14) exige un enlace junto a los datos con el texto «Weather data by Open-Meteo.com», y atribuye el reanálisis al Copernicus Climate Change Service (C3S). La interfaz muestra ese enlace literal, la licencia CC BY 4.0 y el crédito a C3S y ECMWF.
 
 **geoBoundaries**: límites municipales del Huila (ADM2, fuente DANE 2020, CC BY 4.0). El ADM1 (OpenStreetMap, ODbL 1.0) solo se usa para seleccionar los municipios y no se redistribuye.
 

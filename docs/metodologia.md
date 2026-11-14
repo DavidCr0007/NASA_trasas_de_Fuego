@@ -232,7 +232,8 @@ La mayor parte de la deduplicación ocurre **dentro de VIIRS**: varios píxeles 
 
 **Fuentes complementarias (H7, ADR 0010).**
 
-- **Límites:** el mapa dibuja los 37 municipios del Huila (geoBoundaries ADM2, DANE, CC BY 4.0) desde un GeoJSON local, generado por `tools/preparar_limites.py` con el SHA-256 del crudo. El selector de área ofrece cada municipio y consulta su recuadro.
+- **Límites:** el mapa dibuja los 37 municipios del Huila (geoBoundaries ADM2, DANE, CC BY 4.0) desde un GeoJSON local, generado por `tools/preparar_limites.py` con el SHA-256 del crudo. El selector de área ofrece el Huila y cada municipio, y la API los filtra por forma real (`area=huila` o `area=mun:<id>`): solo cuentan las celdas de ~1 km cuyo centroide cae en el polígono. Esto resuelve R-40.
+- **Conexión con NASA FIRMS:** el botón «Abrir … en el visor NASA FIRMS» abre el mismo día y la misma zona en el visor oficial, y el pie enlaza los recursos de FIRMS (visor, datos activos, archivo, servicios web, alertas y preguntas frecuentes).
 - **Imagen:** al elegir un día, el selector «Imagen satelital del día» superpone el color real de NASA GIBS (VIIRS NOAA-20 o MODIS Terra) en un panel propio, que no se invierte en el tema oscuro.
 - **Clima:** la tarjeta «Clima (reanálisis)» muestra la temperatura máxima, la humedad mínima, la lluvia y el viento máximo de Open-Meteo para ±3 días alrededor del día elegido o, sin día, para el periodo crítico principal. Ejemplo con datos reales: alrededor del 15 sep 2024, máx. 37,6 °C, humedad mín. 21 % y 0,6 mm de lluvia.
 
@@ -269,6 +270,30 @@ uv run python -I tools/validacion_cruzada.py data/raw/firms_24h_south_america/20
 | 2024-02-10 | 2 | 2 | 0 | 0 |
 
 «Borde» son los puntos dentro del bbox cuya celda de ~1 km tiene el centroide fuera: el pipeline asigna cada celda-día por su centroide. No hay pérdidas; la herramienta lo calcula e informa por separado (R-37).
+
+### 10.3 Recuadro frente a forma real del Huila (2026-11-14)
+
+Hasta H7, «Huila» significaba el recuadro de trabajo (−76,7; 1,4; −74,3; 3,9). Ese recuadro contiene todo el departamento, pero el Huila solo ocupa el **25 %** de su superficie: 18 126 km² según los municipios simplificados de geoBoundaries, frente a 73 773 km². El resto pertenece a Caquetá, Meta, Tolima y Cauca. Con el filtro por forma real (`area=huila`; R-40) las cifras cambian mucho.
+
+Fuente: archivo anual por país de FIRMS, calidad **estándar**, descargado el 2026-11-13. Reglas `armonizacion-0.3.1`, R5 `r5-1.1.0`. Valores en `n_brutas` (detecciones originales).
+
+| año | Huila (forma real) | recuadro | % dentro del Huila | días inusuales (Huila) | periodo crítico principal (Huila) |
+|---|---|---|---|---|---|
+| 2016 | 782 | 7 207 | 11 % | 7 | 21–22 nov (máx. 8) |
+| 2017 | 687 | 5 653 | 12 % | 6 | 3–4 abr (máx. 16) |
+| 2018 | 1 141 | 9 595 | 12 % | 14 | 12–14 mar (máx. 22) |
+| 2019 | 1 621 | 9 039 | 18 % | 25 | 13–16 feb (máx. 56) |
+| 2020 | 1 845 | 10 734 | 17 % | 32 | 4–5 feb (máx. 48) |
+| 2021 | 947 | 5 612 | 17 % | 12 | 20–24 abr (máx. 21) |
+| 2022 | 1 169 | 11 395 | 10 % | 23 | 21–24 dic (máx. 23) |
+| 2023 | 2 324 | 7 718 | 30 % | 47 | 23–25 feb (máx. 45) |
+| 2024 | 2 829 | 11 416 | 25 % | 48 | **10–16 sep (7 días, máx. 158)** |
+| 2025 | 935 | 5 150 | 18 % | 9 | 25–26 mar (máx. 38) |
+| **total** | **14 280** | **83 519** | **17 %** | | |
+
+- **Meses pico del Huila:** septiembre, octubre y febrero. En el recuadro eran febrero, enero y septiembre, porque pesaba la temporada de quemas del Caquetá.
+- **Contexto del periodo crítico de 2024 (Open-Meteo, reanálisis):** en el centro del área hubo 38–40 °C de máxima y 19–24 % de humedad mínima, y casi no llovió.
+- **Validación cruzada:** las cifras de §10.1 están rotuladas como recuadro («Huila (bbox aproximado)») y siguen siendo válidas como comprobación del pipeline.
 
 ### 10.2 Comparación con el visor de FIRMS (pendiente, H5-02)
 

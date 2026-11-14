@@ -13,7 +13,8 @@ const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "o
 const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const CLAVE_TEMA = "hhn-tema";
 
-const estado = { bbox: AREAS.huila, anio: null, dia: null, calendario: null };
+// area: "huila" o "mun:<id>" filtra por la forma real (R-40); null usa solo el recuadro bbox.
+const estado = { bbox: AREAS.huila, area: "huila", anio: null, dia: null, calendario: null };
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -206,6 +207,20 @@ function actualizarImagen() {
     "las franjas negras son zonas por donde el satélite no pasó ese día (pruebe el otro satélite). Requiere internet.";
 }
 
+// ------------------------------------------------------------------ conexión NASA FIRMS
+// Abre el mismo día y área en el visor oficial (útil para la comparación manual H5-02).
+function actualizarEnlaceFirms() {
+  const a = $("enlace-firms");
+  if (!a) return;
+  const [w, s, e, n] = estado.bbox;
+  const lat = ((s + n) / 2).toFixed(3), lon = ((w + e) / 2).toFixed(3);
+  const p = estado.calendario && estado.calendario.periodos_inusuales ? periodosOrdenados(estado.calendario)[0] : null;
+  const dia = estado.dia ?? p?.inicio ?? null;
+  const zoom = Math.max(7, Math.min(12, mapa.getZoom()));
+  a.href = `https://firms.modaps.eosdis.nasa.gov/map/#${dia ? `d:${dia}..${dia};` : ""}@${lon},${lat},${zoom}.0z`;
+  a.textContent = dia ? `Abrir el ${fechaLegible(dia)} en el visor NASA FIRMS` : "Abrir esta área en el visor NASA FIRMS";
+}
+
 // ------------------------------------------------------------------ clima (H7-03)
 // Open-Meteo, archivo histórico: reanálisis (modelo), no observaciones. Opcional; requiere red.
 let meteoGen = 0;
@@ -283,6 +298,7 @@ function activarDibujo() {
     const r = (x) => Math.round(x * 1000) / 1000;
     if (b.getWest() === b.getEast() || b.getSouth() === b.getNorth()) return;
     estado.bbox = [r(b.getWest()), r(b.getSouth()), r(b.getEast()), r(b.getNorth())];
+    estado.area = null;
     const opcion = $("sel-area").querySelector('option[value="dibujo"]');
     opcion.disabled = false;
     $("sel-area").value = "dibujo";
@@ -789,8 +805,12 @@ function mostrarEstado(tipo, mensaje = "", alReintentar = null) {
 }
 
 // ------------------------------------------------------------------ carga
+function filtroArea() {
+  return estado.area ? `area=${encodeURIComponent(estado.area)}` : `bbox=${estado.bbox.join(",")}`;
+}
+
 function consulta(desde, hasta) {
-  return `bbox=${estado.bbox.join(",")}&desde=${desde}&hasta=${hasta}`;
+  return `${filtroArea()}&desde=${desde}&hasta=${hasta}`;
 }
 
 // Un contador y un AbortController por tipo de carga: solo la última petición pinta.
@@ -825,6 +845,7 @@ async function cargarFocos() {
 
 async function seleccionarDia(dia) {
   estado.dia = dia;
+  actualizarEnlaceFirms();
   actualizarImagen();
   pintarMeteo();
   celdas.forEach((r, k) => {
@@ -856,7 +877,7 @@ async function cargar() {
     dibujarArea();
     const [w, s, e, n] = estado.bbox;
     if (!estado.anio) {
-      const inicial = await pedir(`/calendario?bbox=${estado.bbox.join(",")}`, h.señal);
+      const inicial = await pedir(`/calendario?${filtroArea()}`, h.señal);
       if (!h.vigente()) return;
       const anios = inicial.incertidumbre?.anios_con_dato ?? [];
       const sel = $("sel-anio");
@@ -880,6 +901,7 @@ async function cargar() {
     }
     $("resumen-texto").textContent = resumir(c);
     actualizarImagen();
+    actualizarEnlaceFirms();
     pintarMeteo();
     const ok = await cargarFocos();
     if (!h.vigente() || !ok) return;
@@ -894,11 +916,12 @@ async function cargar() {
 
 $("sel-area").addEventListener("change", (ev) => {
   const v = ev.target.value;
-  if (AREAS[v]) { estado.bbox = AREAS[v]; resaltarMunicipio(null); estado.dia = null; cargar(); return; }
+  if (AREAS[v]) { estado.bbox = AREAS[v]; estado.area = v === "huila" ? "huila" : null; resaltarMunicipio(null); estado.dia = null; cargar(); return; }
   if (v.startsWith("mun:")) {
     const f = municipios.find((m) => `mun:${m.properties.shapeID}` === v);
     if (!f) return;
     estado.bbox = f.properties.bbox;
+    estado.area = v;
     resaltarMunicipio(f.properties.shapeID);
     estado.dia = null;
     cargar();

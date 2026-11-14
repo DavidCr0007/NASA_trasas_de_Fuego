@@ -42,7 +42,7 @@ Las capturas con datos reales de la sección final (`05_real_*` a `08_real_*`) y
 
 ## Capturas con datos reales (ruta pública, ADR 0009), retomadas el 2026-11-14
 
-Datos **reales** de NASA FIRMS, calidad estándar, Huila 2025 (`make real` y `make api-real`). Interfaz H6 con las correcciones de la auditoría UI/UX: mapa en Canvas con rejilla de densidad y leyenda numérica.
+Datos **reales** de NASA FIRMS, calidad estándar, 2025, **recuadro del Huila** (`make real` y `make api-real`). Ojo: se tomaron antes del filtro por forma real; las cifras que muestran (por ejemplo, 5 150 focos en 2025) son del recuadro, no del departamento (935 por forma real; `docs/metodologia.md` §10.3). Interfaz H6 con las correcciones de la auditoría UI/UX: mapa en Canvas con rejilla de densidad y leyenda numérica.
 
 | archivo | qué muestra |
 |---|---|

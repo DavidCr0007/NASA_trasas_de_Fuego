@@ -30,7 +30,7 @@
   <section class="controles" aria-label="Controles">
     <label>Área
       <select id="sel-area">
-        <option value="huila">Huila (recuadro del departamento)</option>
+        <option value="huila">Huila (límite oficial)</option>
         <option value="neiva">Neiva ± 0,25°</option>
         <option value="dibujo" disabled>Rectángulo dibujado</option>
         <!-- Los municipios del Huila se añaden desde datos/huila_municipios.geojson -->
@@ -81,6 +81,7 @@
             </select>
             <span id="imagen-nota" class="tenue">Elija un día en el calendario para ver la imagen satelital de ese día.</span>
           </div>
+          <p class="enlace-visor"><a id="enlace-firms" href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank" rel="noopener">Abrir esta área en el visor NASA FIRMS</a></p>
           <div id="mapa" aria-label="Mapa de focos de calor"></div>
         <div class="leyenda">
           <span><i class="punto modis"></i> MODIS (huella nominal 1 km)</span>
@@ -127,7 +128,7 @@
       <section class="tarjeta" id="tarjeta-meteo">
         <h2>Clima (reanálisis)</h2>
         <div id="meteo" aria-live="polite"><p class="tenue">Elija un día en el calendario para ver el clima de esos días.</p></div>
-        <p class="tenue nota-fuente">Datos meteorológicos: <a href="https://open-meteo.com/">Open-Meteo.com</a> (CC BY 4.0), a partir de los reanálisis ERA5 y ERA5-Land y del modelo IFS de ECMWF. Son estimaciones de modelo para el centro del área, no observaciones de estaciones. Requiere internet.</p>
+        <p class="tenue nota-fuente"><a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>); reanálisis ERA5 y ERA5-Land del Copernicus Climate Change Service (C3S) y modelo IFS de ECMWF. Son estimaciones de modelo para el centro del área, no observaciones de estaciones. Requiere internet.</p>
       </section>
       <section class="tarjeta">
         <h2>Temporada (climatología mensual)</h2>
@@ -166,6 +167,16 @@
     <p id="cita" class="cita"></p>
     <p id="aviso" class="tenue"></p>
     <p class="tenue">Los focos son detecciones térmicas, no incendios confirmados. Fechas en UTC.</p>
+    <nav class="enlaces-firms" aria-label="Conexión con NASA FIRMS">
+      <strong>NASA FIRMS:</strong>
+      <a href="https://www.earthdata.nasa.gov/data/tools/firms" target="_blank" rel="noopener">Inicio</a> ·
+      <a href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank" rel="noopener">Visor global</a> ·
+      <a href="https://firms.modaps.eosdis.nasa.gov/active_fire/" target="_blank" rel="noopener">Datos activos</a> ·
+      <a href="https://firms.modaps.eosdis.nasa.gov/download/" target="_blank" rel="noopener">Descarga de archivo</a> ·
+      <a href="https://firms.modaps.eosdis.nasa.gov/web-services/" target="_blank" rel="noopener">Servicios web</a> ·
+      <a href="https://firms.modaps.eosdis.nasa.gov/alerts/" target="_blank" rel="noopener">Alertas</a> ·
+      <a href="https://www.earthdata.nasa.gov/data/tools/firms/faq" target="_blank" rel="noopener">Preguntas frecuentes</a>
+    </nav>
   </footer>
 
   <script src="vendor/leaflet/leaflet.js"></script>

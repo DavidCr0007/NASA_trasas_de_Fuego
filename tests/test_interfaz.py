@@ -109,7 +109,9 @@ def test_app_js_solo_carga_recursos_remotos_permitidos():
         antes = JS[max(0, m.start() - 8) : m.start()]
         if url.startswith(REMOTOS_PERMITIDOS):
             continue
-        assert antes.endswith('href="') or antes.endswith("href='"), f"recurso remoto inesperado: {url}"
+        # Enlaces de navegación (los abre el usuario; no se cargan solos): atributo href o a.href = `…`.
+        es_enlace = antes.endswith(('href="', "href='", "href = `"))
+        assert es_enlace, f"recurso remoto inesperado: {url}"
     # El único fetch remoto es el del clima, y su fallo no bloquea la interfaz.
     remotos = re.findall(r"fetch\(\s*([^,)]+)", JS)
     assert all(not r.strip().startswith(("'http", '"http', "`http")) for r in remotos)
@@ -344,3 +346,18 @@ def test_area_y_limites_en_svg_para_conservar_el_tema():
     # Canvas ignora las clases CSS: el área y los límites deben usar el renderizador SVG.
     assert re.search(r"L\.rectangle\([^;]*renderer:\s*svgVector", JS)
     assert re.search(r"L\.geoJSON\([^;]*renderer:\s*svgVector", JS, flags=re.S)
+
+
+def test_conexion_con_nasa_firms():
+    # Enlaces oficiales de la sección «Discover FIRMS» (earthdata.nasa.gov/data/tools/firms).
+    for url in ("https://firms.modaps.eosdis.nasa.gov/map/", "https://firms.modaps.eosdis.nasa.gov/active_fire/",
+                "https://firms.modaps.eosdis.nasa.gov/download/", "https://firms.modaps.eosdis.nasa.gov/web-services/",
+                "https://firms.modaps.eosdis.nasa.gov/alerts/", "https://www.earthdata.nasa.gov/data/tools/firms/faq"):
+        assert url in HTML, url
+    assert 'id="enlace-firms"' in HTML and 'rel="noopener"' in HTML
+    assert "function actualizarEnlaceFirms" in JS
+
+
+def test_huila_y_municipios_consultan_por_forma():
+    assert "area=${encodeURIComponent(estado.area)}" in JS
+    assert 'area: "huila"' in JS
