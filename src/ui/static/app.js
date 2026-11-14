@@ -207,6 +207,69 @@ function pintarClima(c) {
     `<p class="tenue">Media mensual de focos (n_brutas). Meses pico: ${esc(picos.map((m) => MESES[m - 1]).join(", ") || "—")}.</p>`;
 }
 
+/** Este año (suma mensual de n_brutas) frente al promedio histórico mensual, en SVG propio. */
+function pintarComparacion(c) {
+  const caja = $("comparacion");
+  const dias = c.dias ?? [];
+  if (!dias.length) {
+    caja.innerHTML = `<p class="tenue">Sin datos para comparar este año con el promedio histórico.</p>`;
+    return;
+  }
+  const anio = estado.anio;
+  const suma = Array(12).fill(null);
+  dias.forEach((d) => {
+    const m = Number(String(d.fecha_utc).slice(5, 7)) - 1;
+    if (m >= 0 && m < 12) suma[m] = (suma[m] ?? 0) + (d.n_brutas || 0);
+  });
+  const clim = c.climatologia_mensual || null;
+  const media = Array.from({ length: 12 }, (_, i) => {
+    const v = clim ? clim[String(i + 1)] : null;
+    return v && v.media != null ? Number(v.media) : null;
+  });
+  const picos = c.meses_pico ?? [];
+  const max = Math.max(1, ...suma.filter((v) => v != null), ...media.filter((v) => v != null));
+  const W = 360, H = 170, IZQ = 38, DER = 6, ARR = 10, ABA = 34;
+  const pw = W - IZQ - DER, ph = H - ARR - ABA, banda = pw / 12, bw = banda * 0.6;
+  const yDe = (v) => ARR + ph - (ph * v) / max;
+  const p = [`<line class="cmp-eje" x1="${IZQ}" y1="${ARR + ph}" x2="${W - DER}" y2="${ARR + ph}"/>`,
+    `<line class="cmp-eje" x1="${IZQ}" y1="${ARR}" x2="${IZQ}" y2="${ARR + ph}"/>`,
+    `<text class="cmp-texto" x="${IZQ - 4}" y="${ARR + 8}" text-anchor="end" font-size="9">${esc(fmt(max, max < 10 ? 1 : 0))}</text>`,
+    `<text class="cmp-texto" x="${IZQ - 4}" y="${ARR + ph}" text-anchor="end" font-size="9">0</text>`];
+  for (let i = 0; i < 12; i++) {
+    const x = IZQ + i * banda, cx = x + banda / 2;
+    if (suma[i] != null) {
+      const y = yDe(suma[i]);
+      p.push(`<rect class="cmp-anio" x="${x + (banda - bw) / 2}" y="${y}" width="${bw}" height="${ARR + ph - y}"/>`);
+    } else {
+      p.push(`<text class="cmp-texto" x="${cx}" y="${ARR + ph - 4}" font-size="7" text-anchor="start" ` +
+        `transform="rotate(-90 ${cx + 2} ${ARR + ph - 4})">sin datos</text>`);
+    }
+    if (media[i] != null) {
+      const y = yDe(media[i]);
+      p.push(`<line class="cmp-media" x1="${x + 1}" y1="${y}" x2="${x + banda - 1}" y2="${y}" stroke-width="2.5"/>`);
+    }
+    p.push(`<text class="cmp-texto" x="${cx}" y="${ARR + ph + 13}" font-size="9" text-anchor="middle"` +
+      `${picos.includes(i + 1) ? ' font-weight="700"' : ""}>${MESES[i]}</text>`);
+  }
+  const conDato = suma.filter((v) => v != null);
+  const total = conDato.reduce((s, v) => s + v, 0);
+  const etiqueta = `Focos de calor por mes en ${anio}: ${fmt(total)} en total` +
+    (clim ? `, frente al promedio histórico mensual (línea). Meses pico: ${picos.map((m) => MESES_LARGOS[m - 1]).join(", ") || "ninguno"}.`
+      : ". Sin promedio histórico: base insuficiente.");
+  const filas = MESES.map((m, i) =>
+    `<tr><th scope="row">${picos.includes(i + 1) ? `<strong>${m}</strong>` : m}</th>` +
+    `<td>${suma[i] == null ? "sin datos" : `${esc(fmt(suma[i]))} focos`}</td>` +
+    (clim ? `<td>${media[i] == null ? "—" : `${esc(fmt(media[i], 1))} focos`}</td>` : "") + `</tr>`).join("");
+  caja.innerHTML =
+    `<h3 class="cmp-titulo">Este año frente al promedio histórico</h3>` +
+    `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(etiqueta)}" preserveAspectRatio="xMidYMid meet">${p.join("")}</svg>` +
+    `<p class="tenue">Barras: focos de calor de ${esc(anio)} por mes${clim ? ". Línea: promedio histórico mensual" : ""}.</p>` +
+    (clim ? `<p class="tenue">El promedio histórico usa los meses completos de todos los años disponibles, incluido este año si el mes está completo.</p>`
+      : `<p class="tenue">Sin promedio: base insuficiente.</p>`) +
+    `<details><summary>Ver como tabla</summary><table class="tabla-cmp"><thead><tr><th scope="col">Mes</th>` +
+    `<th scope="col">${esc(anio)}</th>${clim ? `<th scope="col">Promedio</th>` : ""}</tr></thead><tbody>${filas}</tbody></table></details>`;
+}
+
 function periodosOrdenados(c) {
   return [...(c.periodos_inusuales ?? [])].sort((a, b) => b.dias - a.dias || b.maximo - a.maximo);
 }
@@ -322,14 +385,120 @@ function nivel(v, cortes) {
   return v <= cortes[0] ? 1 : v <= cortes[1] ? 2 : v <= cortes[2] ? 3 : 4;
 }
 
+const DIAS_SEMANA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
+let celdas = []; // rect.dia en el orden de c.dias (se rehace en cada pintado)
+let diasCal = []; // c.dias del calendario pintado
+
+function descripcionDia(d) {
+  const n = d.n_brutas || 0;
+  let t = `${fechaLegible(d.fecha_utc)}: ${fmt(n)} ${n === 1 ? "foco" : "focos"} de calor`;
+  if (d.inusual) t += d.umbral != null ? `; día inusual (umbral ${fmt(d.umbral, 1)})` : "; día inusual";
+  if (d.preliminar) t += "; incluye datos preliminares";
+  return t;
+}
+
+function ocultarTooltip() {
+  const tip = $("tooltip-cal");
+  tip.hidden = true;
+  celdas.forEach((r) => r.removeAttribute("aria-describedby"));
+}
+
+function mostrarTooltip(rect) {
+  const d = diasCal[celdas.indexOf(rect)];
+  const tip = $("tooltip-cal");
+  const tarjeta = tip.closest(".calendario-tarjeta");
+  if (!d || !tarjeta) return;
+  celdas.forEach((r) => r.removeAttribute("aria-describedby"));
+  rect.setAttribute("aria-describedby", "tooltip-cal");
+  const n = d.n_brutas || 0;
+  let h = `<strong>${esc(fechaLegible(d.fecha_utc))}</strong> <span class="tenue">(${esc(d.fecha_utc)})</span><br>` +
+    `${esc(fmt(n))} ${n === 1 ? "foco" : "focos"} de calor (${esc(fmt(d.n_detecciones))} tras quitar duplicados)<br>` +
+    `MODIS ${esc(fmt(d.n_modis))} · VIIRS ${esc(fmt(d.n_viirs))}`;
+  if (d.umbral != null) h += `<br>Lo habitual para esta fecha: hasta ${esc(fmt(d.umbral, 1))} focos`;
+  if (d.inusual) h += `<br><strong>Fuera de lo normal</strong>`;
+  if (d.preliminar) h += `<br>Preliminar (NRT)`;
+  tip.innerHTML = h;
+  tip.hidden = false;
+  const t = tarjeta.getBoundingClientRect(), r = rect.getBoundingClientRect();
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  const maxIzq = Math.min(t.width, window.innerWidth - t.left) - tw - 4;
+  let izq = r.left - t.left + r.width / 2 - tw / 2;
+  izq = Math.max(4, Math.min(izq, maxIzq));
+  let arriba = r.top - t.top - th - 6;
+  if (arriba < 0) arriba = r.bottom - t.top + 6;
+  tip.style.left = `${izq}px`;
+  tip.style.top = `${arriba}px`;
+}
+
+/** Mueve el tabindex itinerante a la celda i y devuelve esa celda. */
+function fijarTabindex(i) {
+  celdas.forEach((r, k) => r.setAttribute("tabindex", k === i ? "0" : "-1"));
+  return celdas[i];
+}
+
+function irACelda(i) {
+  if (!celdas.length) return;
+  const k = Math.max(0, Math.min(celdas.length - 1, i));
+  const r = fijarTabindex(k);
+  r.focus();
+  mostrarTooltip(r);
+}
+
+function alternarDia(fecha) {
+  seleccionarDia(fecha === estado.dia ? null : fecha);
+}
+
+function teclaCelda(ev) {
+  const i = celdas.indexOf(ev.currentTarget);
+  if (i < 0) return;
+  const f = diasCal[i].fecha_utc;
+  let destino = null;
+  switch (ev.key) {
+    case "ArrowUp": destino = i - 1; break;
+    case "ArrowDown": destino = i + 1; break;
+    case "ArrowLeft": destino = i - 7; break;
+    case "ArrowRight": destino = i + 7; break;
+    case "Home": destino = 0; break;
+    case "End": destino = celdas.length - 1; break;
+    case "PageUp":
+    case "PageDown": {
+      let a = Number(f.slice(0, 4)), m = Number(f.slice(5, 7)) + (ev.key === "PageUp" ? -1 : 1);
+      if (m < 1) { m = 12; a -= 1; } else if (m > 12) { m = 1; a += 1; }
+      const pref = `${a}-${String(m).padStart(2, "0")}-`;
+      const del_mes = diasCal.map((d, k) => [d.fecha_utc, k]).filter(([x]) => x.startsWith(pref));
+      if (del_mes.length) destino = del_mes[Math.min(Number(f.slice(8, 10)), del_mes.length) - 1][1];
+      else return; // mes fuera de cobertura: no se maneja la tecla
+      break;
+    }
+    case "Enter":
+    case " ":
+      ev.preventDefault();
+      alternarDia(f);
+      return;
+    case "Escape":
+      ev.preventDefault();
+      ocultarTooltip();
+      if (estado.dia) seleccionarDia(null);
+      return;
+    default:
+      return;
+  }
+  ev.preventDefault();
+  irACelda(destino);
+}
+
 function pintarCalendario(c) {
   const dias = c.dias ?? [];
   const cont = $("calendario");
+  celdas = [];
+  diasCal = [];
+  $("tooltip-cal").hidden = true;
   if (!dias.length) {
     cont.innerHTML = `<p class="tenue">No hay días con datos para mostrar en el calendario.</p>`;
     $("cal-resumen").textContent = "";
     return;
   }
+  diasCal = dias;
   const valores = dias.map((d) => d.n_brutas).filter((v) => v > 0).sort((a, b) => a - b);
   const q = (p) => valores.length ? valores[Math.min(valores.length - 1, Math.floor(p * valores.length))] : 1;
   const cortes = [q(0.25), q(0.5), q(0.75)];
@@ -338,31 +507,44 @@ function pintarCalendario(c) {
   const desfase = (primero.getUTCDay() + 6) % 7; // lunes = 0
   const semanas = Math.ceil((dias.length + desfase) / 7);
   const ancho = X0 + semanas * (T + G), alto = Y0 + 7 * (T + G);
-  const partes = [];
+  const textos = [];
   ["L", "", "X", "", "V", "", "D"].forEach((t, i) => {
-    if (t) partes.push(`<text class="cal-texto" x="0" y="${Y0 + i * (T + G) + 10}" font-size="10">${t}</text>`);
+    if (t) textos.push(`<text class="cal-texto" x="0" y="${Y0 + i * (T + G) + 10}" font-size="10" aria-hidden="true">${t}</text>`);
   });
+  const filas = Array.from({ length: 7 }, () => []);
+  let inicial = dias.findIndex((d) => d.fecha_utc === estado.dia);
+  if (inicial < 0) inicial = Math.max(0, dias.findIndex((d) => d.n_brutas > 0));
   dias.forEach((d, k) => {
     const pos = k + desfase, col = Math.floor(pos / 7), fila = pos % 7;
     const x = X0 + col * (T + G), y = Y0 + fila * (T + G);
     const fecha = d.fecha_utc;
     if (fecha.endsWith("-01")) {
-      partes.push(`<text class="cal-texto" x="${x}" y="11" font-size="10">${MESES[Number(fecha.slice(5, 7)) - 1]}</text>`);
+      textos.push(`<text class="cal-texto" x="${x}" y="11" font-size="10" aria-hidden="true">${MESES[Number(fecha.slice(5, 7)) - 1]}</text>`);
     }
     const lv = nivel(d.n_brutas, cortes);
-    const titulo = `${fechaLegible(fecha)}: ${fmt(d.n_brutas)} focos brutos, ${fmt(d.n_detecciones)} tras deduplicar` +
-      (d.umbral != null ? ` · umbral ${fmt(d.umbral, 1)} focos` : "") + (d.inusual ? " · INUSUAL" : "") +
-      (d.preliminar ? " · NRT preliminar" : "");
-    const clases = `dia${d.inusual ? " inusual" : ""}${estado.dia === fecha ? " sel" : ""}`;
-    partes.push(`<rect class="${clases}" data-dia="${esc(fecha)}" x="${x}" y="${y}" width="${T}" height="${T}" rx="2" ` +
-      `fill="var(--e${lv})"><title>${esc(titulo)}</title></rect>`);
+    const sel = estado.dia === fecha;
+    const clases = `dia${d.inusual ? " inusual" : ""}${sel ? " sel" : ""}`;
+    filas[fila].push(`<rect class="${clases}" role="gridcell" data-dia="${esc(fecha)}" tabindex="${k === inicial ? 0 : -1}" ` +
+      `aria-selected="${sel}" aria-label="${esc(descripcionDia(d))}" x="${x}" y="${y}" width="${T}" height="${T}" rx="2" ` +
+      `fill="var(--e${lv})"/>`);
     if (d.preliminar && d.n_brutas > 0) {
-      partes.push(`<circle class="nrt-punto" cx="${x + T / 2}" cy="${y + T / 2}" r="1.6" pointer-events="none"/>`);
+      filas[fila].push(`<circle class="nrt-punto" cx="${x + T / 2}" cy="${y + T / 2}" r="1.6" pointer-events="none"/>`);
     }
   });
-  cont.innerHTML = `<svg width="${ancho}" height="${alto}" role="img" aria-label="Calendario ${esc(estado.anio)}">${partes.join("")}</svg>`;
-  cont.querySelectorAll("rect.dia").forEach((r) =>
-    r.addEventListener("click", () => seleccionarDia(r.dataset.dia === estado.dia ? null : r.dataset.dia)));
+  const grupos = filas.map((f, i) => `<g role="row" aria-label="${DIAS_SEMANA[i]}">${f.join("")}</g>`).join("");
+  cont.innerHTML = `<svg viewBox="0 0 ${ancho} ${alto}" width="${ancho}" height="${alto}" role="grid" ` +
+    `aria-label="Calendario de focos de calor de ${esc(estado.anio)}">${textos.join("")}${grupos}</svg>`;
+  // Orden de c.dias (no el del DOM, que va por filas).
+  const porFecha = new Map([...cont.querySelectorAll("rect.dia")].map((r) => [r.dataset.dia, r]));
+  celdas = dias.map((d) => porFecha.get(d.fecha_utc));
+  celdas.forEach((r) => {
+    r.addEventListener("click", () => { alternarDia(r.dataset.dia); });
+    r.addEventListener("keydown", teclaCelda);
+    r.addEventListener("mouseenter", () => mostrarTooltip(r));
+    r.addEventListener("mouseleave", () => { if (document.activeElement !== r) ocultarTooltip(); });
+    r.addEventListener("focus", () => mostrarTooltip(r));
+    r.addEventListener("blur", ocultarTooltip);
+  });
   const total = dias.reduce((s, d) => s + d.n_brutas, 0);
   $("cal-resumen").textContent = `${fmt(total)} focos brutos en ${fmt(dias.filter((d) => d.n_brutas).length)} días. ` +
     `Haga clic o use el teclado en un día para verlo en el mapa.`;
@@ -417,7 +599,12 @@ async function cargarFocos() {
 
 async function seleccionarDia(dia) {
   estado.dia = dia;
-  document.querySelectorAll("rect.dia").forEach((r) => r.classList.toggle("sel", r.dataset.dia === dia));
+  celdas.forEach((r, k) => {
+    const es = r.dataset.dia === dia;
+    r.classList.toggle("sel", es);
+    r.setAttribute("aria-selected", String(es));
+    if (es) fijarTabindex(k);
+  });
   mostrarEstado("cargando", "Cargando focos…");
   try {
     if (await cargarFocos()) mostrarEstado("");
@@ -456,7 +643,7 @@ async function cargar() {
     estado.calendario = c;
     $("cal-anio").textContent = estado.anio;
     $("btn-csv").href = `/calendario.csv?${q}`;
-    pintarCabecera(c); pintarBase(c); pintarClima(c); pintarPeriodos(c); pintarIncertidumbre(c); pintarCalendario(c);
+    pintarCabecera(c); pintarBase(c); pintarClima(c); pintarComparacion(c); pintarPeriodos(c); pintarIncertidumbre(c); pintarCalendario(c);
     if (!hayDatos(c)) {
       pintarVacio(c);
       mapa.fitBounds([[s, w], [n, e]], { padding: [10, 10] });
