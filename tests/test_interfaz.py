@@ -201,6 +201,7 @@ def test_escala_del_calendario_monotona(tema, sentido):
 @pytest.mark.parametrize(
     "selector",
     [".leaflet-popup-content-wrapper", ".leaflet-popup-tip", ".leaflet-bar a",
+     ".leaflet-bar a:focus", ".leaflet-container a.leaflet-popup-close-button:focus",
      # Misma o mayor especificidad que leaflet.css, para que el tema oscuro gane:
      ".leaflet-container .leaflet-control-attribution",
      ".leaflet-container a.leaflet-popup-close-button", ".leaflet-bar a.leaflet-disabled",
