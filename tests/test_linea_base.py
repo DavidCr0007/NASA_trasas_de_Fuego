@@ -137,3 +137,27 @@ def test_climatologia_mensual_solo_meses_completos():
     assert clima[1] == {"media": 31.0, "anios": 1}
     assert clima[8] == {"media": 62.0, "anios": 2}
     assert set(clima) == set(range(1, 13))
+
+
+# R5 1.1.0: la cobertura la fija el conjunto de datos, no el primer/último foco del área.
+def test_cobertura_explicita_cuenta_ceros_en_los_extremos():
+    serie = {date(2022, 6, 1): 5}  # área con un solo foco en 4 años de datos
+    sin = calcular(serie, percentil=95, anios_minimos=1, ventana_dias=0)
+    con = calcular(serie, percentil=95, anios_minimos=1, ventana_dias=0,
+                   cobertura=(date(2020, 1, 1), date(2023, 12, 31)))
+    assert sin.cobertura == (date(2022, 6, 1), date(2022, 6, 1))
+    assert con.cobertura == (date(2020, 1, 1), date(2023, 12, 31))
+    assert con.dias[date(2022, 6, 1)].n_anios == 3 and con.dias[date(2022, 6, 1)].inusual is True
+
+
+def test_climatologia_con_cobertura_explicita():
+    serie = {date(2021, 3, 10): 4}
+    clima = climatologia_mensual(serie, cobertura=(date(2020, 1, 1), date(2021, 12, 31)))
+    assert clima[3] == {"media": 2.0, "anios": 2}
+    assert clima[1] == {"media": 0.0, "anios": 2}
+
+
+def test_version_r5_declarada():
+    from harmonize.linea_base import VERSION_R5
+
+    assert VERSION_R5 == "r5-1.1.0"
