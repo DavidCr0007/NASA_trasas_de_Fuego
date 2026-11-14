@@ -9,7 +9,7 @@ Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indica
 - [x] Demo ejecutable con datos locales y sin red: `make demo` y `make api`. Dos ejecuciones dan los mismos hashes.
 - [x] Documento de metodología completo: `docs/metodologia.md` (flujo, R1 a R5, API, interfaz, validación cruzada y bibliografía).
 - [x] Capturas de respaldo en `docs/capturas/` (H5-03): vista general, calendario, día seleccionado con huella y base insuficiente. Ver `docs/capturas/LEEME.md`. Con datos reales (ADR 0009) e interfaz H6 en claro, oscuro y 375 px: `05`–`08`.
-- [ ] Interfaz H6: tema claro/oscuro con contraste AA calculado, insignia de origen de los datos, resumen en lenguaje sencillo y calendario accesible (`tests/test_interfaz.py`). Pendiente: `uv run pytest -q` no se pudo ejecutar el 2026-11-14 (sistema de archivos de solo lectura en el entorno de revisión).
+- [x] Interfaz H6: tema claro/oscuro con contraste AA calculado, insignia de origen de los datos, resumen en lenguaje sencillo y calendario accesible (`tests/test_interfaz.py`). Auditoría UI/UX corregida: mapa en Canvas con rejilla de densidad, leyenda numérica y celdas táctiles de 24 px (`docs/auditoria_ui_ux.md`).
 - [x] Pitch de 2 minutos: `docs/pitch.md`, sincronizado con el código (`tests/test_documentos.py`).
 - [x] Esta lista, marcada antes de enviar.
 
@@ -45,7 +45,7 @@ Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indica
 - [x] D-08 Mínimo de años para la línea base.
 - [x] D-09 Sin datos personales.
 - [x] D-10 Cita en el mapa, las exportaciones y el README.
-- [x] D-11 Escaneo de secretos sin hallazgos (`make secrets`, 2026-11-13).
+- [x] D-11 Escaneo de secretos sin hallazgos (`make secrets`, 2026-11-14).
 
 ## Validación de veracidad (§8)
 

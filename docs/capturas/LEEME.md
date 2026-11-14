@@ -16,7 +16,7 @@ Para regenerarlas: `make api` y abrir http://127.0.0.1:8000. Para la cuarta: `uv
 
 Las cuatro capturas anteriores muestran la interfaz H4: solo tema claro y sin insignia de origen de los datos. **Deben retomarse** con la interfaz H6 (tema claro y oscuro, insignia de origen, resumen en lenguaje sencillo y calendario accesible).
 
-Las capturas con datos reales de la sección final (`05_real_*` a `08_real_*`) ya muestran la interfaz H6. Los nombres previstos en esta tabla (`05_movil_375_*`, `06_datos_reales_*`) son solo para la demo sintética: al tomarlas, usa otro prefijo numérico (p. ej. `09_`) para no confundirlas con las existentes.
+Las capturas con datos reales de la sección final (`05_real_*` a `08_real_*`) ya muestran la interfaz H6. De los nombres previstos en esta tabla, `06_datos_reales_*` ya está cubierto por `05_real_claro.jpg` y `06_real_oscuro.jpg`; `05_movil_375_*` es para la demo sintética: al tomarlas, usa otro prefijo numérico (p. ej. `09_`) para no confundirlas con las existentes. Las capturas `05`–`08` son anteriores a la rejilla de densidad del mapa (auditoría UI/UX): conviene retomarlas antes de presentar.
 
 | archivo | qué muestra | estado |
 |---|---|---|
