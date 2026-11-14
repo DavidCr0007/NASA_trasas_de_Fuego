@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Harmonized Heat Neiva</title>
+  <script>
+    /* Fija el tema antes de cargar las hojas de estilo para evitar el destello. */
+    try {
+      var t = localStorage.getItem("hhn-tema");
+      if (t === "claro" || t === "oscuro") document.documentElement.setAttribute("data-tema", t);
+    } catch (e) { /* sin almacenamiento: se usa el tema del sistema */ }
+  </script>
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -15,6 +22,7 @@
     </div>
     <div class="insignias">
       <span id="insignia-calidad" class="insignia">calidad…</span>
+      <span id="insignia-origen" class="insignia origen-desconocido" title="Origen de los datos aún no conocido.">Origen de los datos desconocido</span>
       <span id="insignia-version" class="insignia tenue">reglas…</span>
     </div>
   </header>
@@ -32,8 +40,29 @@
       <select id="sel-anio"></select>
     </label>
     <a id="btn-csv" class="boton" href="#" download>Exportar CSV</a>
-    <span id="estado-carga" class="tenue" role="status"></span>
+    <label>Tema
+      <select id="sel-tema">
+        <option value="sistema">Sistema</option>
+        <option value="claro">Claro</option>
+        <option value="oscuro">Oscuro</option>
+      </select>
+    </label>
   </section>
+
+  <div id="estado-carga" role="status" aria-live="polite" class="estado">
+    <span id="estado-texto"></span>
+    <button id="btn-reintentar" type="button" hidden>Reintentar</button>
+  </div>
+
+  <section id="resumen" class="tarjeta resumen" aria-live="polite">
+    <h2>En pocas palabras</h2>
+    <p id="resumen-texto">Cargando el resumen…</p>
+    <p id="resumen-origen" class="aviso-caja" hidden>Estos datos son inventados para la demostración: no describen incendios reales del Huila.</p>
+  </section>
+  <div id="aviso-emergencia" class="aviso-caja" role="note">
+    <strong>No usar para proteger vidas ni bienes.</strong> Esta herramienta orienta; confirme siempre en terreno y por los canales oficiales de gestión del riesgo.
+    <br>Cita original: <q lang="en">Do not use for the preservation of life or property</q> (aviso de NASA FIRMS, consultado el 13 nov 2026).
+  </div>
 
   <main class="rejilla">
     <section class="tarjeta mapa-tarjeta">
@@ -47,16 +76,35 @@
         <span><i class="punto viirs"></i> VIIRS (huella nominal 375 m)</span>
         <span class="tenue">El círculo es el píxel, no la posición exacta del fuego.</span>
       </div>
+      <details class="que-significa">
+        <summary>¿Qué significa?</summary>
+        <dl>
+          <dt>Foco de calor</dt>
+          <dd>Es una detección térmica de un satélite en un píxel. No es un incendio confirmado: puede ser una quema agrícola, un fuego o una superficie muy caliente.</dd>
+          <dt>Huella del píxel</dt>
+          <dd>El círculo es el tamaño nominal del píxel: MODIS ~1 km y VIIRS ~375 m. El fuego está en algún punto dentro del círculo. Hacia el borde del barrido el píxel crece.</dd>
+        </dl>
+      </details>
     </section>
 
     <aside class="panel">
       <section class="tarjeta" id="tarjeta-base">
         <h2>Línea base y días inusuales</h2>
         <div id="base-estado"></div>
+        <details class="que-significa">
+          <summary>¿Qué significa?</summary>
+          <dl>
+            <dt>Día inusual</dt>
+            <dd>Un día con más focos que el percentil 95 histórico del mismo día del año ±7 días, medido en los OTROS años (no cuenta el año mostrado). Incluso en años normales ~5 % de los días lo superan: un día aislado no es alarma; importan las rachas.</dd>
+            <dt>Base insuficiente</dt>
+            <dd>Con menos años de datos de los necesarios (5 por defecto) no se puede decir qué es normal. Por eso no se marcan días inusuales.</dd>
+          </dl>
+        </details>
       </section>
       <section class="tarjeta">
         <h2>Temporada (climatología mensual)</h2>
         <div id="clima"></div>
+        <div id="comparacion"></div>
       </section>
       <section class="tarjeta">
         <h2>Periodos críticos del año</h2>
@@ -65,6 +113,13 @@
       <section class="tarjeta">
         <h2>Incertidumbre</h2>
         <dl id="incertidumbre" class="datos"></dl>
+        <details class="que-significa">
+          <summary>¿Qué significa?</summary>
+          <dl>
+            <dt>Efecto de borde</dt>
+            <dd>El calendario cuenta las celdas de ~1 km cuyo centro cae dentro del área. El mapa muestra los focos por su posición. Cerca del límite del área ambos conteos pueden diferir un poco.</dd>
+          </dl>
+        </details>
       </section>
     </aside>
 
@@ -77,13 +132,21 @@
           <i class="esc e2 nrt"></i><span>NRT (preliminar)</span>
         </div>
       </div>
-      <div id="calendario" role="grid" aria-label="Calendario de focos por día"></div>
+      <details class="que-significa">
+        <summary>¿Qué significa?</summary>
+        <dl>
+          <dt>NRT / preliminar</dt>
+          <dd>Son datos casi en tiempo real, disponibles en ~3 horas. Pueden corregirse cuando llega la versión estándar definitiva.</dd>
+        </dl>
+      </details>
+      <div id="calendario" aria-label="Calendario de focos por día"></div>
+      <div id="tooltip-cal" class="tooltip" role="tooltip" hidden></div>
       <p id="cal-resumen" class="tenue"></p>
     </section>
   </main>
 
   <footer class="pie">
-    <p id="cita"></p>
+    <p id="cita" class="cita"></p>
     <p id="aviso" class="tenue"></p>
     <p class="tenue">Los focos son detecciones térmicas, no incendios confirmados. Fechas en UTC.</p>
   </footer>
