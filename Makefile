@@ -1,7 +1,7 @@
-.PHONY: help sync test demo api real api-real download secrets verify-raw
+.PHONY: help sync test demo api real api-real download global api-global e2e secrets verify-raw
 
 help:
-	@echo "Objetivos: sync test demo api real api-real download secrets verify-raw"
+	@echo "Objetivos: sync test demo api real api-real download global api-global e2e secrets verify-raw"
 
 sync:
 	uv sync
@@ -28,6 +28,22 @@ api-real:
 
 download:
 	uv run python -m ingest.firms_download
+
+# ADR 0012: focos NRT de todo el mundo (últimos 7 días) con su propio manifiesto. Requiere FIRMS_MAP_KEY.
+# Fechas fijas para que sea reproducible; cámbielas con: make global DESDE=AAAA-MM-DD HASTA=AAAA-MM-DD
+DESDE ?= 2026-11-08
+HASTA ?= 2026-11-14
+global:
+	uv run python -m ingest.firms_download --sources MODIS_NRT VIIRS_NOAA20_NRT VIIRS_NOAA21_NRT --start $(DESDE) --end $(HASTA) --bbox -180 -90 180 90 --out data/raw/global/firms_api --manifest data/raw/global/manifest.jsonl
+	uv run python -m harmonize.pipeline --input data/raw/global --output data/processed/global_nrt
+
+# Interfaz con el NRT global como conjunto principal: globo 3D y focos de cualquier zona.
+api-global:
+	uv run python -m api --datos data/processed/global_nrt
+
+# Prueba de uso en Chrome sin interfaz gráfica (con la API en marcha en el puerto 8000).
+e2e:
+	node tools/prueba_navegador.mjs http://127.0.0.1:8000/ui/
 
 secrets:
 	uv run python tools/scan_secrets.py

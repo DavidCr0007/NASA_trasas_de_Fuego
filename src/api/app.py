@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 
 from api.area import contiene, resolver_area
 from api.cita import AVISO, CITA
+from api import mundo
 from harmonize import armonizada as arm
 from harmonize import linea_base as lb
 from harmonize.config import RulesConfig
@@ -41,6 +42,8 @@ RESOLUCION_M = {"MODIS": 1000, "VIIRS": 375}
 SEMILADO_NOMINAL_M = {s: r / 2 for s, r in RESOLUCION_M.items()}
 CLASES = ("baja", "nominal", "alta")
 LIMITE_DETECCIONES = 50_000
+# ADR 0012: lado (grados) de la celda de agregación del globo. 0,25° ≈ 28 km en el ecuador.
+RESOLUCIONES_GLOBAL = (0.25, 0.5, 1.0)
 UI_DIR = Path(__file__).resolve().parent.parent / "ui" / "static"
 
 
@@ -72,6 +75,7 @@ def _parse_bbox(texto: str) -> tuple[float, float, float, float]:
 def create_app(
     datos: Path,
     *,
+    datos_global: Path | None = None,
     anios_minimos: int | None = None,
     percentil: int = PERCENTIL_DEFECTO,
     ventana_dias: int = VENTANA_DIAS_DEFECTO,
@@ -87,6 +91,9 @@ def create_app(
     )
 
     ruta = {nombre.removesuffix(".parquet"): datos / nombre for nombre in ARCHIVOS_PARQUET.values()}
+    # ADR 0012: el globo puede leer un conjunto aparte (p. ej. NRT global reciente) o el mismo.
+    datos_g = Path(datos_global) if datos_global else datos
+    ruta_g = {nombre.removesuffix(".parquet"): datos_g / nombre for nombre in ARCHIVOS_PARQUET.values()}
 
     def faltantes() -> list[str]:
         return [p.name for p in ruta.values() if not p.exists()]
@@ -595,5 +602,90 @@ def create_app(
             "incertidumbre": inc,
         })
         return cuerpo
+
+    @app.get("/global")
+    def get_global(
+        dias: int = Query(2, ge=1, le=31, description="días que terminan en el último dato (o en «hasta»)"),
+        res: float = Query(0.5, description="lado de la celda de agregación en grados: 0.25, 0.5 o 1"),
+        hasta: date | None = None,
+    ):
+        """ADR 0012: focos de todo el conjunto agregados en celdas para el globo 3D, con el
+        reparto por país (Natural Earth 1:110m) y la serie diaria. No filtra por área."""
+        if res not in RESOLUCIONES_GLOBAL:
+            raise HTTPException(422, "res debe ser 0.25, 0.5 o 1")
+        det = ruta_g["detecciones"]
+        if not det.exists():
+            raise HTTPException(503, f"falta detecciones.parquet en {datos_g}; ejecute el pipeline global")
+        meta = pq.read_metadata(det).metadata or {}
+        fecha = "cast(fecha_hora_utc at time zone 'UTC' as date)"
+        con = duckdb.connect()
+        try:
+            lo, hi = con.execute(f"select min({fecha}), max({fecha}) from read_parquet('{det}')").fetchone()
+            ini = fin = None
+            filas, serie, cals, sint = [], [], set(), (0, 0)
+            if hi is not None:
+                fin = min(hasta, hi) if hasta else hi
+                ini = max(lo, fin - timedelta(days=dias - 1))
+                filas = con.execute(
+                    "select floor(lat / ?)::int, floor(lon / ?)::int, count(*), max(frp), sum(frp),"
+                    " count(*) filter (where confianza_clase = 'alta'),"
+                    " count(*) filter (where sensor = 'VIIRS'),"
+                    " max(fecha_hora_utc at time zone 'UTC'), avg(lat), avg(lon)"
+                    f" from read_parquet('{det}') where {fecha} between ? and ?"
+                    " group by 1, 2 order by 1, 2", [res, res, ini, fin],
+                ).fetchall()
+                serie = con.execute(
+                    f"select {fecha} as f, count(*), count(*) filter (where confianza_clase = 'alta')"
+                    f" from read_parquet('{det}') where {fecha} between ? and ? group by f order by f",
+                    [ini, fin],
+                ).fetchall()
+                cals = {c for (c,) in con.execute(
+                    f"select distinct calidad from read_parquet('{det}') where {fecha} between ? and ?",
+                    [ini, fin]).fetchall()}
+                sint = con.execute(
+                    "select count(*) filter (where sintetico), count(*) filter (where not sintetico)"
+                    f" from read_parquet('{det}')").fetchone()
+        finally:
+            con.close()
+        por_pais: dict[str, dict[str, Any]] = {}
+        celdas = []
+        for fi, co, n, frp_max, frp_sum, n_alta, n_viirs, ultimo, la, lon_media in filas:
+            # El país se decide en el centro de masa redondeado (clave cacheable entre peticiones).
+            pais = mundo.pais_de(round(lon_media, 2), round(la, 2))
+            iso, nombre = pais or ("", "Fuera de país (mar o costa)")
+            p = por_pais.setdefault(iso, {"iso_a3": iso or None, "nombre": nombre, "n": 0, "n_alta": 0,
+                                          "frp_max": 0.0, "celdas": 0})
+            p["n"] += n
+            p["n_alta"] += n_alta
+            p["celdas"] += 1
+            p["frp_max"] = round(max(p["frp_max"], frp_max or 0.0), 1)
+            celdas.append([round(la, 3), round(lon_media, 3), n, None if frp_max is None else round(frp_max, 1),
+                           round(frp_sum or 0.0, 1), n_alta, n_viirs, ultimo.strftime("%Y-%m-%dT%H:%MZ"), iso])
+        ranking = sorted(por_pais.values(), key=lambda x: (-x["n"], x["nombre"]))
+        n_sint, n_real = sint
+        return {
+            "rules_version": meta.get(b"rules_version", b"").decode(),
+            "config_fingerprint": meta.get(b"config_fingerprint", b"").decode(),
+            "cita": CITA,
+            "aviso": AVISO,
+            "origen_datos": "mixto" if n_sint and n_real else "sintetico" if n_sint else "real" if n_real else None,
+            "calidad": _calidad(cals),
+            "preliminar": "NRT" in cals,
+            "desde": ini.isoformat() if ini else None,
+            "hasta": fin.isoformat() if fin else None,
+            "cobertura": {"desde": lo.isoformat() if lo else None, "hasta": hi.isoformat() if hi else None},
+            "res_grados": res,
+            "total_detecciones": sum(c[2] for c in celdas),
+            "total_alta": sum(c[5] for c in celdas),
+            "n_paises": sum(1 for p in por_pais.values() if p["iso_a3"]),
+            "campos_celda": ["lat", "lon", "n", "frp_max", "frp_sum", "n_alta", "n_viirs", "ultimo_utc", "iso_a3"],
+            "celdas": celdas,
+            "paises": ranking[:25],
+            "serie_diaria": [{"fecha_utc": f.isoformat(), "n": n, "n_alta": a} for f, n, a in serie],
+            "fuente_paises": mundo.FUENTE,
+            "nota": ("Detecciones tras quitar duplicados entre satélites, agregadas en celdas de "
+                     f"{res}°; posición = centro de masa de los focos de la celda. País según Natural Earth "
+                     "1:110m: cerca de costas y fronteras puede asignarse al vecino."),
+        }
 
     return app

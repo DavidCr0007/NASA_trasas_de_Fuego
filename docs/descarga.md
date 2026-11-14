@@ -114,3 +114,14 @@ uv run python -I tools/preparar_limites.py   # escribe src/ui/static/datos/huila
 ```
 
 El GeoJSON resultante se versiona, de modo que la demo funciona sin red.
+
+## Descarga global con manifiesto propio (ADR 0012)
+
+`--manifest RUTA` escribe las entradas en otro manifiesto; `--out` debe quedar debajo de su carpeta. Así un conjunto aparte (el NRT de todo el mundo) no se mezcla con los crudos del Huila:
+
+```bash
+uv run python -m ingest.firms_download --sources MODIS_NRT VIIRS_NOAA20_NRT VIIRS_NOAA21_NRT   --start 2026-11-08 --end 2026-11-14 --bbox -180 -90 180 90   --out data/raw/global/firms_api --manifest data/raw/global/manifest.jsonl
+uv run python -m harmonize.pipeline --input data/raw/global --output data/processed/global_nrt
+```
+
+Resultado del 2026-11-14: 6 CSV, 776 835 detecciones → 455 827 aceptadas, 321 008 fusionadas entre satélites, 0 en cuarentena e invariante correcto (unos 23 s).

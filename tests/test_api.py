@@ -413,7 +413,7 @@ def test_csv_respeta_el_area(cliente):
 def test_calendario_trae_metrica_armonizada(cliente):
     c = cliente.get(f"/calendario?bbox={BBOX}").json()
     a = c["armonizacion"]
-    assert a["metrica"] == "armonizada" and a["version"] == "celdas-eq-1.0.0"
+    assert a["metrica"] == "armonizada" and a["version"] == "celdas-eq-1.1.0"
     assert {"k_m", "k_n20", "anios_superposicion_modis"} <= set(a["factores"])
     for d in c["dias"]:
         assert {"celdas_eq", "metodo", "valor"} <= set(d)

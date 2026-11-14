@@ -254,12 +254,14 @@ def download(
     max_days: int = PROVISIONAL_DAY_RANGE_MAX,
     sleep: Callable[[float], None] = time.sleep,
     rejected: list[str] | None = None,
+    manifest: Path | None = None,
 ) -> list[Path]:
     """Descarga todas las ventanas válidas y devuelve los CSV guardados."""
     unknown = set(sources) - FUENTES_API.keys()
     if unknown:
         raise ValueError(f"fuentes desconocidas: {', '.join(sorted(unknown))}")
-    manifest_path = root / "data" / "raw" / "manifest.jsonl"
+    # Por defecto, el manifiesto común de data/raw; un conjunto aparte (p. ej. global) lleva el suyo.
+    manifest_path = manifest or root / "data" / "raw" / "manifest.jsonl"
     saved: list[Path] = []
     requests = [(source, first, last) for source in sources
                 for first, last in partition_windows(start, end, max_days)]
@@ -309,6 +311,8 @@ def _parser(today: date) -> argparse.ArgumentParser:
     parser.add_argument("--bbox", nargs=4, type=float, metavar=("W", "S", "E", "N"), default=HUILA_BBOX)
     parser.add_argument("--out", type=Path, default=Path("data/raw/firms_api"))
     parser.add_argument("--pause", type=float, default=1.0)
+    parser.add_argument("--manifest", type=Path, default=None,
+                        help="manifiesto destino (por defecto data/raw/manifest.jsonl); --out debe quedar debajo")
     parser.add_argument("--dry-run", action="store_true")
     return parser
 
@@ -358,6 +362,8 @@ def main(
             max_days=max_days,
             sleep=sleep,
             rejected=rejected,
+            manifest=None if args.manifest is None else (
+                args.manifest if args.manifest.is_absolute() else root / args.manifest),
         )
     except Exception as exc:
         # Frontera del CLI: incluso una excepción de urllib puede incluir la URL

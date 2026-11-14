@@ -12,13 +12,14 @@
     } catch (e) { /* sin almacenamiento: se usa el tema del sistema */ }
   </script>
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="vendor/maplibre/maplibre-gl.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="barra">
     <div class="marca">
       <h1>Harmonized Heat Neiva</h1>
-      <p>Calendario armonizado de focos de calor MODIS + VIIRS · NASA FIRMS</p>
+      <p>Focos de calor MODIS + VIIRS armonizados · del globo al municipio · NASA FIRMS</p>
     </div>
     <div class="insignias">
       <span id="insignia-calidad" class="insignia">calidad…</span>
@@ -37,6 +38,7 @@
       </select>
     </label>
     <button id="btn-dibujar" type="button">Dibujar área en el mapa</button>
+    <button id="btn-globo" type="button" aria-pressed="false">Ver el globo 3D</button>
     <label>Año
       <select id="sel-anio"></select>
     </label>
@@ -77,60 +79,55 @@
     <button id="btn-reintentar" type="button" hidden>Reintentar</button>
   </div>
 
-  <section id="resumen" class="tarjeta resumen" aria-live="polite">
-    <h2>En pocas palabras</h2>
-    <p id="resumen-texto">Cargando el resumen…</p>
-    <p id="resumen-origen" class="aviso-caja" hidden>Estos datos son inventados para la demostración: no describen incendios reales del Huila.</p>
-  </section>
-  <div id="aviso-emergencia" class="aviso-caja" role="note">
-    <strong>No usar para proteger vidas ni bienes.</strong> Esta herramienta orienta; confirme siempre en terreno y por los canales oficiales de gestión del riesgo.
-    <br>Cita original: <q lang="en">Do not use for the preservation of life or property</q> (aviso de NASA FIRMS, consultado el 13 nov 2026).
-  </div>
-
   <main class="rejilla">
-    <div class="columna-izq">
-      <section class="tarjeta mapa-tarjeta">
-        <div class="tarjeta-cabeza">
-          <h2>Mapa de focos</h2>
-          <span id="mapa-filtro" class="tenue"></span>
-        </div>
-        <div class="control-imagen">
-            <label for="sel-imagen">Imagen satelital del día</label>
-            <select id="sel-imagen" disabled>
-              <option value="">Ninguna</option>
-              <option value="viirs">VIIRS NOAA-20, color real (NASA GIBS)</option>
-              <option value="modis">MODIS Terra, color real (NASA GIBS)</option>
-            </select>
-            <span id="imagen-nota" class="tenue">Elija un día en el calendario para ver la imagen satelital de ese día.</span>
-          </div>
-          <p class="enlace-visor"><a id="enlace-firms" href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank" rel="noopener">Abrir esta área en el visor NASA FIRMS</a></p>
-          <div id="mapa" aria-label="Mapa de focos de calor"></div>
-        <div class="leyenda">
-          <span><i class="punto modis"></i> MODIS (huella nominal 1 km)</span>
-          <span><i class="punto viirs"></i> VIIRS (huella nominal 375 m)</span>
-        </div>
-        <p id="mapa-modo" class="tenue mapa-modo" aria-live="polite"></p>
-        <details class="que-significa">
-          <summary>¿Qué significa?</summary>
-          <dl>
-            <dt>Foco de calor</dt>
-            <dd>Es una detección térmica de un satélite en un píxel. No es un incendio confirmado: puede ser una quema agrícola, un fuego o una superficie muy caliente.</dd>
-            <dt>Huella del píxel</dt>
-            <dd>El círculo es el tamaño nominal del píxel: MODIS ~1 km y VIIRS ~375 m. El fuego está en algún punto dentro del círculo. Hacia el borde del barrido el píxel crece.</dd>
-          </dl>
-        </details>
-      </section>
-        <section class="tarjeta">
-          <h2>Incertidumbre</h2>
-          <dl id="incertidumbre" class="datos"></dl>
-          <details class="que-significa">
-            <summary>¿Qué significa?</summary>
-            <dl>
-              <dt>Efecto de borde</dt>
-              <dd>El calendario cuenta las celdas de ~1 km cuyo centro cae dentro del área. El mapa muestra los focos por su posición. Cerca del límite del área ambos conteos pueden diferir un poco.</dd>
-            </dl>
-          </details>
+    <section class="tarjeta mapa-tarjeta" aria-labelledby="mapa-titulo">
+      <div class="tarjeta-cabeza">
+        <h2 id="mapa-titulo">Mapa de focos</h2>
+        <span id="mapa-filtro" class="tenue"></span>
+      </div>
+      <div id="mapa-escena" class="mapa-escena" data-vista="regional">
+        <div id="mapa" role="region" aria-label="Mapa regional de focos de calor"></div>
+        <div id="globo" class="globo" role="region" aria-label="Globo 3D de focos de calor del mundo"></div>
+        <aside id="globo-panel" class="globo-panel flotante" aria-label="Resumen mundial"></aside>
+        <section id="resumen" class="resumen flotante" aria-live="polite">
+          <h2>En pocas palabras</h2>
+          <p id="resumen-texto">Cargando el resumen…</p>
+          <p id="resumen-origen" class="aviso-caja" hidden>Estos datos son inventados para la demostración: no describen incendios reales del Huila.</p>
         </section>
+        <div id="leyenda-mapa" class="leyenda-mapa flotante" aria-label="Leyenda del mapa"></div>
+        <p id="aviso-truncado" class="aviso-truncado" role="alert" hidden></p>
+      </div>
+      <div class="mapa-pie">
+        <div class="control-imagen">
+          <label for="sel-imagen">Imagen satelital del día</label>
+          <select id="sel-imagen" disabled>
+            <option value="">Ninguna</option>
+            <option value="viirs">VIIRS NOAA-20, color real (NASA GIBS)</option>
+            <option value="modis">MODIS Terra, color real (NASA GIBS)</option>
+          </select>
+          <span id="imagen-nota" class="tenue">Elija un día en el calendario para ver la imagen satelital de ese día.</span>
+        </div>
+        <p class="enlace-visor"><a id="enlace-firms" href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank" rel="noopener">Abrir esta área en el visor NASA FIRMS</a></p>
+      </div>
+      <p id="mapa-modo" class="tenue mapa-modo" aria-live="polite"></p>
+      <details class="que-significa">
+        <summary>¿Qué significa?</summary>
+        <dl>
+          <dt>Foco de calor</dt>
+          <dd>Es una detección térmica de un satélite en un píxel. No es un incendio confirmado: puede ser una quema agrícola, un fuego o una superficie muy caliente.</dd>
+          <dt>Globo y mapa regional</dt>
+          <dd>Al alejarse hasta la vista de país aparece el globo 3D con los focos de todo el mundo, agrupados en celdas. Al acercarse vuelve el mapa regional, con cada foco.</dd>
+          <dt>FRP</dt>
+          <dd>Potencia radiativa del fuego, en megavatios (MW): cuanto mayor, más intenso. En el mapa, el tamaño y el color del punto la indican.</dd>
+          <dt>Huella del píxel</dt>
+          <dd>Con mucho zoom, el círculo es el tamaño nominal del píxel: MODIS ~1 km y VIIRS ~375 m. El fuego está en algún punto dentro del círculo. Hacia el borde del barrido el píxel crece.</dd>
+        </dl>
+      </details>
+    </section>
+
+    <div id="aviso-emergencia" class="aviso-caja" role="note">
+      <strong>No usar para proteger vidas ni bienes.</strong> Esta herramienta orienta; confirme siempre en terreno y por los canales oficiales de gestión del riesgo.
+      <br>Cita original: <q lang="en">Do not use for the preservation of life or property</q> (aviso de NASA FIRMS, consultado el 13 nov 2026).
     </div>
 
     <aside class="panel">
@@ -149,31 +146,34 @@
       </section>
       <section class="tarjeta" id="tarjeta-mes-reciente">
         <h2>Mes más reciente frente a la mediana</h2>
-        <div id="mes-reciente" aria-live="polite"><p class="tenue">Calculando…</p></div>
+        <div id="mes-reciente"><p class="tenue">Calculando…</p></div>
       </section>
-      <section class="tarjeta" id="tarjeta-meteo">
-        <h2>Clima (reanálisis)</h2>
-        <div id="meteo" aria-live="polite"><p class="tenue">Elija un día en el calendario para ver el clima de esos días.</p></div>
-        <p class="tenue nota-fuente"><a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>); reanálisis ERA5 y ERA5-Land del Copernicus Climate Change Service (C3S) y modelo IFS de ECMWF. Son estimaciones de modelo para el centro del área, no observaciones de estaciones. Requiere internet.</p>
+      <section class="tarjeta">
+        <h2>Periodos críticos del año</h2>
+        <ol id="periodos" class="lista"></ol>
       </section>
       <section class="tarjeta">
         <h2>Temporada (climatología mensual)</h2>
         <div id="clima"></div>
         <div id="comparacion"></div>
       </section>
+      <section class="tarjeta" id="tarjeta-meteo">
+        <h2>Clima (reanálisis)</h2>
+        <div id="meteo"><p class="tenue">Elija un día en el calendario para ver el clima de esos días.</p></div>
+        <p class="tenue nota-fuente"><a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>); reanálisis ERA5 y ERA5-Land del Copernicus Climate Change Service (C3S) y modelo IFS de ECMWF. Son estimaciones de modelo para el centro del área, no observaciones de estaciones. Requiere internet.</p>
+      </section>
       <section class="tarjeta">
-        <h2>Periodos críticos del año</h2>
-        <ol id="periodos" class="lista"></ol>
+        <h2>Incertidumbre</h2>
+        <dl id="incertidumbre" class="datos"></dl>
+        <details class="que-significa">
+          <summary>¿Qué significa?</summary>
+          <dl>
+            <dt>Efecto de borde</dt>
+            <dd>El calendario cuenta las celdas de ~1 km cuyo centro cae dentro del área. El mapa muestra los focos por su posición. Cerca del límite del área ambos conteos pueden diferir un poco.</dd>
+          </dl>
+        </details>
       </section>
     </aside>
-
-    <section class="tarjeta matriz-tarjeta">
-      <div class="tarjeta-cabeza">
-        <h2>Calendario de quema: actividad por mes y año</h2>
-        <button id="btn-svg-matriz" type="button">Descargar (SVG)</button>
-      </div>
-      <div id="matriz"></div>
-    </section>
 
     <section class="tarjeta calendario-tarjeta">
       <div class="tarjeta-cabeza">
@@ -195,12 +195,20 @@
       <div id="tooltip-cal" class="tooltip" role="tooltip" hidden></div>
       <p id="cal-resumen" class="tenue"></p>
     </section>
+
+    <section class="tarjeta matriz-tarjeta">
+      <div class="tarjeta-cabeza">
+        <h2>Calendario de quema: actividad por mes y año</h2>
+        <button id="btn-svg-matriz" type="button">Descargar (SVG)</button>
+      </div>
+      <div id="matriz"></div>
+    </section>
   </main>
 
   <footer class="pie">
     <p id="cita" class="cita"></p>
     <p id="aviso" class="tenue"></p>
-    <p class="tenue">Los focos son detecciones térmicas, no incendios confirmados. Fechas en UTC.</p>
+    <p class="tenue">Los focos son detecciones térmicas, no incendios confirmados. Fechas en UTC. Países: Natural Earth (dominio público).</p>
     <nav class="enlaces-firms" aria-label="Conexión con NASA FIRMS">
       <strong>NASA FIRMS:</strong>
       <a href="https://www.earthdata.nasa.gov/data/tools/firms" target="_blank" rel="noopener">Inicio</a> ·
@@ -214,6 +222,8 @@
   </footer>
 
   <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/maplibre/maplibre-gl.js"></script>
+  <script src="globo.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

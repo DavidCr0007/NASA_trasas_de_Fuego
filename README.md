@@ -75,6 +75,9 @@ cp .env.example .env
 | `make real` | Ruta pública temporal sin clave: descarga el archivo anual por país (Colombia 2001–2025), lo recorta al recuadro del Huila y lo procesa (requiere red la primera vez). |
 | `make api-real` | Sirve la interfaz con esos datos reales. |
 | `make download` | Descarga desde la API área de FIRMS para el bbox del Huila. Requiere `FIRMS_MAP_KEY` en `.env`. |
+| `make global` | Descarga los focos NRT de **todo el mundo** (MODIS, NOAA-20, NOAA-21; 7 días) con su propio manifiesto y los procesa (ADR 0012). Requiere `FIRMS_MAP_KEY`. |
+| `make api-global` | Sirve la interfaz con el NRT global: globo 3D y focos de cualquier zona. |
+| `make e2e` | Prueba de uso en Chrome sin interfaz gráfica (con la API en marcha): mapa → globo → país → zona → día → tema → móvil. |
 | `make secrets` | Escanea el repositorio en busca de credenciales antes de entregar. |
 | `make verify-raw` | Verifica los SHA-256 de `data/raw/` contra su manifiesto. |
 
@@ -113,6 +116,10 @@ curl "http://127.0.0.1:8000/calendario.csv?bbox=-76.7,1.4,-74.3,3.9" -o calendar
 ```
 
 Cada respuesta trae la cita de FIRMS, el aviso «as is», la versión de reglas, la calidad (NRT/estándar, `preliminar`), los metadatos de incertidumbre y el estado de la línea base («base insuficiente» si no hay años suficientes). Rutas y campos: [docs/metodologia.md](docs/metodologia.md#7-api-de-consulta-h3).
+
+## Globo 3D y vista global (ADR 0012)
+
+El mapa ocupa el ancho de la pantalla. Al **alejarse hasta la vista de país** aparece un globo terráqueo 3D (MapLibre GL JS, incluido en `vendor/`) con los focos activos de todo el mundo, agrupados en celdas: color = FRP máximo, tamaño = número de focos. El panel mundial muestra el total, los de confianza alta, los países con más focos (clic = volar al país) y la serie diaria. Al **acercarse** a cualquier zona vuelve el mapa regional en ese punto, con cada foco: tamaño y color por FRP, forma por sensor (círculo MODIS, rombo VIIRS), transparencia por confianza y borde punteado si es preliminar. Fondo del globo: NASA GIBS (Blue Marble o Black Marble según el tema), opcional; sin red se ven los países de Natural Earth. Enlace directo: `http://127.0.0.1:8000/ui/#globo`.
 
 ## Capas de contexto (H7)
 

@@ -2,7 +2,7 @@
 
 ## Estado
 
-ACEPTADA (2026-11-14), H8-02. Versión de la métrica: `celdas-eq-1.0.0`. La línea base R5 la usa por defecto (`r5-1.1.0`).
+ACEPTADA (2026-11-14), H8-02. Versión de la métrica: `celdas-eq-1.1.0` (1.1.0, ADR 0012: sin era Suomi NPP se cuentan todas las constelaciones «sin calibrar»). La línea base R5 la usa por defecto (`r5-1.1.0`).
 
 ## Contexto
 

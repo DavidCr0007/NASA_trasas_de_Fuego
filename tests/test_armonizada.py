@@ -85,4 +85,15 @@ def test_mes_sin_muestra_usa_factor_global():
 
 
 def test_version_declarada():
-    assert VERSION_METRICA == "celdas-eq-1.0.0"
+    assert VERSION_METRICA == "celdas-eq-1.1.0"
+
+
+def test_sin_era_snpp_cuenta_todas_las_constelaciones_sin_calibrar():
+    # Conjunto solo NRT reciente (ADR 0012): sin Suomi NPP no hay factores; VIIRS no se pierde.
+    regs = [(date(2026, 11, 6), "a", "NOAA-20"), (date(2026, 11, 6), "b", "NOAA-21"),
+            (date(2026, 11, 6), "b", "NOAA-20"), (date(2026, 11, 7), "c", "Terra")]
+    c = contar_por_dia(regs)
+    e = eras(c)
+    s = serie_armonizada(c, factores(c, e), e)
+    assert s[date(2026, 11, 6)] == (2.0, "sin calibrar")
+    assert s[date(2026, 11, 7)] == (1.0, "sin calibrar")

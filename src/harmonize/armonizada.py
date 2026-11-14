@@ -16,6 +16,10 @@ Fuera de la era de R se usan factores estimados donde las fuentes se superponen:
 
 Los factores se estiman sobre **todo el conjunto procesado** (más muestra que un área) y se
 informan con sus años y su número de días.
+
+Sin era de Suomi NPP en el conjunto (p. ej. solo NRT reciente, ADR 0012) no hay con qué calibrar:
+el día vale las celdas de **todas** las constelaciones y su método es «sin calibrar». Antes se
+contaba solo MODIS con k = 1 y los días con focos solo VIIRS valían 0.
 """
 
 from __future__ import annotations
@@ -23,7 +27,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date
 
-VERSION_METRICA = "celdas-eq-1.0.0"
+VERSION_METRICA = "celdas-eq-1.1.0"
 MODIS = frozenset({"Terra", "Aqua"})
 REFERENCIA = MODIS | {"Suomi NPP"}
 MODIS_N20 = MODIS | {"NOAA-20"}
@@ -34,9 +38,10 @@ def contar_por_dia(registros) -> dict[date, dict[str, int]]:
     """registros: iterable de (fecha_utc, cell_id, satelite) de TODAS las detecciones aceptadas
     (representantes y deduplicadas). Devuelve, por día, celdas distintas por grupo."""
     celdas: dict[date, dict[str, set]] = defaultdict(lambda: {"ref": set(), "modis": set(), "mn20": set(),
-                                                             "snpp": set(), "n20": set()})
+                                                             "snpp": set(), "n20": set(), "todas": set()})
     for fecha, cell, sat in registros:
         c = celdas[fecha]
+        c["todas"].add(cell)
         if sat in REFERENCIA:
             c["ref"].add(cell)
         if sat in MODIS:
@@ -108,6 +113,8 @@ def serie_armonizada(conteos: dict[date, dict[str, int]], f: dict, e: dict) -> d
             salida[dia] = (float(c["ref"]), "referencia")
         elif e["snpp"] and dia > e["snpp"][1] and f.get("k_n20"):
             salida[dia] = (round(c["mn20"] / f["k_n20"], 4), "NOAA-20 calibrado")
+        elif not e["snpp"]:
+            salida[dia] = (float(c.get("todas", c["modis"])), "sin calibrar")
         else:
             k = (f.get("k_m") or {}).get(dia.month) or f.get("k_m_global") or 1.0
             salida[dia] = (round(c["modis"] * k, 4), "MODIS calibrado")
@@ -119,4 +126,6 @@ def metodo_del_dia(dia: date, f: dict, e: dict) -> str:
         return "referencia"
     if e["snpp"] and dia > e["snpp"][1] and f.get("k_n20"):
         return "NOAA-20 calibrado"
+    if not e["snpp"]:
+        return "sin calibrar"
     return "MODIS calibrado"

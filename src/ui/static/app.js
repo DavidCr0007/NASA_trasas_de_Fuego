@@ -98,6 +98,7 @@ function temaOscuro() {
 /** Vuelve a pintar lo que se dibuja en JS; los colores salen de CSS, así que basta con repintar. */
 function repintarTema() {
   if (ultimosFocos) pintarFocos(ultimosFocos);
+  if (globo) globo.repintar();
   const c = estado.calendario;
   if (!c || !c.dias || !c.dias.length) return;
   pintarCalendario(c);
@@ -114,12 +115,115 @@ window.matchMedia("(max-width: 600px)").addEventListener("change", () => {
 // (auditoría UI/UX, hallazgo 2). Canvas no admite estilos por clase: los colores se leen de
 // las variables CSS del tema y se repintan al cambiarlo.
 const lienzo = L.canvas({ padding: 0.3 });
-const mapa = L.map("mapa", { zoomControl: true, attributionControl: true, preferCanvas: true, renderer: lienzo }).setView([2.6, -75.5], 8);
+// El zoom va arriba a la derecha: arriba a la izquierda flota el resumen.
+const mapa = L.map("mapa", { zoomControl: false, attributionControl: true, preferCanvas: true, renderer: lienzo, minZoom: 4 }).setView([2.6, -75.5], 8);
+L.control.zoom({ position: "topright" }).addTo(mapa);
 const token = (nombre) => getComputedStyle(document.documentElement).getPropertyValue(nombre).trim();
 let ultimosFocos = null;
-// En la vista anual la rejilla depende del zoom: se rehace al acercar o alejar.
-mapa.on("zoomend", () => { if (ultimosFocos && !estado.dia) pintarFocos(ultimosFocos); });
 mapa.attributionControl.setPrefix(false);
+
+// ------------------------------------------------------------------ globo 3D (ADR 0012)
+// Vista de país o más lejos = globo (MapLibre, focos de todo el mundo agregados en celdas);
+// más cerca = mapa regional (Leaflet, cada foco). El cambio solo ocurre por zoom del usuario
+// (no al encuadrar un área) y con histéresis: se entra al globo en zoom Leaflet ≤ 5 alejándose
+// y se vuelve al mapa regional en zoom MapLibre ≥ 5,2 (≈ Leaflet 6,2) acercándose.
+const UMBRAL_GLOBO = 5;
+const UMBRAL_REGIONAL = 5.2;
+let vista = "regional";
+let globo = null;
+let guardaZoom = false;
+let zoomPrevio = mapa.getZoom();
+
+/** Encuadre programático: no debe disparar el paso al globo. */
+function encuadrar(fn) {
+  guardaZoom = true;
+  fn();
+  const soltar = () => { guardaZoom = false; };
+  mapa.once("moveend", soltar);
+  setTimeout(soltar, 1500);
+}
+
+function hayWebGL() {
+  try {
+    const c = document.createElement("canvas");
+    return Boolean(window.maplibregl && window.Globo && (c.getContext("webgl2") || c.getContext("webgl")));
+  } catch { return false; }
+}
+
+function dentroDeArea(lon, lat) {
+  const [w, s, e, n] = estado.bbox;
+  return lon >= w && lon <= e && lat >= s && lat <= n;
+}
+
+function mostrarGlobo() {
+  if (!hayWebGL()) {
+    mostrarEstado("error", "El globo 3D no está disponible: este navegador no tiene WebGL. El mapa regional sigue funcionando.");
+    return;
+  }
+  vista = "globo";
+  $("mapa-escena").dataset.vista = "globo";
+  $("aviso-truncado").hidden = true;
+  const b = $("btn-globo");
+  b.textContent = "Volver al mapa regional";
+  b.setAttribute("aria-pressed", "true");
+  $("mapa-titulo").textContent = "Globo 3D: focos activos en el mundo";
+  $("mapa-filtro").textContent = "Arrastre para girar; acérquese a una zona para ver cada foco.";
+  $("mapa-modo").textContent = "Vista mundial: cada círculo agrupa los focos de una celda (0,5° lejos, 0,25° cerca). " +
+    "Color = FRP máximo de la celda; tamaño = número de focos.";
+  if (!globo) {
+    globo = window.Globo.crear({
+      contenedor: $("globo"), panel: $("globo-panel"), oscuro: temaOscuro, umbralRegional: UMBRAL_REGIONAL,
+      alExplorar: (lon, lat, z) => mostrarRegional(lon, lat, Math.max(6, Math.min(10, z))),
+      alVolver: () => mostrarRegional(),
+    });
+  }
+  const c = mapa.getCenter();
+  globo.mostrar(c.lng, c.lat, Math.max(1.2, Math.min(UMBRAL_REGIONAL - 1.2, mapa.getZoom() - 1)));
+}
+
+/** Vuelve al mapa regional. Con coordenadas, se centra allí y, si está fuera del área, la explora. */
+function mostrarRegional(lon, lat, zoom) {
+  vista = "regional";
+  $("mapa-escena").dataset.vista = "regional";
+  if (globo) globo.ocultar();
+  const b = $("btn-globo");
+  b.textContent = "Ver el globo 3D";
+  b.setAttribute("aria-pressed", "false");
+  $("mapa-titulo").textContent = "Mapa de focos";
+  mapa.invalidateSize();
+  if (lon == null) {
+    const [w, s, e, n] = estado.bbox;
+    encuadrar(() => mapa.fitBounds([[s, w], [n, e]], { padding: [10, 10], animate: false }));
+    if (ultimosFocos) pintarFocos(ultimosFocos);
+    return;
+  }
+  encuadrar(() => mapa.setView([lat, lon], zoom ?? 7, { animate: false }));
+  if (dentroDeArea(lon, lat)) { if (ultimosFocos) pintarFocos(ultimosFocos); return; }
+  explorarZona();
+}
+
+/** Toma la vista actual del mapa regional como área de consulta (zona elegida en el globo). */
+function explorarZona() {
+  const b = mapa.getBounds();
+  const r = (x) => Math.round(x * 100) / 100;
+  estado.bbox = [r(Math.max(-180, b.getWest())), r(Math.max(-90, b.getSouth())), r(Math.min(180, b.getEast())), r(Math.min(90, b.getNorth()))];
+  estado.area = null;
+  estado.dia = null;
+  const opcion = $("sel-area").querySelector('option[value="dibujo"]');
+  opcion.disabled = false;
+  opcion.textContent = "Zona explorada en el globo";
+  $("sel-area").value = "dibujo";
+  resaltarMunicipio(null);
+  cargar({ encuadrarArea: false });
+}
+
+mapa.on("zoomstart", () => { zoomPrevio = mapa.getZoom(); });
+mapa.on("zoomend", () => {
+  const z = mapa.getZoom();
+  if (vista === "regional" && !guardaZoom && z < zoomPrevio && z <= UMBRAL_GLOBO) { mostrarGlobo(); return; }
+  // La rejilla depende del zoom y la huella del píxel solo se dibuja de cerca: se rehace.
+  if (ultimosFocos) pintarFocos(ultimosFocos);
+});
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 17,
   className: "teselas-base",
@@ -309,86 +413,166 @@ function activarDibujo() {
   mapa.on("mousedown", abajo).on("mousemove", mover).on("mouseup", arriba);
 }
 
+// ------------------------------------------------------------------ simbología de los focos
+// Tamaño y color = FRP (clases fijas, comparables entre días y regiones; las mismas del globo).
+// Opacidad = confianza (la incertidumbre se ve como «menos tinta»). Forma = sensor: círculo
+// MODIS, rombo VIIRS. Borde punteado = preliminar (NRT). Huella del píxel solo de cerca.
+const CORTES_FRP = [5, 20, 100, 500];
+const RADIO_FRP = [3.5, 5, 7, 9.5, 12.5];
+const OPACIDAD_CONFIANZA = { alta: 0.95, nominal: 0.78, baja: 0.42 };
+const ZOOM_HUELLA = 11;
+const claseFrp = (frp) => (frp == null ? 0 : CORTES_FRP.filter((c) => frp >= c).length);
+const coloresFrp = () => [token("--f1"), token("--f2"), token("--f3"), token("--f4"), token("--f5")];
+
+/** Rombo en el lienzo Canvas de Leaflet (VIIRS); la detección de clic es la del círculo. */
+const Rombo = L.CircleMarker.extend({
+  _updatePath() {
+    const r = this._renderer;
+    if (!r._drawing || this._empty()) return;
+    const p = this._point, ctx = r._ctx, s = this._radius * 1.18;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - s); ctx.lineTo(p.x + s, p.y); ctx.lineTo(p.x, p.y + s); ctx.lineTo(p.x - s, p.y);
+    ctx.closePath();
+    r._fillStroke(ctx, this);
+  },
+});
+
 function popupFoco(d) {
-  return `<strong>${esc(d.satelite)}</strong> · ${esc(d.sensor)}<br>` +
-    `${esc(fechaHoraLegible(d.fecha_hora_utc))} <span class="tenue">(${esc(d.fecha_hora_utc)})</span><br>` +
-    `Confianza: ${esc(d.confianza_clase)} (${esc(d.confianza_raw)})<br>` +
-    `FRP (potencia radiativa del fuego): ${fmt(d.frp, 1)} MW · Calidad: ${esc(d.calidad)}${d.preliminar ? " <em>(preliminar)</em>" : ""}<br>` +
-    `Huella nominal: ±${fmt(d.semilado_nominal_m)} m` +
-    (d.n_fusionados ? `<br>Agrupa ${fmt(d.n_fusionados)} detección(es) duplicada(s)` : "");
+  const clase = claseFrp(d.frp);
+  const intensidad = ["muy baja", "baja", "moderada", "alta", "muy alta"][clase];
+  return `<div class="ficha-foco"><strong>${esc(d.satelite)}</strong> · ${esc(d.sensor)}` +
+    `${d.preliminar ? ' <span class="insignia preliminar mini">NRT</span>' : ""}<dl>` +
+    `<dt>Fecha</dt><dd>${esc(fechaHoraLegible(d.fecha_hora_utc))}</dd>` +
+    `<dt>Intensidad</dt><dd>FRP ${fmt(d.frp, 1)} MW (${intensidad})</dd>` +
+    `<dt>Confianza</dt><dd>${esc(d.confianza_clase)} (${esc(d.confianza_raw)})${d.sensor === "MODIS" ? " · cortes MODIS provisionales" : ""}</dd>` +
+    `<dt>Calidad</dt><dd>${esc(d.calidad)}${d.preliminar ? " · preliminar, puede corregirse" : ""}</dd>` +
+    `<dt>Píxel</dt><dd>±${fmt(d.semilado_nominal_m)} m nominal: el fuego está dentro de ese cuadro</dd>` +
+    `<dt>Posición</dt><dd>${fmt(d.lat, 4)}; ${fmt(d.lon, 4)}</dd>` +
+    (d.n_fusionados ? `<dt>Fusionados</dt><dd>agrupa ${fmt(d.n_fusionados)} detección(es) casi simultánea(s)</dd>` : "") +
+    `</dl></div>`;
 }
 
-/** Día seleccionado: cada foco con su huella nominal (círculo del tamaño del píxel). */
+/** Día o rango corto: cada foco con la simbología de arriba, del menos al más intenso. */
 function pintarFocosIndividuales(lista) {
-  const color = { modis: token("--modis"), viirs: token("--viirs") };
+  const colores = coloresFrp();
   const borde = token("--tinta");
-  for (const d of lista) {
-    const sensor = String(d.sensor).toLowerCase() === "viirs" ? "viirs" : "modis";
-    L.circle([d.lat, d.lon], { renderer: lienzo, radius: d.semilado_nominal_m, color: color[sensor], weight: 1, fillColor: color[sensor], fillOpacity: 0.18 }).addTo(capaFocos);
-    L.circleMarker([d.lat, d.lon], { renderer: lienzo, radius: 4, color: borde, weight: 1, fillColor: color[sensor], fillOpacity: 0.9 })
-      .bindPopup(popupFoco(d)).addTo(capaFocos);
+  const huella = mapa.getZoom() >= ZOOM_HUELLA;
+  const orden = [...lista].sort((a, b) => (a.frp ?? 0) - (b.frp ?? 0));
+  for (const d of orden) {
+    const k = claseFrp(d.frp);
+    const viirs = String(d.sensor).toLowerCase() === "viirs";
+    const op = OPACIDAD_CONFIANZA[d.confianza_clase] ?? 0.78;
+    if (huella) {
+      L.circle([d.lat, d.lon], { renderer: lienzo, radius: d.semilado_nominal_m, color: colores[k], weight: 1,
+        fillColor: colores[k], fillOpacity: 0.16, interactive: false }).addTo(capaFocos);
+    }
+    const Forma = viirs ? Rombo : L.circleMarker;
+    const opts = { renderer: lienzo, radius: RADIO_FRP[k], color: borde, weight: 1, opacity: Math.max(0.55, op),
+      fillColor: colores[k], fillOpacity: op, dashArray: d.preliminar ? "2 2" : null };
+    (viirs ? new Forma([d.lat, d.lon], opts) : Forma([d.lat, d.lon], opts)).bindPopup(popupFoco(d)).addTo(capaFocos);
   }
 }
 
-/** Lado de la rejilla de densidad (grados) según el zoom: ~11 km lejos, la celda de 1 km de cerca. */
+/** Lado de la rejilla de densidad (grados) según el zoom: ~55 km muy lejos, la celda de 1 km de cerca. */
 function ladoRejilla() {
   const z = mapa.getZoom();
-  return z <= 8 ? 0.1 : z <= 9 ? 0.05 : z <= 10 ? 0.025 : 0.009;
+  return z <= 6 ? 0.5 : z <= 7 ? 0.25 : z <= 8 ? 0.1 : z <= 9 ? 0.05 : z <= 10 ? 0.025 : 0.009;
 }
 
-/** Vista anual: rejilla de densidad (cuadros coloreados por número de focos). */
+/** Vista del año o de un rango largo: rejilla de densidad con cortes numéricos en la leyenda. */
 function pintarCeldas(lista) {
   const lado = ladoRejilla();
-  const celdas = new Map();
+  const celdasR = new Map();
   for (const d of lista) {
     const fila = Math.floor(d.lat / lado), col = Math.floor(d.lon / lado);
     const k = `${fila}:${col}`;
-    const c = celdas.get(k) ?? { fila, col, n: 0, modis: 0, viirs: 0, dias: new Set() };
+    const c = celdasR.get(k) ?? { fila, col, n: 0, modis: 0, viirs: 0, alta: 0, frp: 0, dias: new Set() };
     c.n += 1;
     if (String(d.sensor).toLowerCase() === "viirs") c.viirs += 1; else c.modis += 1;
+    if (d.confianza_clase === "alta") c.alta += 1;
+    c.frp = Math.max(c.frp, d.frp ?? 0);
     c.dias.add(String(d.fecha_hora_utc).slice(0, 10));
-    celdas.set(k, c);
+    celdasR.set(k, c);
   }
-  const valores = [...celdas.values()].map((c) => c.n).sort((a, b) => a - b);
+  const valores = [...celdasR.values()].map((c) => c.n).sort((a, b) => a - b);
   const q = (p) => valores[Math.min(valores.length - 1, Math.floor(p * valores.length))] ?? 1;
+  // Cortes por cuantiles de ESTA vista (se muestran con números en la leyenda), siempre crecientes.
   const cortes = [q(0.5), q(0.75), q(0.9)];
+  for (let i = 1; i < cortes.length; i++) cortes[i] = Math.max(cortes[i], cortes[i - 1] + 1);
   const escala = [token("--e1"), token("--e2"), token("--e3"), token("--e4")];
+  const opacidad = [0.5, 0.64, 0.76, 0.88];
   const borde = token("--tinta");
   const km = Math.round(lado * 111);
-  for (const c of celdas.values()) {
+  const detalle = mapa.getZoom() >= 10;
+  for (const c of celdasR.values()) {
     const nv = c.n <= cortes[0] ? 0 : c.n <= cortes[1] ? 1 : c.n <= cortes[2] ? 2 : 3;
     L.rectangle([[c.fila * lado, c.col * lado], [(c.fila + 1) * lado, (c.col + 1) * lado]], {
-      renderer: lienzo, color: borde, weight: 0.4, opacity: 0.35, fillColor: escala[nv], fillOpacity: 0.78,
+      renderer: lienzo, color: borde, weight: detalle ? 0.5 : 0, opacity: 0.35, fillColor: escala[nv], fillOpacity: opacidad[nv],
     }).bindPopup(
-      `<strong>${fmt(c.n)} ${c.n === 1 ? "foco" : "focos"}</strong> en ${esc(estado.anio)} en este cuadro de ~${fmt(km)} km<br>` +
+      `<strong>${fmt(c.n)} ${c.n === 1 ? "foco" : "focos"}</strong> en este cuadro de ~${fmt(km)} km<br>` +
       `${fmt(c.dias.size)} ${c.dias.size === 1 ? "día" : "días"} con focos · MODIS ${fmt(c.modis)} · VIIRS ${fmt(c.viirs)}<br>` +
+      `Confianza alta: ${fmt(c.alta)} · FRP máx. ${fmt(c.frp, 1)} MW<br>` +
       `<span class="tenue">Acerque el mapa para más detalle o elija un día en el calendario para ver cada foco.</span>`,
     ).addTo(capaFocos);
   }
-  return { n: celdas.size, km, cortes };
+  return { n: celdasR.size, km, cortes };
+}
+
+/** Leyenda flotante del mapa regional, con los mismos cortes y formas que se pintan. */
+function pintarLeyendaMapa(modo, r) {
+  const caja = $("leyenda-mapa");
+  if (!caja) return;
+  if (modo === "focos") {
+    const tramos = ["&lt; 5", "5–20", "20–100", "100–500", "≥ 500"];
+    caja.innerHTML = `<strong>FRP (MW)</strong><span class="fila-leyenda">${tramos.map((t, k) =>
+      `<span><i class="esc-frp f${k + 1}" style="width:${6 + k * 2.5}px;height:${6 + k * 2.5}px"></i>${t}</span>`).join("")}</span>` +
+      `<span class="fila-leyenda"><span><i class="forma circulo"></i>MODIS</span><span><i class="forma rombo"></i>VIIRS</span>` +
+      `<span><i class="forma nrt"></i>preliminar</span></span>` +
+      `<span class="tenue">Más transparente = menor confianza.${mapa.getZoom() >= ZOOM_HUELLA ? " Círculo claro = huella del píxel." : ""}</span>`;
+    return;
+  }
+  const v = (x) => fmt(x);
+  const [a, b, c] = r.cortes;
+  const tramos = [["e1", `1–${v(a)}`], ["e2", `${v(a + 1)}–${v(b)}`], ["e3", `${v(b + 1)}–${v(c)}`], ["e4", `más de ${v(c)}`]];
+  caja.innerHTML = `<strong>Focos por cuadro de ~${fmt(r.km)} km</strong><span class="fila-leyenda">` +
+    tramos.map(([cls, t]) => `<span><i class="esc ${cls}"></i>${esc(t)}</span>`).join("") + `</span>` +
+    `<span class="tenue">Cortes de esta vista; cambian con el zoom.</span>`;
 }
 
 function pintarFocos(datos) {
   ultimosFocos = datos;
   capaFocos.clearLayers();
+  if (vista === "globo") return;
   const lista = datos.detecciones ?? [];
   const n = lista.length;
+  // Puntos individuales en un día, o en un rango corto con pocos focos; si no, densidad.
+  const rangoCorto = estado.rango && (Date.parse(estado.rango.hasta) - Date.parse(estado.rango.desde)) <= 6 * 86400000;
+  const individuales = Boolean(estado.dia) || (rangoCorto && n <= 4000) || mapa.getZoom() >= 12;
   let detalle = "";
-  if (estado.dia) {
+  if (individuales) {
     pintarFocosIndividuales(lista);
+    pintarLeyendaMapa("focos");
   } else {
     const r = pintarCeldas(lista);
+    pintarLeyendaMapa("celdas", r);
     detalle = ` · densidad en cuadros de ~${fmt(r.km)} km`;
   }
   $("mapa-filtro").textContent =
     `${fmt(n)} ${n === 1 ? "foco" : "focos"} ${estado.dia ? `el ${fechaPrecisa(estado.dia)}`
-      : estado.rango ? `del ${fechaLegible(estado.rango.desde)} al ${fechaLegible(estado.rango.hasta)}` : `en ${estado.anio}`}${detalle}` +
-    (datos.truncado ? " (lista truncada)" : "");
+      : estado.rango ? `del ${fechaLegible(estado.rango.desde)} al ${fechaLegible(estado.rango.hasta)}` : `en ${estado.anio}`}${detalle}`;
+  const aviso = $("aviso-truncado");
+  aviso.hidden = !datos.truncado;
+  if (datos.truncado) {
+    aviso.textContent = `Se muestran los primeros ${fmt(n)} focos por orden de fecha: faltan los más recientes. ` +
+      "Elija un día, acote el rango o un área más pequeña.";
+  }
   const modo = $("mapa-modo");
   if (modo) {
-    modo.textContent = estado.dia
-      ? "Vista del día: cada foco con su huella nominal; el círculo es el píxel, no la posición exacta del fuego."
-      : `Vista del año: cuadros de densidad; ${temaOscuro() ? "más claro" : "más oscuro"} = más focos en el año (misma escala que el calendario). El tamaño del cuadro se ajusta al zoom. Elija un día en el calendario para ver cada foco con su huella.`;
+    modo.textContent = individuales
+      ? "Cada foco: tamaño y color según su intensidad (FRP), forma según el sensor y transparencia según la confianza. " +
+        `La huella del píxel aparece desde el zoom ${ZOOM_HUELLA}.`
+      : "Densidad: cuadros coloreados según el número de focos del periodo, con los cortes de la leyenda. " +
+        "El tamaño del cuadro se ajusta al zoom. Elija un día en el calendario para ver cada foco. Aléjese para ver el globo 3D.";
   }
 }
 
@@ -591,7 +775,7 @@ function resumir(c) {
     `(${fmt(armonizado)} celdas activas en la serie armonizada, comparable entre años).`];
   const b = c.linea_base;
   if (b && b.estado !== "suficiente") {
-    partes.push(`Todavía no se puede decir qué días fueron inusuales: hay ${fmt(b.anios_disponibles)} años de datos y se necesitan ${fmt(b.anios_minimos)}.`);
+    partes.push(`Todavía no se puede decir qué días fueron inusuales: hay ${fmt(b.anios_disponibles)} ${b.anios_disponibles === 1 ? "año" : "años"} de datos y se necesitan ${fmt(b.anios_minimos)}.`);
   } else {
     const inusuales = dias.filter((d) => d.inusual === true).length;
     if (inusuales === 0) {
@@ -1018,7 +1202,7 @@ async function cargarFocos() {
   const desde = estado.dia ?? estado.rango?.desde ?? `${estado.anio}-01-01`;
   const hasta = estado.dia ?? estado.rango?.hasta ?? `${estado.anio}-12-31`;
   try {
-    const datos = await pedir(`/detecciones?${consulta(desde, hasta)}&limite=20000`, h.señal);
+    const datos = await pedir(`/detecciones?${consulta(desde, hasta)}&limite=50000`, h.señal);
     if (!h.vigente()) return false;
     pintarFocos(datos);
     return true;
@@ -1050,11 +1234,16 @@ async function seleccionarDia(dia) {
 
 function pintarVacio(c) {
   capaFocos.clearLayers();
+  ultimosFocos = null;
+  $("aviso-truncado").hidden = true;
   $("mapa-filtro").textContent = `Sin focos en ${estado.anio}`;
   $("resumen-texto").textContent = resumir(c);
 }
 
-async function cargar() {
+/** opciones.encuadrarArea = false conserva la vista (zona explorada desde el globo). */
+async function cargar(opciones = {}) {
+  const { encuadrarArea = true } = opciones;
+  if (vista === "globo") mostrarRegional();
   const h = iniciarCarga("anio");
   if (cargas.focos.ctrl) cargas.focos.ctrl.abort();
   cargas.focos.gen += 1;
@@ -1082,7 +1271,7 @@ async function cargar() {
     cargarResumen();
     if (!hayDatos(c)) {
       pintarVacio(c);
-      mapa.fitBounds([[s, w], [n, e]], { padding: [10, 10] });
+      if (encuadrarArea) encuadrar(() => mapa.fitBounds([[s, w], [n, e]], { padding: [10, 10] }));
       mostrarEstado("vacio", "No hay observaciones para esta área y año.");
       return;
     }
@@ -1092,7 +1281,7 @@ async function cargar() {
     pintarMeteo();
     const ok = await cargarFocos();
     if (!h.vigente() || !ok) return;
-    mapa.fitBounds([[s, w], [n, e]], { padding: [10, 10] });
+    if (encuadrarArea) encuadrar(() => mapa.fitBounds([[s, w], [n, e]], { padding: [10, 10] }));
     mostrarEstado("");
   } catch (err) {
     if (esAborto(err) || !h.vigente()) return;
@@ -1103,6 +1292,7 @@ async function cargar() {
 
 $("sel-area").addEventListener("change", (ev) => {
   const v = ev.target.value;
+  if (v !== "dibujo") $("sel-area").querySelector('option[value="dibujo"]').textContent = "Rectángulo dibujado";
   if (AREAS[v]) { estado.bbox = AREAS[v]; estado.area = v === "huila" ? "huila" : null; resaltarMunicipio(null); estado.dia = null; cargar(); return; }
   if (v.startsWith("mun:")) {
     const f = municipios.find((m) => `mun:${m.properties.shapeID}` === v);
@@ -1123,7 +1313,11 @@ $("btn-svg-matriz").addEventListener("click", () =>
   descargarSVG($("svg-matriz"), "calendario_de_quema.svg", "Calendario de quema (año × mes)"));
 $("sel-anio").addEventListener("change", (ev) => { estado.anio = Number(ev.target.value); estado.dia = null; cargar(); });
 $("btn-dibujar").addEventListener("click", activarDibujo);
+$("btn-globo").addEventListener("click", () => (vista === "globo" ? mostrarRegional() : mostrarGlobo()));
 $("btn-reintentar").addEventListener("click", () => { if (reintento) reintento(); });
 iniciarTema();
 cargarLimites();
-cargar();
+cargar().then(() => {
+  // Enlace directo al globo (demo): …/ui/#globo
+  if (location.hash === "#globo") { encuadrar(() => mapa.setView([4, -72], 5, { animate: false })); mostrarGlobo(); }
+});
