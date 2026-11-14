@@ -234,7 +234,7 @@ details.que-significa dd { min-width: 0; margin: 0; color: var(--tenue); overflo
 .lista li { margin: 2px 0; }
 .lista li.tenue { margin-left: -18px; list-style: none; }
 .barras { display: grid; height: 110px; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: end; gap: 4px; }
-.barra-mes { display: flex; height: 100%; min-width: 0; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; color: var(--tenue); font-size: 11px; }
+.barra-mes { display: flex; height: 100%; min-width: 0; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; color: var(--tenue); font-size: 12px; }
 .barra-mes i { display: block; width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--e1); }
 .barra-mes.pico i { background: var(--e3); }
 .barra-mes.pico { color: var(--tinta); font-weight: 650; }
@@ -310,4 +310,13 @@ path.area-dibujo { fill: var(--acento); fill-opacity: 0.14; stroke: var(--acento
 .cmp-anio.cmp-incompleto { fill-opacity: 0.45; stroke: var(--tinta); stroke-dasharray: 3 2; stroke-width: 1; }
 .tabla-cmp { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
 .tabla-cmp th, .tabla-cmp td { padding: 3px 6px; border-bottom: 1px solid var(--borde); text-align: left; }
+
+/* Auditoría UI/UX (2026-11-14) */
+.leyenda-escala { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.leyenda-escala .tramo { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.mapa-modo { margin: 6px 0 0; font-size: 12px; }
+#periodos a { display: inline-block; padding-block: 4px; }
+/* Columna izquierda: mapa e incertidumbre, para equilibrar la altura con el panel (hallazgo 6). */
+.columna-izq { display: flex; min-width: 0; flex-direction: column; gap: 16px; grid-area: mapa; }
+.columna-izq > .tarjeta { align-self: stretch; }
 

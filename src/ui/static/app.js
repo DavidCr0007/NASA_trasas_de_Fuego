@@ -89,15 +89,28 @@ function iniciarTema() {
 
 /** Vuelve a pintar lo que se dibuja en JS; los colores salen de CSS, así que basta con repintar. */
 function repintarTema() {
+  if (ultimosFocos) pintarFocos(ultimosFocos);
   const c = estado.calendario;
   if (!c || !c.dias || !c.dias.length) return;
   pintarCalendario(c);
   if (typeof pintarComparacion === "function") pintarComparacion(c);
 }
 window.repintarTema = repintarTema;
+window.matchMedia("(max-width: 600px)").addEventListener("change", () => {
+  const c = estado.calendario;
+  if (c && c.dias && c.dias.length) pintarCalendario(c);
+});
 
 // ------------------------------------------------------------------ mapa
-const mapa = L.map("mapa", { zoomControl: true, attributionControl: true }).setView([2.6, -75.5], 8);
+// Canvas: con miles de focos, SVG genera un elemento por círculo y vuelve lenta la interfaz
+// (auditoría UI/UX, hallazgo 2). Canvas no admite estilos por clase: los colores se leen de
+// las variables CSS del tema y se repintan al cambiarlo.
+const lienzo = L.canvas({ padding: 0.3 });
+const mapa = L.map("mapa", { zoomControl: true, attributionControl: true, preferCanvas: true, renderer: lienzo }).setView([2.6, -75.5], 8);
+const token = (nombre) => getComputedStyle(document.documentElement).getPropertyValue(nombre).trim();
+let ultimosFocos = null;
+// En la vista anual la rejilla depende del zoom: se rehace al acercar o alejar.
+mapa.on("zoomend", () => { if (ultimosFocos && !estado.dia) pintarFocos(ultimosFocos); });
 mapa.attributionControl.setPrefix(false);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 17,
@@ -150,24 +163,86 @@ function activarDibujo() {
   mapa.on("mousedown", abajo).on("mousemove", mover).on("mouseup", arriba);
 }
 
-function pintarFocos(datos) {
-  capaFocos.clearLayers();
-  const lista = datos.detecciones ?? [];
+function popupFoco(d) {
+  return `<strong>${esc(d.satelite)}</strong> · ${esc(d.sensor)}<br>` +
+    `${esc(fechaHoraLegible(d.fecha_hora_utc))} <span class="tenue">(${esc(d.fecha_hora_utc)})</span><br>` +
+    `Confianza: ${esc(d.confianza_clase)} (${esc(d.confianza_raw)})<br>` +
+    `FRP (potencia radiativa del fuego): ${fmt(d.frp, 1)} MW · Calidad: ${esc(d.calidad)}${d.preliminar ? " <em>(preliminar)</em>" : ""}<br>` +
+    `Huella nominal: ±${fmt(d.semilado_nominal_m)} m` +
+    (d.n_fusionados ? `<br>Agrupa ${fmt(d.n_fusionados)} detección(es) duplicada(s)` : "");
+}
+
+/** Día seleccionado: cada foco con su huella nominal (círculo del tamaño del píxel). */
+function pintarFocosIndividuales(lista) {
+  const color = { modis: token("--modis"), viirs: token("--viirs") };
+  const borde = token("--tinta");
   for (const d of lista) {
     const sensor = String(d.sensor).toLowerCase() === "viirs" ? "viirs" : "modis";
-    const pop = `<strong>${esc(d.satelite)}</strong> · ${esc(d.sensor)}<br>` +
-      `${esc(fechaHoraLegible(d.fecha_hora_utc))} <span class="tenue">(${esc(d.fecha_hora_utc)})</span><br>` +
-      `Confianza: ${esc(d.confianza_clase)} (${esc(d.confianza_raw)})<br>` +
-      `FRP (potencia radiativa del fuego): ${fmt(d.frp, 1)} MW · Calidad: ${esc(d.calidad)}${d.preliminar ? " <em>(preliminar)</em>" : ""}<br>` +
-      `Huella nominal: ±${fmt(d.semilado_nominal_m)} m` +
-      (d.n_fusionados ? `<br>Agrupa ${fmt(d.n_fusionados)} detección(es) duplicada(s)` : "");
-    L.circle([d.lat, d.lon], { radius: d.semilado_nominal_m, className: `huella huella-${sensor}`, weight: 1 }).addTo(capaFocos);
-    L.circleMarker([d.lat, d.lon], { radius: 3, className: `foco foco-${sensor}`, weight: 1 }).bindPopup(pop).addTo(capaFocos);
+    L.circle([d.lat, d.lon], { renderer: lienzo, radius: d.semilado_nominal_m, color: color[sensor], weight: 1, fillColor: color[sensor], fillOpacity: 0.18 }).addTo(capaFocos);
+    L.circleMarker([d.lat, d.lon], { renderer: lienzo, radius: 4, color: borde, weight: 1, fillColor: color[sensor], fillOpacity: 0.9 })
+      .bindPopup(popupFoco(d)).addTo(capaFocos);
   }
+}
+
+/** Lado de la rejilla de densidad (grados) según el zoom: ~11 km lejos, la celda de 1 km de cerca. */
+function ladoRejilla() {
+  const z = mapa.getZoom();
+  return z <= 8 ? 0.1 : z <= 9 ? 0.05 : z <= 10 ? 0.025 : 0.009;
+}
+
+/** Vista anual: rejilla de densidad (cuadros coloreados por número de focos). */
+function pintarCeldas(lista) {
+  const lado = ladoRejilla();
+  const celdas = new Map();
+  for (const d of lista) {
+    const fila = Math.floor(d.lat / lado), col = Math.floor(d.lon / lado);
+    const k = `${fila}:${col}`;
+    const c = celdas.get(k) ?? { fila, col, n: 0, modis: 0, viirs: 0, dias: new Set() };
+    c.n += 1;
+    if (String(d.sensor).toLowerCase() === "viirs") c.viirs += 1; else c.modis += 1;
+    c.dias.add(String(d.fecha_hora_utc).slice(0, 10));
+    celdas.set(k, c);
+  }
+  const valores = [...celdas.values()].map((c) => c.n).sort((a, b) => a - b);
+  const q = (p) => valores[Math.min(valores.length - 1, Math.floor(p * valores.length))] ?? 1;
+  const cortes = [q(0.5), q(0.75), q(0.9)];
+  const escala = [token("--e1"), token("--e2"), token("--e3"), token("--e4")];
+  const borde = token("--tinta");
+  const km = Math.round(lado * 111);
+  for (const c of celdas.values()) {
+    const nv = c.n <= cortes[0] ? 0 : c.n <= cortes[1] ? 1 : c.n <= cortes[2] ? 2 : 3;
+    L.rectangle([[c.fila * lado, c.col * lado], [(c.fila + 1) * lado, (c.col + 1) * lado]], {
+      renderer: lienzo, color: borde, weight: 0.4, opacity: 0.35, fillColor: escala[nv], fillOpacity: 0.78,
+    }).bindPopup(
+      `<strong>${fmt(c.n)} ${c.n === 1 ? "foco" : "focos"}</strong> en ${esc(estado.anio)} en este cuadro de ~${fmt(km)} km<br>` +
+      `${fmt(c.dias.size)} ${c.dias.size === 1 ? "día" : "días"} con focos · MODIS ${fmt(c.modis)} · VIIRS ${fmt(c.viirs)}<br>` +
+      `<span class="tenue">Acerque el mapa para más detalle o elija un día en el calendario para ver cada foco.</span>`,
+    ).addTo(capaFocos);
+  }
+  return { n: celdas.size, km, cortes };
+}
+
+function pintarFocos(datos) {
+  ultimosFocos = datos;
+  capaFocos.clearLayers();
+  const lista = datos.detecciones ?? [];
   const n = lista.length;
+  let detalle = "";
+  if (estado.dia) {
+    pintarFocosIndividuales(lista);
+  } else {
+    const r = pintarCeldas(lista);
+    detalle = ` · densidad en cuadros de ~${fmt(r.km)} km`;
+  }
   $("mapa-filtro").textContent =
-    `${fmt(n)} ${n === 1 ? "foco" : "focos"} ${estado.dia ? `el ${fechaPrecisa(estado.dia)}` : `en ${estado.anio}`}` +
+    `${fmt(n)} ${n === 1 ? "foco" : "focos"} ${estado.dia ? `el ${fechaPrecisa(estado.dia)}` : `en ${estado.anio}`}${detalle}` +
     (datos.truncado ? " (lista truncada)" : "");
+  const modo = $("mapa-modo");
+  if (modo) {
+    modo.textContent = estado.dia
+      ? "Vista del día: cada foco con su huella nominal; el círculo es el píxel, no la posición exacta del fuego."
+      : "Vista del año: cuadros de densidad; más oscuro = más focos en el año. El tamaño del cuadro se ajusta al zoom. Elija un día en el calendario para ver cada foco con su huella.";
+  }
 }
 
 // ------------------------------------------------------------------ panel
@@ -492,6 +567,19 @@ function teclaCelda(ev) {
   irACelda(destino);
 }
 
+/** Leyenda numérica de la escala del calendario, con los mismos cortes que pintan las celdas. */
+function pintarLeyendaEscala(cortes, hayValores) {
+  const caja = $("leyenda-escala");
+  if (!caja) return;
+  const [a, b, c] = cortes;
+  const rango = (lo, hi) => (hi < lo ? "—" : lo === hi ? fmt(lo) : `${fmt(lo)}–${fmt(hi)}`);
+  const tramos = hayValores
+    ? [["e0", "0"], ["e1", rango(1, a)], ["e2", rango(a + 1, b)], ["e3", rango(b + 1, c)], ["e4", `${fmt(c + 1)}+`]]
+    : [["e0", "0"]];
+  caja.innerHTML = tramos.map(([cls, txt]) => `<span class="tramo"><i class="esc ${cls}"></i>${esc(txt)}</span>`).join("") +
+    `<span class="tenue"> focos por día</span>`;
+}
+
 function pintarCalendario(c) {
   const dias = c.dias ?? [];
   const cont = $("calendario");
@@ -507,7 +595,11 @@ function pintarCalendario(c) {
   const valores = dias.map((d) => d.n_brutas).filter((v) => v > 0).sort((a, b) => a - b);
   const q = (p) => valores.length ? valores[Math.min(valores.length - 1, Math.floor(p * valores.length))] : 1;
   const cortes = [q(0.25), q(0.5), q(0.75)];
-  const T = 13, G = 2, X0 = 26, Y0 = 18;
+  pintarLeyendaEscala(cortes, valores.length > 0);
+  // Pantallas táctiles estrechas: celdas de 24 px (WCAG 2.2, 2.5.8); el calendario se
+  // desplaza dentro de su tarjeta (auditoría UI/UX, hallazgo 4).
+  const tactil = window.matchMedia("(max-width: 600px)").matches;
+  const T = tactil ? 24 : 13, G = tactil ? 3 : 2, X0 = 26, Y0 = 18;
   const primero = new Date(dias[0].fecha_utc + "T00:00:00Z");
   const desfase = (primero.getUTCDay() + 6) % 7; // lunes = 0
   const semanas = Math.ceil((dias.length + desfase) / 7);
