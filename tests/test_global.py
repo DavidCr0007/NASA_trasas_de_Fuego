@@ -72,6 +72,25 @@ def test_global_periodo_y_resolucion(cliente):
     assert cliente.get("/global", params={"dias": 40}).status_code == 422
 
 
+def test_global_fecha_explicita_no_reutiliza_ultimo_dia(cliente, salida):
+    filas=pq.read_table(salida/"detecciones.parquet").to_pylist()
+    fechas=sorted({f["fecha_hora_utc"].date().isoformat() for f in filas})
+    for dia in (fechas[0],fechas[-1],"1900-01-01"):
+        d=cliente.get("/global",params={"desde":dia,"hasta":dia}).json()
+        esperadas=[f for f in filas if f["fecha_hora_utc"].date().isoformat()==dia]
+        assert d["desde"]==d["hasta"]==dia
+        assert d["total_detecciones"]==len(esperadas)==sum(c[2] for c in d["celdas"])
+        assert all(x["fecha_utc"]==dia for x in d["serie_diaria"])
+    assert cliente.get("/global",params={"desde":fechas[-1],"hasta":fechas[0]}).status_code==422
+
+
+def test_global_expone_cobertura_real_para_no_ofrecer_dias_inexistentes(cliente, salida):
+    filas=pq.read_table(salida/"detecciones.parquet").to_pylist()
+    d=cliente.get("/global",params={"dias":7}).json()
+    assert d["dias_solicitados"]==7
+    assert d["cobertura"]["dias_con_datos"]==len({f["fecha_hora_utc"].date() for f in filas})
+
+
 def test_global_usa_su_propio_conjunto(salida, tmp_path):
     vacio = tmp_path / "sin_datos"
     vacio.mkdir()

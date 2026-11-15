@@ -40,9 +40,11 @@ In Vercel **Project → Settings → Environment Variables**, configure the foll
 | `FIRMS_MAP_KEY_ENCRYPTED` | Secret | Copy its value from the private local `.env`. |
 | `FIRMS_SECRET_KEY` | Secret | Copy its value from `.env`. |
 | `HHN_MODO_DATOS` | Config | `firms` |
-| `FIRMS_NRT_DIAS` | Config, optional | `1` by default; accepts `1`–`3`. |
+| `FIRMS_NRT_DIAS` | Config | `7` recommended and default; accepts `1`–`10`, downloaded in windows of at most 5 days. |
 
 Leave `HHN_DATOS` unset to use the real dataset built by this mode. A custom data path takes precedence. Publish the changes and redeploy after setting the variables. The build downloads MODIS NRT, VIIRS NOAA-20 NRT and VIIRS NOAA-21 NRT for the configured number of completed UTC days before the build, then runs the harmonization pipeline.
+
+If Production already has `FIRMS_NRT_DIAS=1`, change it to `7` and redeploy. A one-day archive cannot supply different observations for 1, 2 and 7 days. The interface now shows archive coverage, disables unavailable periods and synchronizes calendar dates, date ranges, globe detections and regional details.
 
 The real-data mode fails explicitly if configuration or ingestion fails; it does not silently substitute synthetic observations. `HHN_MODO_DATOS=demo` deliberately keeps the synthetic demonstration. Real data are a deployment-time snapshot; rebuilding refreshes the period, and NRT observations remain preliminary.
 

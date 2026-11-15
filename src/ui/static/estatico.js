@@ -100,6 +100,42 @@
       incertidumbre: { ...plantilla.incertidumbre, clases_confianza: clases } });
   }
 
+  // Misma agregación que /global para fechas del calendario; no reutilizar la última semana.
+  async function globalPorFechas(p) {
+    const res=Number(p.get("res")||0.5), desde=p.get("desde"), hasta=p.get("hasta");
+    if (![0.25,0.5,1].includes(res) || !desde || !hasta || desde>hasta) return responder({detail:"Periodo o resolución inválidos"},422);
+    const [d, plantilla, mundo] = await Promise.all([detecciones(),leer(`api/global/7_${res}.json`),leer("datos/mundo_paises.geojson")]);
+    const filas=d.objetos.filter(x=>x.fecha_hora_utc.slice(0,10)>=desde && x.fecha_hora_utc.slice(0,10)<=hasta);
+    const grupos=new Map(), serie=new Map(), paises=new Map();
+    for (const x of filas) {
+      const fi=Math.floor(x.lat/res),co=Math.floor(x.lon/res),k=fi+":"+co;
+      if (!grupos.has(k)) grupos.set(k,{fi,co,n:0,lat:0,lon:0,frp:null,suma:0,alta:0,viirs:0,ultimo:""});
+      const g=grupos.get(k);g.n++;g.lat+=x.lat;g.lon+=x.lon;g.suma+=x.frp??0;
+      if(x.frp!=null)g.frp=Math.max(g.frp??0,x.frp);
+      g.alta+=Number(x.confianza_clase==="alta");g.viirs+=Number(x.sensor==="VIIRS");
+      g.ultimo=g.ultimo>x.fecha_hora_utc?g.ultimo:x.fecha_hora_utc;
+      const dia=x.fecha_hora_utc.slice(0,10);
+      if(!serie.has(dia))serie.set(dia,{fecha_utc:dia,n:0,n_alta:0});
+      serie.get(dia).n++;serie.get(dia).n_alta+=Number(x.confianza_clase==="alta");
+    }
+    const redondear=(n,c=3)=>Number(n.toFixed(c));
+    const celdas=[...grupos.values()].sort((a,b)=>a.fi-b.fi||a.co-b.co).map(g=>{
+      const lat=g.lat/g.n,lon=g.lon/g.n;
+      const f=mundo.features.find(f=>window.Zonas.contiene(f.geometry,redondear(lon,2),redondear(lat,2)));
+      const iso=f?.properties.iso_a3??"";
+      if(!paises.has(iso))paises.set(iso,{iso_a3:iso||null,nombre:f?.properties.nombre??"Fuera de país (mar o costa)",n:0,n_alta:0,frp_max:0,celdas:0});
+      const pais=paises.get(iso);pais.n+=g.n;pais.n_alta+=g.alta;pais.frp_max=redondear(Math.max(pais.frp_max,g.frp??0),1);pais.celdas++;
+      return [redondear(lat),redondear(lon),g.n,g.frp==null?null:redondear(g.frp,1),redondear(g.suma,1),g.alta,g.viirs,new Date(g.ultimo).toISOString().slice(0,16)+"Z",iso];
+    });
+    return responder({...plantilla,desde,hasta,dias_solicitados:Math.round((Date.parse(hasta)-Date.parse(desde))/86400000)+1,
+      dias_en_periodo:serie.size,total_detecciones:filas.length,total_alta:filas.filter(x=>x.confianza_clase==="alta").length,
+      n_paises:[...paises.keys()].filter(Boolean).length,celdas,paises:[...paises.values()].sort((a,b)=>b.n-a.n||a.nombre.localeCompare(b.nombre)).slice(0,25),
+      serie_diaria:[...serie.values()].sort((a,b)=>a.fecha_utc.localeCompare(b.fecha_utc)),
+      actualizado_hasta_utc:celdas.length?celdas.map(c=>c[7]).sort().at(-1):null,
+      calidad:filas.length?([...new Set(filas.map(x=>x.calidad))].length>1?"mixta":filas[0].calidad):null,
+      preliminar:filas.some(x=>x.calidad==="NRT")});
+  }
+
   async function responderApi(url) {
     const p = url.searchParams, ruta = url.pathname;
     try {
@@ -111,7 +147,7 @@
         return p.get("area") ? responder(await leer(`api/resumen/${slug(p.get("area"))}.json`))
           : noDisponible("resumir áreas dibujadas o por coordenadas");
       }
-      if (ruta === "/global") return responder(await leer(`api/global/${p.get("dias")}_${p.get("res")}.json`));
+      if (ruta === "/global") return p.has("desde") ? await globalPorFechas(p) : responder(await leer(`api/global/${p.get("dias")||2}_${p.get("res")||0.5}.json`));
       if (ruta.startsWith("/limites/")) return noDisponible("ver límites administrativos fuera del Huila");
       if (ruta === "/buscar-lugares") return noDisponible("buscar lugares en internet; los municipios del Huila sí se buscan", 503);
     } catch {

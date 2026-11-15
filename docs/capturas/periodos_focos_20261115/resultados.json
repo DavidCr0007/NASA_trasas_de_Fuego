@@ -1,0 +1,45 @@
+{
+  "mundiales": [
+    {
+      "dias": 1,
+      "desde": "2026-11-14",
+      "hasta": "2026-11-14",
+      "total": 55683,
+      "celdas": 7198,
+      "suma": 55683,
+      "panel": 55683
+    },
+    {
+      "dias": 2,
+      "desde": "2026-11-13",
+      "hasta": "2026-11-14",
+      "total": 114235,
+      "celdas": 9796,
+      "suma": 114235,
+      "panel": 114235
+    },
+    {
+      "dias": 7,
+      "desde": "2026-11-08",
+      "hasta": "2026-11-14",
+      "total": 470686,
+      "celdas": 16119,
+      "suma": 470686,
+      "panel": 470686
+    }
+  ],
+  "locales": [
+    {
+      "dia": "2026-11-10",
+      "cantidad": 19,
+      "correctos": true,
+      "global": true
+    },
+    {
+      "dia": "2026-11-09",
+      "cantidad": 7,
+      "correctos": true,
+      "global": true
+    }
+  ]
+}

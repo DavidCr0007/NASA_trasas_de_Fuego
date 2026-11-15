@@ -1,6 +1,13 @@
 /* Catálogo local: español de origen, inglés y francés. Sin servicios de traducción remotos. */
 (function(raiz){
   const textos = [
+    ["Sin observaciones","No observations","Aucune observation"],
+    ["No hay detecciones para el periodo seleccionado.","No detections for the selected period.","Aucune détection pour la période sélectionnée."],
+    ["Actualizando periodo…","Updating period…","Actualisation de la période…"],
+    ["Periodo de los focos","Detection period","Période des détections"],
+    ["Fechas seleccionadas","Selected dates","Dates sélectionnées"],
+    ["Cobertura del archivo:","Archive coverage:","Couverture de l’archive :"],
+    ["Los periodos fuera de esa cobertura no añaden observaciones.","Periods outside this coverage do not add observations.","Les périodes hors de cette couverture n’ajoutent aucune observation."],
     ["Confirmar ubicación","Confirm location","Confirmer le lieu"],
     ["Confirmar lugar","Confirm place","Confirmer ce lieu"],
     ["Volver a resultados","Back to results","Retour aux résultats"],

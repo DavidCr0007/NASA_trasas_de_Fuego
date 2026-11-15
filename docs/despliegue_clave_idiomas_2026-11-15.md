@@ -19,11 +19,13 @@ El archivo local `.env` no se transfiere automáticamente a Vercel. En **Project
 | `FIRMS_MAP_KEY_ENCRYPTED` | **Secret** | Copiar el valor de esa variable desde `.env`, sin las comillas ni el nombre. |
 | `FIRMS_SECRET_KEY` | **Secret** | Copiar el valor de esa variable desde `.env`. Es la clave que permite descifrar. |
 | `HHN_MODO_DATOS` | Config | `firms` |
-| `FIRMS_NRT_DIAS` | Config, opcional | `1` por defecto; admite de `1` a `3` días UTC completos anteriores a la construcción. |
+| `FIRMS_NRT_DIAS` | Config | **`7`** recomendado y por defecto; admite de `1` a `10` días UTC completos anteriores a la construcción, en ventanas de hasta 5 días por petición. |
 
 Dejar `HHN_DATOS` sin configurar para que el modo seleccione `data/processed/vercel_firms`. Si se mantiene una ruta personalizada, esa ruta prevalece y debe contener el conjunto deseado. Si se usa la pareja cifrada, se puede retirar la variable antigua `FIRMS_MAP_KEY` de Vercel.
 
 Publicar estos cambios y ejecutar **Redeploy** después de configurar las variables. Se necesitan en la construcción y en la función de producción. Vercel permite crear variables de tipo [Secret](https://vercel.com/changelog/environment-variables-now-use-config-and-secret-types), cuyos valores permanecen disponibles para los despliegues y no se pueden volver a consultar desde el panel tras guardarlos.
+
+Actualización de periodos: si se había configurado explícitamente `FIRMS_NRT_DIAS=1`, cambiarlo a `7`. Las cifras de 56.084 representantes que aparecen arriba corresponden a la validación inicial de un solo día. La [corrección del selector y la descarga semanal](actualizacion_focos_periodos_2026-11-15.md) permite comparar periodos sin conservar filtros anteriores.
 
 La construcción descarga el periodo reciente y ejecuta el pipeline. Si falta la clave, no puede descifrarse o FIRMS falla, el modo real falla explícitamente y no genera una demo como sustitución. El modo `demo` sigue disponible para una demostración sintética deliberada.
 

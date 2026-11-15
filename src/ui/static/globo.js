@@ -85,6 +85,8 @@
     let paisSeleccionado = null, marcadorLugar = null;
     const cache = new Map();
     let consulta = null;
+    let periodoElegido = null;
+    let periodoPendiente = false;
     let activo = true;
     let detalle = null, vistaGen = 0, limitesCtrl = null, dibujando = false;
     let detecciones = [], capasCfg = null, etiquetas = [];
@@ -229,7 +231,7 @@
     }
 
     async function cargarDatos() {
-      const clave = `${dias}:${res}`;
+      const clave = `${dias}:${res}:${periodoElegido?.desde??""}:${periodoElegido?.hasta??""}`;
       const g = ++gen;
       consulta?.abort();
       consulta = new AbortController();
@@ -239,7 +241,8 @@
       try {
         let d = cache.get(clave);
         if (!d) {
-          const r = await fetch(`/global?dias=${dias}&res=${res}`, { signal: consulta.signal });
+          const fechas = periodoElegido ? `&desde=${periodoElegido.desde}&hasta=${periodoElegido.hasta}` : "";
+          const r = await fetch(`/global?dias=${dias}&res=${res}${fechas}`, { signal: consulta.signal });
           const texto = await r.text();
           let cuerpo = null;
           try { cuerpo = JSON.parse(texto); } catch { /* no JSON */ }
@@ -249,15 +252,30 @@
         }
         if (g !== gen) return;
         datos = d;
+        periodoPendiente = false;
         aplicarDatos();
         pintarPanel();
+        await opciones.alDatos?.(d);
+        return g === gen;
       } catch (err) {
         if (err.name === "AbortError" || g !== gen) return;
         panel.querySelector(".globo-cifras").innerHTML =
           `<p class="globo-error">No se pudieron cargar los focos globales: ${esc(err.message)}</p>`;
+        return false;
       } finally {
         if (g === gen) { panel.removeAttribute("aria-busy"); opciones.alCarga?.(false); }
       }
+    }
+
+    function cambiarPeriodo(desde = null, hasta = null) {
+      periodoElegido = desde && hasta ? {desde,hasta} : null;
+      periodoPendiente = true; datos = null;
+      opciones.alPeriodo?.(periodoElegido);
+      detecciones = []; detalle = null;
+      for (const id of ["focos", "detalle", "celdas"]) mapa?.getSource(id)?.setData(vacio());
+      panel.querySelector(".globo-cobertura").textContent = "Actualizando periodo…";
+      actualizarCapas();
+      return cargarDatos();
     }
 
     /** La fuente existe en cuanto carga el estilo, sin esperar a las teselas de fondo (GIBS). */
@@ -423,7 +441,7 @@
 
     function pintarPanelCargando() {
       const caja = panel.querySelector(".globo-cifras");
-      if (caja && !datos) caja.innerHTML = `<div class="datos-esqueleto" aria-label="Resumen pendiente"><i></i><i></i><i></i></div>`;
+      if (caja) caja.innerHTML = `<div class="datos-esqueleto" aria-label="Resumen pendiente"><i></i><i></i><i></i></div>`;
     }
 
     function sparkline(serie) {
@@ -463,7 +481,15 @@
         ? "Archivo sin actualizar en las últimas 48 horas. Verifique la fecha antes de usar estos datos."
         : "";
       panel.querySelector(".globo-detalle-estado").hidden = detalleDisponible();
-      opciones.alDatos?.(d);
+      const disponibles = d.cobertura?.desde && d.cobertura?.hasta
+        ? Math.floor((Date.parse(d.cobertura.hasta)-Date.parse(d.cobertura.desde))/86400000)+1 : 0;
+      const periodo = panel.querySelector(".globo-periodo select");
+      for (const opcion of periodo.options) if (opcion.value !== "fechas") opcion.disabled = Number(opcion.value)>disponibles;
+      if (!periodoElegido && disponibles && dias>disponibles) dias = [...PERIODOS].reverse().find(([n])=>n<=disponibles)?.[0]??1;
+      periodo.value = periodoElegido ? "fechas" : String(dias);
+      const avisoPeriodo = panel.querySelector(".globo-cobertura-estado");
+      avisoPeriodo.hidden = disponibles>=7 && !(periodoElegido && (periodoElegido.desde<d.cobertura.desde || periodoElegido.hasta>d.cobertura.hasta));
+      avisoPeriodo.textContent = `Cobertura del archivo: ${fecha(d.cobertura?.desde)} → ${fecha(d.cobertura?.hasta)}. Los periodos fuera de esa cobertura no añaden observaciones.`;
       actualizarContexto(activo);
       const rankingAbierto = panel.querySelector(".globo-ranking")?.open ?? false;
       panel.querySelector(".globo-cifras").innerHTML =
@@ -478,8 +504,8 @@
       panel.querySelectorAll(".globo-paises button").forEach((b) => b.addEventListener("click", () => irAPais(b.dataset.iso)));
       const ins = panel.querySelector(".globo-insignia");
       ins.className = `globo-insignia insignia ${d.preliminar ? "preliminar" : "estandar"}`;
-      ins.textContent = d.preliminar ? "PRELIMINAR · NRT" : "Calidad estándar";
-      ins.title = d.preliminar ? "Datos casi en tiempo real (NRT): pueden corregirse." : "Datos de la versión estándar.";
+      ins.textContent = d.total_detecciones===0 ? "Sin observaciones" : d.preliminar ? "PRELIMINAR · NRT" : "Calidad estándar";
+      ins.title = d.total_detecciones===0 ? "No hay detecciones para el periodo seleccionado." : d.preliminar ? "Datos casi en tiempo real (NRT): pueden corregirse." : "Datos de la versión estándar.";
       const selector = panel.querySelector(".globo-pais-buscar");
       selector.innerHTML = `<option value="">Todos los países</option>` + d.paises.filter((p) => p.iso_a3).map((p) =>
         `<option value="${esc(p.iso_a3)}">${esc(p.nombre)} (${esc(fmt(p.n))})</option>`).join("");
@@ -750,7 +776,8 @@
         `<div class="globo-cabeza"><h2>Resumen mundial</h2><span class="globo-insignia insignia">…</span></div>` +
         `<p class="globo-naturaleza"></p>` +
         `<p class="globo-cobertura tenue"></p><p class="globo-vigencia aviso-caja" role="status" hidden></p>` +
-        `<label class="globo-periodo">Periodo mundial <select>${PERIODOS.map(([v, t]) => `<option value="${v}"${v === dias ? " selected" : ""}>${t}</option>`).join("")}</select></label>` +
+        `<label class="globo-periodo">Periodo de los focos <select>${PERIODOS.map(([v, t]) => `<option value="${v}"${v === dias ? " selected" : ""}>${t}</option>`).join("")}<option value="fechas" disabled>Fechas seleccionadas</option></select></label>` +
+        `<p class="globo-cobertura-estado tenue" role="status" hidden></p>` +
         `<p class="globo-detalle-estado aviso-caja" role="status" hidden>${esc(notaSinDetalle)} ` +
         `<a href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank" rel="noopener">Abrir visor NASA FIRMS</a>.</p>` +
         `<div class="globo-cifras" aria-live="polite"></div>` +
@@ -765,7 +792,10 @@
         `<button type="button" class="globo-celdas-siguiente">Siguiente</button></div></details>` +
         `<div class="globo-acciones"><button type="button" class="globo-rotar" aria-pressed="false">Girar el globo</button>` +
         `<button type="button" class="globo-volver">Ir al análisis regional</button></div>`;
-      panel.querySelector(".globo-periodo select").addEventListener("change", (ev) => { dias = Number(ev.target.value); cargarDatos(); });
+      panel.querySelector(".globo-periodo select").addEventListener("change", (ev) => {
+        if (ev.target.selectedOptions[0]?.disabled) return;
+        dias = Number(ev.target.value); cambiarPeriodo();
+      });
       panel.querySelector(".globo-pais-buscar").addEventListener("change", (ev) => {
         paisCeldas = ev.target.value; paginaCeldas = 0; pintarListaCeldas();
       });
@@ -788,6 +818,9 @@
       actualizarContexto,
       obtenerMapa: () => mapa,
       cobertura: () => datos,
+      periodo: cambiarPeriodo,
+      actualizandoPeriodo: () => periodoPendiente,
+      periodoActual: () => periodoElegido ?? (datos ? {desde:datos.desde,hasta:datos.hasta} : null),
       quitarLugar() { marcadorLugar?.remove(); marcadorLugar = null; },
       localizar(lugar, analizar) {
         opciones.alExploracion?.();

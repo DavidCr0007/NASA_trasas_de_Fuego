@@ -15,9 +15,11 @@ En **Project → Settings → Environment Variables → Production**, crear:
 | `FIRMS_MAP_KEY_ENCRYPTED` | Secret | Su valor del archivo local `.env`. |
 | `FIRMS_SECRET_KEY` | Secret | Su valor de `.env`. |
 | `HHN_MODO_DATOS` | Config | `firms` |
-| `FIRMS_NRT_DIAS` | Config, opcional | `1`, `2` o `3`; por defecto `1`. |
+| `FIRMS_NRT_DIAS` | Config | `7` recomendado y por defecto; admite de `1` a `10`, descargados en ventanas de hasta 5 días. |
 
 Dejar `HHN_DATOS` sin configurar para que se seleccione el conjunto real construido, publicar los cambios y ejecutar **Redeploy**. El modo `firms` descarga los tres productos NRT y procesa los días UTC completos previos a la construcción; un error no se sustituye por una demo sintética. `demo` conserva la demostración deliberada. Un nuevo despliegue actualiza la instantánea.
+
+Si Vercel ya tiene `FIRMS_NRT_DIAS=1`, cambiarlo a **`7`** antes del nuevo despliegue. Un archivo de un solo día devuelve los mismos focos al consultar 1, 2 o 7 días; la interfaz ahora informa su cobertura y desactiva los periodos que no caben en el archivo. Calendario, rango y selector **Periodo de los focos** aplican las mismas fechas al globo, al detalle regional y a los contadores. [Corrección y validación](docs/actualizacion_focos_periodos_2026-11-15.md).
 
 Abrir **Validar datos y método** o `/estado-servicios` para comprobar si la clave está configurada y cifrada, el modo efectivo, el origen real y la última ingesta. Este endpoint no devuelve secretos. La clave local fue aceptada por FIRMS y la construcción real generó 56.084 representantes para el 14 nov 2026; esto no configura por sí solo los secretos de Vercel.
 

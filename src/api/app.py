@@ -648,11 +648,14 @@ def create_app(
         dias: int = Query(2, ge=1, le=31, description="días que terminan en el último dato (o en «hasta»)"),
         res: float = Query(0.5, description="lado de la celda de agregación en grados: 0.25, 0.5 o 1"),
         hasta: date | None = None,
+        desde: date | None = None,
     ):
         """ADR 0012: focos de todo el conjunto agregados en celdas para el globo 3D, con el
         reparto por país (Natural Earth 1:110m) y la serie diaria. No filtra por área."""
         if res not in RESOLUCIONES_GLOBAL:
             raise HTTPException(422, "res debe ser 0.25, 0.5 o 1")
+        if desde and hasta and desde > hasta:
+            raise HTTPException(422, "desde debe ser anterior o igual a hasta")
         det = ruta_g["detecciones"]
         if not det.exists():
             raise HTTPException(503, f"falta detecciones.parquet en {datos_g}; ejecute el pipeline global")
@@ -660,12 +663,12 @@ def create_app(
         fecha = "cast(fecha_hora_utc at time zone 'UTC' as date)"
         con = duckdb.connect()
         try:
-            lo, hi = con.execute(f"select min({fecha}), max({fecha}) from read_parquet('{det}')").fetchone()
+            lo, hi, dias_archivo = con.execute(f"select min({fecha}), max({fecha}), count(distinct {fecha}) from read_parquet('{det}')").fetchone()
             ini = fin = None
             filas, serie, cals, sint = [], [], set(), (0, 0)
             if hi is not None:
-                fin = min(hasta, hi) if hasta else hi
-                ini = max(lo, fin - timedelta(days=dias - 1))
+                fin = (hasta or max(hi, desde)) if desde else (min(hasta, hi) if hasta else hi)
+                ini = desde if desde else min(fin, max(lo, fin - timedelta(days=dias - 1)))
                 filas = con.execute(
                     "select floor(lat / ?)::int, floor(lon / ?)::int, count(*), max(frp), sum(frp),"
                     " count(*) filter (where confianza_clase = 'alta'),"
@@ -715,7 +718,10 @@ def create_app(
             "preliminar": "NRT" in cals,
             "desde": ini.isoformat() if ini else None,
             "hasta": fin.isoformat() if fin else None,
-            "cobertura": {"desde": lo.isoformat() if lo else None, "hasta": hi.isoformat() if hi else None},
+            "cobertura": {"desde": lo.isoformat() if lo else None, "hasta": hi.isoformat() if hi else None,
+                          "dias_con_datos": dias_archivo},
+            "dias_solicitados": (fin - ini).days + 1 if desde and fin and ini else dias,
+            "dias_en_periodo": len(serie),
             "res_grados": res,
             # Solo se promete el detalle de estas mismas detecciones cuando ambos mapas leen el mismo conjunto.
             "detalle_mismo_conjunto": datos.resolve() == datos_g.resolve(),

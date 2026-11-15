@@ -49,6 +49,7 @@ def test_cifrar_archivo_es_reversible_e_idempotente(tmp_path):
 
 
 def test_conjunto_real_se_construye_y_no_filtra_la_clave(tmp_path,monkeypatch):
+    monkeypatch.setenv("FIRMS_NRT_DIAS","1")
     monkeypatch.setenv("FIRMS_MAP_KEY","clave-prueba");urls=[]
     def proveedor(url):
         urls.append(url)
@@ -68,6 +69,24 @@ def test_error_del_proveedor_no_expone_url_ni_genera_demo(tmp_path,monkeypatch):
     def proveedor(url):raise OSError(url)
     with pytest.raises(RuntimeError) as e:construir_firms(tmp_path/"real",fetch=proveedor)
     assert "clave-protegida" not in str(e.value) and not (tmp_path/"real/celda_dia.parquet").exists()
+
+
+def test_semana_por_defecto_se_descarga_en_ventanas_validas(tmp_path,monkeypatch):
+    from datetime import date,timedelta
+    monkeypatch.setenv("FIRMS_MAP_KEY","clave-prueba");monkeypatch.delenv("FIRMS_NRT_DIAS",raising=False)
+    urls=[]
+    def proveedor(url):
+        urls.append(url);partes=url.split("/");inicio=date.fromisoformat(partes[-1]);dias=int(partes[-2])
+        assert dias<=5
+        modis="MODIS_NRT" in url
+        sat="Terra" if modis else "N20" if "NOAA20" in url else "N21"
+        cab="latitude,longitude,brightness,scan,track,acq_date,acq_time,satellite,confidence,version,bright_t31,frp,daynight" if modis else "latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,confidence,version,bright_ti5,frp,daynight"
+        filas=[f"2.93,-75.28,330,.4,.4,{inicio+timedelta(days=i)},1800,{sat},{'90' if modis else 'n'},{'6.1NRT' if modis else '2.0NRT'},300,5,D" for i in range(dias)]
+        return (cab+"\n"+"\n".join(filas)+"\n").encode()
+    construir_firms(tmp_path/"semana",fetch=proveedor,ahora=datetime(2026,11,15,tzinfo=timezone.utc))
+    assert len(urls)==6
+    filas=pq.read_table(tmp_path/"semana/detecciones.parquet").to_pylist()
+    assert {f["fecha_hora_utc"].date().isoformat() for f in filas}=={f"2026-11-{n:02d}" for n in range(8,15)}
 
 
 def test_diagnostico_http_no_devuelve_secretos(tmp_path,monkeypatch):

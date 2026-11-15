@@ -11,6 +11,7 @@ import { probarAuditoria } from './recorrido_auditoria.mjs';
 import { probarIdiomas } from './recorrido_idiomas.mjs';
 import { probarHidrografia } from './recorrido_hidrografia.mjs';
 import { probarConfirmacionLugar } from './recorrido_confirmacion_lugar.mjs';
+import { probarPeriodos } from './recorrido_periodos.mjs';
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -106,7 +107,8 @@ try {
   await enviar("Runtime.enable");
   await enviar("Page.enable");
 
-  if(MODO==="confirmacion") await probarConfirmacionLugar({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI});
+  if(MODO==="periodos") await probarPeriodos({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,registrar:(nombre,datos)=>writeFileSync(join(SALIDA,nombre+".json"),JSON.stringify(datos,null,2))});
+  else if(MODO==="confirmacion") await probarConfirmacionLugar({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI});
   else if(MODO==="hidrografia") await probarHidrografia({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,registrar:(nombre,datos)=>writeFileSync(join(SALIDA,nombre+".json"),JSON.stringify(datos,null,2))});
   else if(MODO==="idiomas") await probarIdiomas({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,registrar:(nombre,datos)=>writeFileSync(join(SALIDA,nombre+".json"),JSON.stringify(datos,null,2))});
   else if(MODO==="auditoria" || MODO==="auditoria-local") await probarAuditoria({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,verificarCarga:MODO==="auditoria-local"});

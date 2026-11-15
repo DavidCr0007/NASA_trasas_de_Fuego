@@ -137,7 +137,23 @@ const globo = window.Globo.crear({
   alExploracion: () => { seguirViewport=true; },
   alSeleccionarPunto: (lon, lat, zoom) => seleccionarZonaEn(lon, lat, zoom),
   alVolver: () => mostrarRegional(),
-  alDatos: () => { if (vistaActual?.zoom >= 6 && seguirViewport) cargarVista(); },
+  alPeriodo: elegido => {
+    vistaCtrl?.abort(); vistaSolicitud++; cargaMapa("vista",false);
+    cargas.focos.ctrl?.abort(); cargas.focos.gen++;
+    ultimosFocos=null; periodoMapa=null;
+    if (!elegido) {
+      estado.dia=null; estado.rango=null;
+      $("rango-desde").value=$("rango-hasta").value="";
+    }
+    celdas.forEach(r=>{const seleccionada=r.dataset.dia===estado.dia;r.classList.toggle("sel",seleccionada);r.setAttribute("aria-selected",String(seleccionada));});
+    actualizarDescargas(); actualizarImagen(); pintarMeteo(); pintarLineaTiempo();
+    mostrarEstado("");
+  },
+  alDatos: async d => {
+    pintarLineaTiempo(); actualizarDescargas(); actualizarEnlaceFirms();
+    if (vistaActual?.zoom >= 6 || !seguirViewport) await cargarFocos();
+    else fijarPeriodoMapa(d.desde,d.hasta);
+  },
   alVista: v => {
     vistaActual = v;
     vista = v.zoom >= 6 ? "regional" : "globo";
@@ -155,10 +171,10 @@ mapa.on("dragstart", () => { seguirViewport = true; gestoMapa++; });
 mapa.on("zoomstart", e => { if(e.originalEvent) { seguirViewport=true; gestoMapa++; } });
 let vistaCtrl = null, vistaSolicitud = 0;
 async function cargarVista() {
-  if (!vistaActual || vistaActual.zoom < 6 || !seguirViewport) return;
-  const cobertura = globo.cobertura();
-  const desde = estado.dia ?? estado.rango?.desde ?? cobertura?.desde;
-  const hasta = estado.dia ?? estado.rango?.hasta ?? cobertura?.hasta;
+  if (!vistaActual || vistaActual.zoom < 6 || !seguirViewport || globo.actualizandoPeriodo()) return;
+  const cobertura = globo.cobertura(), periodo = globo.periodoActual();
+  const desde = periodo?.desde;
+  const hasta = periodo?.hasta;
   if (!desde || !hasta || !cobertura?.detalle_mismo_conjunto) return;
   const bbox = vistaActual.bbox;
   if (bbox[0] >= bbox[2] || bbox[1] >= bbox[3]) return;
@@ -382,7 +398,10 @@ function pintarLineaTiempo() {
   $("dia-todos").setAttribute("aria-pressed", String(!estado.dia));
   $("dia-anterior").disabled = Boolean(estado.dia && estado.dia <= desde);
   $("dia-siguiente").disabled = Boolean(estado.dia && estado.dia >= hasta);
-  $("linea-estado").textContent = estado.dia ? `${fechaLegible(estado.dia)} · UTC` : estado.anio ? `${estado.anio} completo · UTC` : "Fechas en UTC";
+  const periodo = globo.periodoActual();
+  $("linea-estado").textContent = estado.dia ? `${fechaLegible(estado.dia)} · UTC`
+    : periodo?.desde ? `${fechaLegible(periodo.desde)} → ${fechaLegible(periodo.hasta)} · UTC`
+      : estado.anio ? `${estado.anio} completo · UTC` : "Fechas en UTC";
 }
 function moverDia(paso) {
   const c = estado.calendario;
@@ -414,7 +433,7 @@ function actualizarEnlaceFirms() {
   const [w, s, e, n] = estado.bbox;
   const lat = ((s + n) / 2).toFixed(3), lon = ((w + e) / 2).toFixed(3);
   const p = estado.calendario && estado.calendario.periodos_inusuales ? periodosOrdenados(estado.calendario)[0] : null;
-  const dia = estado.dia ?? p?.inicio ?? null;
+  const dia = estado.dia ?? globo.periodoActual()?.hasta ?? p?.inicio ?? null;
   const zoom = Math.max(7, Math.min(12, mapa.getZoom()));
   a.href = `https://firms.modaps.eosdis.nasa.gov/map/#${dia ? `d:${dia}..${dia};` : ""}@${lon},${lat},${zoom}.0z`;
   a.textContent = dia ? `Abrir el ${fechaLegible(dia)} en el visor NASA FIRMS` : "Abrir esta área en el visor NASA FIRMS";
@@ -538,7 +557,7 @@ function pintarFocos(datos){
   ultimosFocos=datos;globo.detalle(datos);
   if(mapa.getZoom()>=6) $("mapa-filtro").textContent=
     (datos.origen_datos==="sintetico" ? "Muestra sintética · " : datos.origen_datos==="mixto" ? "Datos reales y sintéticos · " : "")+
-    fmt(datos.detecciones?.length??0)+' focos '+(estado.dia ? 'el '+fechaPrecisa(estado.dia) : 'en la consulta del análisis');
+    fmt(datos.detecciones?.length??0)+' focos · '+fechaLegible(globo.periodoActual()?.desde??datos.desde)+' → '+fechaLegible(globo.periodoActual()?.hasta??datos.hasta);
   $("aviso-truncado").hidden=!datos.truncado;
   $("aviso-truncado").textContent=datos.truncado?"Consulta limitada: acerque el área o seleccione un día.":"";
 }
@@ -1099,19 +1118,20 @@ function actualizarDescargas() {
   const hasta = estado.rango?.hasta ?? `${estado.anio}-12-31`;
   $("btn-csv").href = `/calendario.csv?${consulta(desde, hasta)}`;
   const focos = $("btn-csv-focos");
-  if (focos) focos.href = `/detecciones.csv?${consulta(estado.dia ?? desde, estado.dia ?? hasta)}`;
+  const periodo = globo.periodoActual();
+  if (focos) focos.href = `/detecciones.csv?${consulta(periodo?.desde ?? estado.dia ?? desde, periodo?.hasta ?? estado.dia ?? hasta)}`;
 }
 
 function aplicarRango() {
   const d = $("rango-desde").value, h = $("rango-hasta").value;
-  if (!d && !h) { estado.rango = null; actualizarDescargas(); cargarFocos(); mostrarEstado(""); return; }
+  if (!d && !h) { estado.rango = null; estado.dia=null; actualizarDescargas(); globo.periodo(`${estado.anio}-01-01`,`${estado.anio}-12-31`); return; }
   if (!d || !h) { mostrarEstado("error", "Indique las dos fechas del rango (desde y hasta)."); return; }
   if (d > h) { mostrarEstado("error", "La fecha «desde» debe ser anterior o igual a «hasta»."); return; }
   estado.rango = { desde: d, hasta: h };
   estado.dia = null;
   actualizarDescargas();
   mostrarEstado("cargando", "Cargando focos del rango…");
-  cargarFocos().then(() => mostrarEstado("")).catch((err) => mostrarEstado("error", `No se pudieron cargar los focos: ${mensajeDe(err)}`));
+  globo.periodo(d,h);
 }
 
 function aplicarCoordenadas() {
@@ -1200,16 +1220,19 @@ function iniciarCarga(tipo) {
   if (k.ctrl) k.ctrl.abort();
   k.ctrl = new AbortController();
   k.gen += 1;
-  return { gen: k.gen, señal: k.ctrl.signal, vigente: () => k.gen === cargas[tipo].gen };
+  const gen = k.gen;
+  return { gen, señal: k.ctrl.signal, vigente: () => gen === cargas[tipo].gen };
 }
 
 /** Devuelve true si pintó; false si quedó obsoleta. Lanza el resto de errores. */
 async function cargarFocos() {
+  if (globo.actualizandoPeriodo()) return false;
   if (seguirViewport && vistaActual?.zoom>=6) { await cargarVista(); return true; }
   const gestoAlPedir = gestoMapa;
   const h = iniciarCarga("focos");
-  const desde = estado.dia ?? estado.rango?.desde ?? `${estado.anio}-01-01`;
-  const hasta = estado.dia ?? estado.rango?.hasta ?? `${estado.anio}-12-31`;
+  const periodo = globo.periodoActual();
+  const desde = periodo?.desde ?? estado.dia ?? estado.rango?.desde ?? `${estado.anio}-01-01`;
+  const hasta = periodo?.hasta ?? estado.dia ?? estado.rango?.hasta ?? `${estado.anio}-12-31`;
   try {
     const datos = await pedir(`/detecciones?${consulta(desde, hasta)}&limite=50000`, h.señal);
     if (!h.vigente()) return false;
@@ -1240,7 +1263,9 @@ async function seleccionarDia(dia) {
   });
   mostrarEstado("cargando", "Cargando focos…");
   try {
-    if (await cargarFocos()) mostrarEstado("");
+    const desde = dia ?? estado.rango?.desde ?? `${estado.anio}-01-01`;
+    const hasta = dia ?? estado.rango?.hasta ?? `${estado.anio}-12-31`;
+    await globo.periodo(desde,hasta);
   } catch (err) {
     mostrarEstado("error", `No se pudieron cargar los datos: ${mensajeDe(err)}`, () => seleccionarDia(dia));
   }
@@ -1339,7 +1364,11 @@ $("btn-svg-calendario").addEventListener("click", () =>
   descargarSVG($("calendario").querySelector("svg"), `calendario_${estado.anio}.svg`, `Calendario de actividad ${estado.anio}`));
 $("btn-svg-matriz").addEventListener("click", () =>
   descargarSVG($("svg-matriz"), "calendario_de_quema.svg", "Calendario de quema (año × mes)"));
-$("sel-anio").addEventListener("change", (ev) => { seguirViewport=false; estado.anio = Number(ev.target.value); estado.dia = null; cargar(); });
+$("sel-anio").addEventListener("change", (ev) => {
+  seguirViewport=false; estado.anio=Number(ev.target.value); estado.dia=null; estado.rango=null;
+  $("rango-desde").value=$("rango-hasta").value="";
+  globo.periodo(`${estado.anio}-01-01`,`${estado.anio}-12-31`); cargar();
+});
 $("btn-dibujar").addEventListener("click", activarDibujo);
 $("btn-globo").addEventListener("click", () => (vista === "globo" ? mostrarRegional() : mostrarGlobo()));
 $("btn-reintentar").addEventListener("click", () => { if (reintento) reintento(); });

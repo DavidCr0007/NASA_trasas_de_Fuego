@@ -40,9 +40,11 @@ Dans Vercel **Project → Settings → Environment Variables**, configurer pour 
 | `FIRMS_MAP_KEY_ENCRYPTED` | Secret | Copier sa valeur depuis le fichier privé `.env`. |
 | `FIRMS_SECRET_KEY` | Secret | Copier sa valeur depuis `.env`. |
 | `HHN_MODO_DATOS` | Config | `firms` |
-| `FIRMS_NRT_DIAS` | Config, facultatif | `1` par défaut ; valeurs admises de `1` à `3`. |
+| `FIRMS_NRT_DIAS` | Config | `7` recommandé et par défaut ; valeurs de `1` à `10`, téléchargées par fenêtres de 5 jours maximum. |
 
 Laisser `HHN_DATOS` non défini pour utiliser le jeu réel construit dans ce mode. Un chemin personnalisé est prioritaire. Publier les changements puis redéployer après la configuration. La construction télécharge MODIS NRT, VIIRS NOAA-20 NRT et VIIRS NOAA-21 NRT pour les derniers jours UTC complets configurés, puis exécute le traitement d’harmonisation.
+
+Si Production contient déjà `FIRMS_NRT_DIAS=1`, remplacer la valeur par `7` et redéployer. Une archive d’un seul jour ne peut pas fournir des observations différentes pour 1, 2 et 7 jours. L’interface indique désormais la couverture, désactive les périodes indisponibles et synchronise calendrier, intervalle de dates, globe et détail régional.
 
 Le mode réel échoue explicitement si la configuration ou l’ingestion échoue ; il ne remplace pas silencieusement les observations par des données synthétiques. `HHN_MODO_DATOS=demo` conserve volontairement la démonstration synthétique. Les données réelles constituent un instantané du déploiement ; une reconstruction actualise la période. Les observations NRT restent préliminaires.
 

@@ -9,6 +9,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -75,6 +77,32 @@ def test_detecciones_completas_por_columnas(sitio):
     primera = dict(zip(d["campos"], d["filas"][0]))
     assert primera == {k: todas["detecciones"][0][k] for k in d["campos"]}
     assert d["base"]["cita"] == todas["cita"] and d["origen_datos"] == todas["origen_datos"]
+
+
+def test_global_estatico_respeta_fechas_y_coincide_con_api(sitio):
+    node=shutil.which("node")
+    if not node:pytest.skip("node no instalado")
+    datos,salida,_=sitio
+    api=TestClient(create_app(datos))
+    archivo=json.loads((salida/"api/detecciones.json").read_text(encoding="utf-8"))
+    intervalos=[(archivo["desde"],archivo["desde"]),(archivo["hasta"],archivo["hasta"]),
+                (archivo["desde"],archivo["hasta"]),("1900-01-01","1900-01-01")]
+    js="""
+      const fs=require('fs'),path=require('path');
+      global.location={href:'https://estatico.example/proyecto/',origin:'https://estatico.example'};
+      global.document={baseURI:location.href,addEventListener:()=>{}};
+      global.window={Zonas:require(ZONAS),fetch:async url=>new Response(fs.readFileSync(path.join(SALIDA,new URL(url).pathname.replace('/proyecto/',''))))};
+      require(ESTATICO);
+      (async()=>{const r=[];for(const [desde,hasta] of INTERVALOS)r.push(await(await window.fetch('/global?desde='+desde+'&hasta='+hasta+'&res=0.5')).json());console.log(JSON.stringify(r));})();
+    """
+    prefijo="const ZONAS="+json.dumps(str(RAIZ/"src/ui/static/zonas.js"))+",SALIDA="+json.dumps(str(salida))+",ESTATICO="+json.dumps(str(RAIZ/"src/ui/static/estatico.js"))+",INTERVALOS="+json.dumps(intervalos)+";"
+    r=subprocess.run([node,"-"],input=prefijo+js,text=True,encoding="utf-8",capture_output=True,check=True)
+    respuestas=json.loads(r.stdout)
+    for (desde,hasta),d in zip(intervalos,respuestas):
+        esperado=api.get("/global",params={"desde":desde,"hasta":hasta}).json()
+        for k in ("desde","hasta","total_detecciones","total_alta","n_paises","serie_diaria","calidad","preliminar"):
+            assert d[k]==esperado[k],(desde,k)
+        assert len(d["celdas"])==len(esperado["celdas"])
 
 
 def test_estatico_js_cubre_las_rutas_de_la_interfaz_y_no_inventa_datos():
