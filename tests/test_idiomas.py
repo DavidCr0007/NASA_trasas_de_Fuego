@@ -43,6 +43,7 @@ def cliente(tmp_path_factory):
 def test_documentos_y_selector_en_tres_idiomas(cliente,idioma,palabra):
     r=cliente.get("/metodologia",params={"idioma":idioma})
     assert r.status_code==200 and palabra in r.text
+    assert r.headers["content-language"]==idioma
     assert cliente.get("/limitaciones",params={"idioma":idioma}).status_code==200
     html=cliente.get("/ui/").text
     assert f'<option value="{idioma}" lang="{idioma}">' in html

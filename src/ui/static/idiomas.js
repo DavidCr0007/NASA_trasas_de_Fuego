@@ -74,6 +74,7 @@
     if(!idiomas[id])return;
     actual=id;document.documentElement.lang=id;
     try{localStorage.setItem("hhn-idioma",id);}catch{/* opcional */}
+    const url=new URL(location.href);if(url.searchParams.has("lang")){url.searchParams.set("lang",id);history.replaceState(null,"",url);}
     const selector=document.getElementById("sel-idioma");if(selector)selector.value=id;
     aplicar();document.title=traducir("Harmonized Heat Neiva",id);enlazarDocumentos();
     document.dispatchEvent(new CustomEvent("idioma-cambiado",{detail:{idioma:id}}));

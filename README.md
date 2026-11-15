@@ -1,5 +1,28 @@
 # Harmonized Heat Neiva
 
+**Español** · [English](README.en.md) · [Français](README.fr.md)
+
+La interfaz dispone de selector **Idioma / Language / Langue** y recuerda la elección sin recargar el mapa. Las guías científicas, estados y documentos públicos también están disponibles en los tres idiomas.
+
+## Activar la clave cifrada y datos reales en Vercel
+
+La clave local está cifrada en `.env`, que permanece fuera de Git y del paquete desplegado. El servidor admite `FIRMS_MAP_KEY_ENCRYPTED` y `FIRMS_SECRET_KEY`, y descifra la credencial exclusivamente en Python. La configuración local no se transfiere automáticamente a Vercel.
+
+En **Project → Settings → Environment Variables → Production**, crear:
+
+| Variable | Tipo | Valor |
+|---|---|---|
+| `FIRMS_MAP_KEY_ENCRYPTED` | Secret | Su valor del archivo local `.env`. |
+| `FIRMS_SECRET_KEY` | Secret | Su valor de `.env`. |
+| `HHN_MODO_DATOS` | Config | `firms` |
+| `FIRMS_NRT_DIAS` | Config, opcional | `1`, `2` o `3`; por defecto `1`. |
+
+Dejar `HHN_DATOS` sin configurar para que se seleccione el conjunto real construido, publicar los cambios y ejecutar **Redeploy**. El modo `firms` descarga los tres productos NRT y procesa los días UTC completos previos a la construcción; un error no se sustituye por una demo sintética. `demo` conserva la demostración deliberada. Un nuevo despliegue actualiza la instantánea.
+
+Abrir **Validar datos y método** o `/estado-servicios` para comprobar si la clave está configurada y cifrada, el modo efectivo, el origen real y la última ingesta. Este endpoint no devuelve secretos. La clave local fue aceptada por FIRMS y la construcción real generó 56.084 representantes para el 14 nov 2026; esto no configura por sí solo los secretos de Vercel.
+
+[Guía completa y evidencia de cifrado, despliegue e idiomas](docs/despliegue_clave_idiomas_2026-11-15.md). Para cifrar una nueva clave escrita en `.env`: `uv run python tools/cifrar_clave_firms.py --archivo .env`. El selector permite español, inglés y francés, y los accesos directos `/ui/?lang=en` y `/ui/?lang=fr`.
+
 Proyecto del reto **«Harmonization of MODIS and VIIRS Hot Spots»** (NASA Space Apps 2026).
 
 ## Objetivo

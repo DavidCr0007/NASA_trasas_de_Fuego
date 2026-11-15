@@ -4,7 +4,8 @@ export async function probarIdiomas({enviar,evaluar,esperarA,captura,comprobar,e
   await enviar("Page.navigate",{url:URL_UI});
   await esperarA(`typeof Idiomas!=="undefined" && typeof mapa!=="undefined" && estado.calendario && document.querySelector(".globo-cifra strong")`,30000,"idiomas y datos");
   await esperarA(`!document.getElementById("mapa-esqueleto").classList.contains("inicial")`,45000,"primer dibujo del mapa");
-  await evaluar(`window.lienzoIdiomas=mapa.getCanvas();window.ubicacionIdiomas=location.href;void 0`);
+  await esperarA(`!document.getElementById("panel-analisis").hasAttribute("aria-busy")`,15000,"análisis listo");
+  await evaluar(`window.lienzoIdiomas=mapa.getCanvas();window.ubicacionIdiomas=location.href;window.filtroIdiomas=JSON.stringify({area:estado.area,bbox:estado.bbox,anio:estado.anio,dia:estado.dia,rango:estado.rango});void 0`);
   const textos={es:["Explorador de focos","Resumen mundial"],en:["Heat detection explorer","World summary"],fr:["Explorateur de détections thermiques","Résumé mondial"]};
   const origen=await evaluar(`estado.calendario.origen_datos`);
   const revision={};
@@ -12,7 +13,7 @@ export async function probarIdiomas({enviar,evaluar,esperarA,captura,comprobar,e
     await evaluar(`Idiomas.cambiar(${JSON.stringify(idioma)})`);
     await esperarA(`document.getElementById("mapa-titulo").textContent===${JSON.stringify(textos[idioma][0])}`,5000,"título "+idioma);
     comprobar(`${idioma}: títulos y atributo lang traducidos`,await evaluar(`document.documentElement.lang===${JSON.stringify(idioma)} && document.querySelector(".globo-cabeza h2").textContent===${JSON.stringify(textos[idioma][1])}`));
-    comprobar(`${idioma}: idioma conserva el mapa y la selección temporal`,await evaluar(`mapa.getCanvas()===lienzoIdiomas && location.href===ubicacionIdiomas && estado.calendario!==null`));
+    comprobar(`${idioma}: idioma conserva el mapa y la selección temporal`,await evaluar(`mapa.getCanvas()===lienzoIdiomas && location.href===ubicacionIdiomas && filtroIdiomas===JSON.stringify({area:estado.area,bbox:estado.bbox,anio:estado.anio,dia:estado.dia,rango:estado.rango})`));
     const aviso=await evaluar(`document.getElementById("insignia-origen").textContent`);
     const palabra=origen==="real"?(idioma==="es"?"reales":idioma==="en"?"Real":"réelles"):(idioma==="es"?"SINTÉTICOS":idioma==="en"?"SYNTHETIC":"SYNTHÉTIQUES");
     comprobar(`${idioma}: naturaleza de los datos visible`,aviso.includes(palabra),aviso);
@@ -39,6 +40,12 @@ export async function probarIdiomas({enviar,evaluar,esperarA,captura,comprobar,e
   comprobar("La preferencia de idioma persiste al recargar",true);
   await evaluar(`Idiomas.cambiar("es")`);await espera(150);
   comprobar("Volver a español restaura los textos originales",await evaluar(`document.getElementById("mapa-titulo").textContent==="Explorador de focos" && document.getElementById("consulta-lugar").placeholder==="Municipio, departamento o lugar…"`));
+  await enviar("Page.navigate",{url:URL_UI+(URL_UI.includes("?")?"&":"?")+"lang=en"});
+  await esperarA(`document.documentElement.lang==="en" && document.getElementById("mapa-titulo")?.textContent==="Heat detection explorer"`,15000,"enlace directo en inglés");
+  comprobar("El enlace lang=en abre la versión en inglés",true);
+  await evaluar(`Idiomas.cambiar("fr")`);await enviar("Page.reload",{});
+  await esperarA(`document.documentElement.lang==="fr" && document.getElementById("mapa-titulo")?.textContent==="Explorateur de détections thermiques"`,15000,"preferencia tras enlace directo");
+  comprobar("Cambiar de idioma actualiza también el enlace directo",true);
   registrar("revision_textos",revision);
   console.log("TEXTOS_PARA_REVISAR",JSON.stringify(revision));
   comprobar("Sin excepciones de aplicación",errores.filter(e=>!e.includes("Failed to fetch")).length===0,errores.slice(0,2).join(" | "));

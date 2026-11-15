@@ -438,12 +438,12 @@ def create_app(
     @app.get("/metodologia", response_class=PlainTextResponse)
     def metodologia_publica(idioma: Literal["es","en","fr"]="es"):
         nombre="metodologia.md" if idioma=="es" else f"metodologia.{idioma}.md"
-        return (Path(__file__).resolve().parents[2] / "docs" / nombre).read_text(encoding="utf-8")
+        return PlainTextResponse((Path(__file__).resolve().parents[2] / "docs" / nombre).read_text(encoding="utf-8"),headers={"Content-Language":idioma})
 
     @app.get("/limitaciones", response_class=PlainTextResponse)
     def limitaciones_publicas(idioma: Literal["es","en","fr"]="es"):
         nombre="limitaciones.md" if idioma=="es" else f"limitaciones.{idioma}.md"
-        return (Path(__file__).resolve().parents[2] / "docs" / nombre).read_text(encoding="utf-8")
+        return PlainTextResponse((Path(__file__).resolve().parents[2] / "docs" / nombre).read_text(encoding="utf-8"),headers={"Content-Language":idioma})
 
     @app.get("/cita")
     def cita():

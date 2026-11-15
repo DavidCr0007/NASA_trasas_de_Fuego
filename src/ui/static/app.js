@@ -1146,14 +1146,15 @@ function descargarSVG(svg, nombre, titulo) {
   });
   const ancho = Number(copia.getAttribute("width")) || 800, alto = Number(copia.getAttribute("height")) || 200;
   const area = estado.calendario?.area?.nombre ?? `recuadro ${estado.bbox.join(", ")}`;
+  const traducirExportacion=s=>window.Idiomas?.traducir(s)??s;
   copia.setAttribute("xmlns", svg.namespaceURI);
   copia.setAttribute("height", alto + 58);
   copia.setAttribute("viewBox", `0 -18 ${ancho} ${alto + 58}`);
   copia.insertAdjacentHTML("afterbegin", `<rect x="0" y="-18" width="${ancho}" height="${alto + 58}" fill="${token("--tarjeta")}"/>` +
-    `<text x="0" y="-4" font-size="12" font-weight="700" fill="${token("--tinta")}">${esc(titulo)} · ${esc(area)}</text>`);
+    `<text x="0" y="-4" font-size="12" font-weight="700" fill="${token("--tinta")}">${esc(traducirExportacion(titulo))} · ${esc(traducirExportacion(area))}</text>`);
   copia.insertAdjacentHTML("beforeend",
-    `<text x="0" y="${alto + 14}" font-size="9" fill="${token("--tenue")}">Datos: NASA FIRMS (LANCE / ESDIS). Métrica armonizada (ADR 0011), ${esc(estado.calendario?.rules_version ?? "")}.</text>` +
-    `<text x="0" y="${alto + 28}" font-size="9" fill="${token("--tenue")}">Detecciones térmicas, no incendios confirmados. Harmonized Heat Neiva.</text>`);
+    `<text x="0" y="${alto + 14}" font-size="9" fill="${token("--tenue")}">${esc(traducirExportacion("Datos: NASA FIRMS (LANCE / ESDIS). Métrica armonizada (ADR 0011), "))}${esc(estado.calendario?.rules_version ?? "")}.</text>` +
+    `<text x="0" y="${alto + 28}" font-size="9" fill="${token("--tenue")}">${esc(traducirExportacion("Detecciones térmicas, no incendios confirmados."))} Harmonized Heat Neiva.</text>`);
   const blob = new Blob([new XMLSerializer().serializeToString(copia)], { type: "image/svg+xml" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);

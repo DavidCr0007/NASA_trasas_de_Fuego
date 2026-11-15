@@ -1,9 +1,9 @@
 """Punto de entrada de Vercel (ADR 0016): la app completa con API como una función de Python.
 
 Vercel carga ``app`` (``[tool.vercel] entrypoint`` en pyproject.toml). Diferencias con ``make api``:
-  - Datos: la muestra SINTÉTICA histórica que generó la compilación (tools/construir_vercel.py).
-    Si falta, se genera una vez en /tmp al arrancar la instancia. ``HHN_DATOS`` apunta a otro
-    conjunto procesado, si se publica uno.
+  - Datos: ``HHN_MODO_DATOS=demo`` usa la muestra SINTÉTICA histórica y ``firms`` el conjunto
+    real generado en la construcción. Si falta, se construye en /tmp al arrancar la instancia.
+    ``HHN_DATOS`` permite seleccionar otro conjunto procesado publicado.
   - Disco de solo lectura salvo /tmp: la caché de límites de geoBoundaries va a /tmp.
 Localmente: ``uv run uvicorn vercel_app:app`` (o ``make api``, que no usa este archivo).
 """
