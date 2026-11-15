@@ -92,6 +92,14 @@
     return depto ? { nivel: "departamento", zona: depto, contexto: null } : null;
   }
 
+  /** Un foco pertenece a un municipio aunque cambie el zoom. No sustituye el límite
+   * municipal por un área urbana ni confunde la ausencia de ADM2 con un municipio. */
+  function municipioDelFoco(lon, lat, { departamentos = [], municipios = [] }) {
+    const municipio = zonaDe(lon, lat, municipios);
+    if (!municipio) return null;
+    return { nivel: "municipio", zona: municipio, contexto: zonaDe(lon, lat, departamentos) };
+  }
+
   /** Polígono del mundo con la zona como hueco: sirve para atenuar todo lo demás. */
   function mascara(geom) {
     const mundo = [[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]];
@@ -129,7 +137,8 @@
    * «Neiva, Huila» o «municipio de Neiva». Devuelve [{nombre, tipo, nivel, feature}].
    */
   function buscarLocal(texto, { municipios = [], departamentos = [] } = {}) {
-    const q = normalizar(texto).replace(/^(municipio|departamento) (de |del )?/, "").split(" huila")[0].trim()
+    const q = normalizar(texto).replace(/^(municipio|departamento) (de |del )?/, "")
+      .replace(/ huila( colombia)?$/, "").replace(/ colombia$/, "").trim()
       || normalizar(texto);
     if (q.length < 3) return [];
     const candidatos = [
@@ -180,7 +189,7 @@
   }
 
   const api = { UMBRAL_ZOOM_MUNICIPIO, UMBRAL_ZOOM_CIUDAD, ZOOM_ETIQUETA_DEPARTAMENTO, GRILLA_ORIGEN, GRILLA_LADO,
-    nivelResaltado, etiquetasVisibles, contiene, zonaDe, zonaSeleccionada, mascara, puntoInterior,
+    nivelResaltado, etiquetasVisibles, contiene, zonaDe, zonaSeleccionada, municipioDelFoco, mascara, puntoInterior,
     cajaDe, normalizar, buscarLocal, contarEn, celdasActivas };
   if (typeof module === "object" && module.exports) module.exports = api;
   else raiz.Zonas = api;

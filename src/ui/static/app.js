@@ -6,6 +6,7 @@
 "use strict";
 
 const AREAS = {
+  mundo: [-180, -90, 180, 90],
   huila: [-76.7, 1.4, -74.3, 3.9], // firms_schema.HUILA_BBOX: contiene el límite oficial (geoBoundaries) con 0,05-0,15° de margen
   neiva: [-75.53, 2.68, -75.03, 3.18], // Neiva (2,93; -75,28) ± 0,25°
 };
@@ -15,7 +16,8 @@ const CLAVE_TEMA = "hhn-tema";
 
 // area: "huila" o "mun:<id>" filtra por la forma real (R-40); null usa solo el recuadro bbox.
 // rango: {desde, hasta} opcional para el mapa y las descargas (H8-05).
-const estado = { bbox: AREAS.huila, area: "huila", anio: null, dia: null, calendario: null, rango: null, resumen: null };
+const estado = { bbox: AREAS.mundo, area: null, anio: null, dia: null, calendario: null, rango: null, resumen: null };
+let areaExplicita = false; // El análisis inicial no dibuja una selección sobre el planeta.
 let capasEstado = null; // estado del panel de capas (capas.js); se aplica en globo.capas()
 
 const $ = (id) => document.getElementById(id);
@@ -134,7 +136,7 @@ const globo = window.Globo.crear({
   alCarga: activa => cargaMapa("global", activa),
   alCargaBase: activa => cargaMapa("base", activa),
   alExplorar: (lon,lat,z) => mostrarRegional(lon,lat,z),
-  alExploracion: () => { seguirViewport=true; },
+  alExploracion: () => { seguirViewport=true; gestoMapa++; },
   alSeleccionarPunto: (lon, lat, zoom) => seleccionarZonaEn(lon, lat, zoom),
   alVolver: () => mostrarRegional(),
   alDatos: () => { if (vistaActual?.zoom >= 6 && seguirViewport) cargarVista(); },
@@ -149,7 +151,7 @@ const globo = window.Globo.crear({
     else if(v.zoom < 6) $("mapa-filtro").textContent = "Relieve natural · acerque para explorar focos y límites";
   },
 });
-globo.mostrar(-72,4,innerWidth<700 ? 0.9 : 1.8);
+globo.mostrar(0,15,innerWidth<700 ? 0.9 : 1.8);
 const mapa = globo.obtenerMapa();
 mapa.on("dragstart", () => { seguirViewport = true; gestoMapa++; });
 mapa.on("zoomstart", e => { if(e.originalEvent) { seguirViewport=true; gestoMapa++; } });
@@ -191,7 +193,7 @@ function mostrarRegional(lon,lat,zoom=8) {
   }
   else{seguirViewport=true;mapa.flyTo({center:[lon,lat],zoom:Math.max(6,zoom),duration:800});}
 }
-function dibujarArea(){globo.seleccion(estado.bbox);}
+function dibujarArea(){globo.seleccion(areaExplicita ? estado.bbox : null);}
 function actualizarAreaActual() {
   const sel=$("sel-area"),opcion=sel.selectedOptions[0];
   $("area-actual").hidden=sel.value!=="dibujo";
@@ -218,9 +220,9 @@ async function cargarLimites(){
 // ------------------------------------------------------------------ zona seleccionada (ADR 0013)
 // La pertenencia de un punto a una zona se calcula en el navegador (zonas.js) con los límites
 // locales del Huila y, fuera de él, con los ADM1/ADM2 ya descargados para la vista.
-const NIVELES_ZONA = { ciudad: "Ciudad (área urbana)", municipio: "Municipio", departamento: "Departamento" };
+const NIVELES_ZONA = { pais: "País", barrio: "Barrio o sector", lugar: "Lugar", ciudad: "Ciudad (área urbana)", municipio: "Municipio", departamento: "Departamento o equivalente" };
 let zonaSel = null, zonaGen = 0;
-let puntoSel = null; // punto del foco elegido: al cruzar un umbral de zoom se vuelve a calcular su zona
+let puntoSel = null; // Identidad del foco: su municipio permanece estable al cambiar el zoom.
 const fuentesZonas = () => ({
   departamentos: [...departamentos, ...globo.limites(1)],
   municipios: [...municipios, ...globo.limites(2)],
@@ -261,22 +263,26 @@ function fijarPeriodoMapa(desde, hasta) {
 }
 
 async function seleccionarZonaEn(lon, lat, zoom) {
-  puntoSel = { lon, lat, nivel: window.Zonas.nivelResaltado(zoom) };
+  gestoMapa++; // Conserva el periodo y conjunto de datos con los que se eligió el foco.
+  cargaMapa("municipio", false);
+  puntoSel = { lon, lat };
+  globo.quitarLugar();
   const gen = ++zonaGen;
-  let sel = window.Zonas.zonaSeleccionada(lon, lat, zoom, fuentesZonas());
-  // Completa: el nivel pedido existe y, si es municipio o ciudad, también su contexto. Si no
-  // (p. ej. fuera del Huila sin ADM2 cargado para la vista), se piden los límites del país.
-  const completa = (s) => s && (puntoSel.nivel === "departamento" || (s.nivel !== "departamento" && s.contexto));
-  if (!completa(sel)) {
-    if (!sel) mostrarSinZona("Buscando los límites de esta zona…");
-    const remotas = await fuentesRemotas(lon, lat).catch(() => null);
-    if (gen !== zonaGen) return;
-    sel = (remotas && window.Zonas.zonaSeleccionada(lon, lat, zoom, remotas)) ?? sel;
+  let sel = window.Zonas.municipioDelFoco(lon, lat, fuentesZonas());
+  if (!sel) {
+    mostrarSinZona("Buscando el municipio del foco…");
+    cargaMapa("municipio", true);
+    try {
+      const remotas = await fuentesRemotas(lon, lat).catch(() => null);
+      if (gen !== zonaGen) return;
+      sel = remotas && window.Zonas.municipioDelFoco(lon, lat, remotas);
+    } finally { if (gen === zonaGen) cargaMapa("municipio", false); }
   }
-  if (sel) { mostrarZona(sel); return; }
-  mostrarSinZona(window.HHN_ESTATICO ? "En la demo publicada solo están los límites del Huila; fuera de él, ejecute la API local (make api)."
-    : navigator.onLine === false ? "Sin conexión: fuera del Huila los límites se descargan de geoBoundaries."
-    : "No hay límites administrativos publicados para este punto (mar o territorio sin datos).");
+  if (gen !== zonaGen) return;
+  if (sel) { sel.adm2 = !municipios.includes(sel.zona); mostrarZona(sel, { encuadrar: true }); return; }
+  mapa.easeTo({ center: [lon, lat], zoom: Math.max(10, mapa.getZoom()), duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 900 });
+  mostrarSinZona(navigator.onLine === false ? "Sin conexión: no hay un límite municipal cargado para este foco. Se centra su ubicación."
+    : "No se encontró un límite municipal publicado para este foco. Se centra su ubicación sin inventar una delimitación.");
 }
 
 function mostrarSinZona(nota) {
@@ -289,13 +295,6 @@ function mostrarSinZona(nota) {
   $("zona-analizar").hidden = $("zona-encuadrar").hidden = true;
 }
 
-/** Al acercarse o alejarse con un foco elegido, la zona pasa de departamento a municipio y a ciudad. */
-function reevaluarZonaPorZoom() {
-  if (!puntoSel || !zonaSel) return;
-  const nivel = window.Zonas.nivelResaltado(mapa.getZoom());
-  if (nivel !== puntoSel.nivel) seleccionarZonaEn(puntoSel.lon, puntoSel.lat, mapa.getZoom());
-}
-
 /** Resalta la zona, atenúa el resto y llena la tarjeta con sus cifras del periodo. */
 async function mostrarZona(sel, { encuadrar = false } = {}) {
   const gen = ++zonaGen;
@@ -305,7 +304,8 @@ async function mostrarZona(sel, { encuadrar = false } = {}) {
   const nombre = sel.zona.properties?.shapeName ?? "Zona";
   const contexto = sel.contexto?.properties?.shapeName;
   $("tarjeta-zona").hidden = false;
-  $("zona-nivel").textContent = NIVELES_ZONA[sel.nivel] + (contexto && contexto !== nombre ? ` · ${contexto}` : "");
+  const nivel = sel.adm2 ? "Municipio o equivalente (ADM2)" : NIVELES_ZONA[sel.nivel];
+  $("zona-nivel").textContent = nivel + (contexto && contexto !== nombre ? ` · ${contexto}` : "");
   $("zona-titulo").textContent = nombre;
   $("zona-analizar").hidden = $("zona-encuadrar").hidden = false;
   const { desde, hasta } = periodoActual();
@@ -349,6 +349,7 @@ function encuadrarZona() {
 
 function quitarZona() {
   zonaGen++; zonaSel = null; puntoSel = null;
+  cargaMapa("municipio", false);
   globo.resaltar(null);
   $("tarjeta-zona").hidden = true;
 }
@@ -359,6 +360,7 @@ function analizarZona() {
   seguirViewport = false;
   estado.bbox = zonaSel.zona.properties?.bbox ?? window.Zonas.cajaDe(zonaSel.zona.geometry);
   estado.area = area; estado.dia = null;
+  areaExplicita = true;
   const sel = $("sel-area");
   if (area === "huila" || (area && [...sel.options].some((o) => o.value === area))) sel.value = area;
   else {
@@ -476,7 +478,7 @@ function activarDibujo(){
   const b=$("btn-dibujar");b.textContent="Seleccione dos esquinas…";b.classList.add("activo");
   globo.dibujar(bbox=>{b.textContent="Dibujar área en el mapa";b.classList.remove("activo");
     if(!bbox || bbox[0]===bbox[2] || bbox[1]===bbox[3])return;
-    estado.bbox=bbox;estado.area=null;estado.dia=null;seguirViewport=false;
+    estado.bbox=bbox;estado.area=null;estado.dia=null;seguirViewport=false;areaExplicita=true;
     const opcion=$("sel-area").querySelector('option[value="dibujo"]');opcion.disabled=false;opcion.textContent="Área dibujada";
     $("sel-area").value="dibujo";cargar();
   });
@@ -1111,6 +1113,7 @@ function aplicarCoordenadas() {
   if (w >= e || s >= n) { mostrarEstado("error", "El oeste debe ser menor que el este y el sur menor que el norte."); return; }
   seguirViewport=false;
   estado.bbox = [w, s, e, n];
+  areaExplicita = true;
   estado.area = null;
   estado.dia = null;
   const opcion = $("sel-area").querySelector('option[value="dibujo"]');
@@ -1189,7 +1192,9 @@ function iniciarCarga(tipo) {
 
 /** Devuelve true si pintó; false si quedó obsoleta. Lanza el resto de errores. */
 async function cargarFocos() {
-  if (seguirViewport && vistaActual?.zoom>=6) { await cargarVista(); return true; }
+  // La exploración mundial usa /global; no descarga 50.000 puntos de un análisis
+  // inicial que después podrían sustituir las detecciones de la ciudad buscada.
+  if (seguirViewport) { if (vistaActual?.zoom>=6) await cargarVista(); return true; }
   const gestoAlPedir = gestoMapa;
   const h = iniciarCarga("focos");
   const desde = estado.dia ?? estado.rango?.desde ?? `${estado.anio}-01-01`;
@@ -1302,6 +1307,7 @@ $("sel-area").addEventListener("change", (ev) => {
   seguirViewport=false;
   actualizarAreaActual();
   if (v !== "dibujo") $("sel-area").querySelector('option[value="dibujo"]').textContent = "Rectángulo dibujado";
+  areaExplicita = v !== "mundo";
   if (AREAS[v]) { estado.bbox = AREAS[v]; estado.area = v === "huila" ? "huila" : null; resaltarMunicipio(null); estado.dia = null; cargar(); return; }
   if (v.startsWith("mun:")) {
     const f = municipios.find((m) => `mun:${m.properties.shapeID}` === v);
@@ -1354,17 +1360,19 @@ capasCtrl.ranura("imagen")?.appendChild($("control-imagen"));
 window.iniciarBusquedaLugares({
   buscarLocal: (q) => window.Zonas.buscarLocal(q, { municipios, departamentos }),
   elegirLocal: (r) => {
-    seguirViewport = true; puntoSel = null; // zona buscada: no cambia de nivel con el zoom
+    quitarZona(); globo.quitarLugar();
+    seguirViewport = true; gestoMapa++; // zona buscada: no cambia de nivel con el zoom
     const sel = r.nivel === "municipio"
       ? { nivel: "municipio", zona: r.feature, contexto: departamentos[0] ?? null }
       : { nivel: "departamento", zona: r.feature, contexto: null };
     mostrarZona(sel, { encuadrar: true });
   },
   explorar: lugar => {
+    quitarZona();
     seguirViewport=true;
     globo.localizar(lugar, seleccionado => {
       seguirViewport=false;
-      estado.bbox=seleccionado.bbox; estado.area=null; estado.dia=null;
+      estado.bbox=seleccionado.bbox; estado.area=null; estado.dia=null; areaExplicita=true;
       const opcion=$("sel-area").querySelector('option[value="dibujo"]');
       opcion.disabled=false; opcion.textContent=seleccionado.nombre+" (recuadro)";
       opcion.dataset.nombreCompleto=seleccionado.descripcion+" · recuadro aproximado";
@@ -1373,14 +1381,15 @@ window.iniciarBusquedaLugares({
     // Nominatim devuelve el polígono de municipios y departamentos: se resalta igual que uno local.
     if (lugar.geometria) {
       puntoSel = null;
-      const nivel = /municipio|ciudad|localidad/i.test(lugar.tipo) ? "municipio" : "departamento";
+      const nivel = /país/i.test(lugar.tipo) ? "pais" : /barrio|sector/i.test(lugar.tipo) ? "barrio"
+        : /ciudad|localidad/i.test(lugar.tipo) ? "ciudad" : /municipio/i.test(lugar.tipo) ? "municipio"
+        : /departamento|estado|división/i.test(lugar.tipo) ? "departamento" : "lugar";
       mostrarZona({ nivel, zona: { type: "Feature", properties: { shapeName: lugar.nombre, bbox: lugar.bbox }, geometry: lugar.geometria }, contexto: null });
     }
   },
 });
 $("zona-cerrar").addEventListener("click", quitarZona);
 $("zona-encuadrar").addEventListener("click", encuadrarZona);
-mapa.on("zoomend", reevaluarZonaPorZoom);
 $("zona-analizar").addEventListener("click", analizarZona);
 $("dia-anterior").addEventListener("click", () => moverDia(-1));
 $("dia-siguiente").addEventListener("click", () => moverDia(1));

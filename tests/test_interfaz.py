@@ -366,7 +366,8 @@ def test_conexion_con_nasa_firms():
 
 def test_huila_y_municipios_consultan_por_forma():
     assert "area=${encodeURIComponent(estado.area)}" in JS
-    assert 'area: "huila"' in JS
+    assert 'v === "huila" ? "huila" : null' in JS
+    assert 'bbox: AREAS.mundo, area: null' in JS
 
 
 # ------------------------------------------------- H8-07 (C3): rampa apta para daltonismo
@@ -518,10 +519,10 @@ def test_limites_siempre_visibles_sobre_cualquier_base():
     for base in ("fondo", "satelital", "sombra", "lagos", "rios", "zona-mascara"):
         assert ids.index(base) < ids.index("limites-municipio"), base
     assert ids.index("limites-departamento") < ids.index("detalle-focos") < ids.index("area-seleccion")
-    # Sin minzoom: las líneas no dependen del zoom; solo las etiquetas (zonas.etiquetasVisibles).
-    for capa in ("limites-municipio", "limites-departamento"):
+    # Misma jerarquía que el resto del planeta, sin destacar el Huila a escala mundial.
+    for capa, umbral in (("limites-municipio", 8), ("limites-departamento", 5)):
         definicion = re.search(r'\{ id: "%s".*?\} \},' % capa, GLOBO_JS, flags=re.S).group(0)
-        assert "zoom" not in definicion, capa
+        assert f"minzoom: {umbral}" in definicion, capa
     # Su visibilidad depende solo de la casilla «Límites», nunca de la base.
     assert 'visible("limites-municipio", k.limites.on)' in GLOBO_JS
     assert 'visible("limites-departamento", k.limites.on)' in GLOBO_JS
@@ -567,9 +568,9 @@ def test_umbral_de_ciudad_documentado_y_mayor_que_el_municipal():
     assert float(m.group(2)) > float(re.search(r"const UMBRAL_ZOOM_MUNICIPIO = (\d+)", ZONAS_JS).group(1))
 
 
-def test_zona_se_recalcula_al_cruzar_un_umbral_y_fuera_del_huila_se_pide_el_pais():
-    assert 'mapa.on("zoomend", reevaluarZonaPorZoom)' in JS
-    assert re.search(r"function reevaluarZonaPorZoom\(\).*?nivelResaltado\(mapa\.getZoom\(\)\)", JS, flags=re.S)
+def test_municipio_del_foco_permanece_al_hacer_zoom_y_se_consulta_el_pais():
+    assert 'mapa.on("zoomend", reevaluarZonaPorZoom)' not in JS
+    assert "window.Zonas.municipioDelFoco(lon, lat" in JS
     # País del punto con los países locales (Natural Earth) y sus ADM1/ADM2 vía /limites (geoBoundaries).
     assert "window.Zonas.zonaDe(lon, lat, paisesMundo)" in JS and "globo.limitesDe(iso, n)" in JS
     assert "fetch(`/limites/${iso}/${nivel}`)" in GLOBO_JS
@@ -577,6 +578,20 @@ def test_zona_se_recalcula_al_cruzar_un_umbral_y_fuera_del_huila_se_pide_el_pais
     assert '"etiqueta-zona"' in GLOBO_JS and 'id="zona-encuadrar"' in HTML and "Ver zona completa" in HTML
     # Nombres de ADM1/ADM2 cargados para la vista, acotados.
     assert "MAX_ETIQUETAS_ADM = 60" in GLOBO_JS
+
+
+@pytest.mark.parametrize("punto,nombre", [(NEIVA, "Neiva"), (GARZON_RURAL, "Garzón"), ((-74.08, 4.6), None)])
+def test_municipio_del_foco_prioriza_limite_municipal(punto, nombre):
+    d = _node(f"const s = Zonas.municipioDelFoco({punto[0]}, {punto[1]}, {{departamentos, municipios, ciudades}});"
+              "return s && {nivel:s.nivel, nombre:s.zona.properties.shapeName, contexto:s.contexto?.properties.shapeName};")
+    if nombre:
+        assert d == {"nivel": "municipio", "nombre": nombre, "contexto": "Huila"}
+    else:
+        assert d is None
+
+
+def test_no_se_inventa_un_municipio_si_solo_existe_departamento():
+    assert _node("return Zonas.municipioDelFoco(-75.28, 2.93, {departamentos});") is None
 
 
 def test_punto_fuera_de_zona_y_mascara_con_hueco():
@@ -624,6 +639,8 @@ def test_busqueda_local_por_municipio_o_departamento(consulta, primero, nivel):
 def test_busqueda_local_primero_y_remota_acotada():
     assert _node("return Zonas.buscarLocal('ab', {municipios, departamentos}).length;") == 0
     assert _node("return Zonas.buscarLocal('Bogotá', {municipios, departamentos}).length;") == 0
+    assert _node("return Zonas.buscarLocal('Palermo, Argentina', {municipios, departamentos}).length;") == 0
+    assert _node("return Zonas.buscarLocal('Neiva, Huila, México', {municipios, departamentos}).length;") == 0
     envio = BUSQUEDA_JS[BUSQUEDA_JS.index('form.addEventListener("submit"'):]
     envio = envio[: envio.index("\n  });")]
     assert envio.index("buscarLocal(q)") < envio.index("buscarRemoto(q)")

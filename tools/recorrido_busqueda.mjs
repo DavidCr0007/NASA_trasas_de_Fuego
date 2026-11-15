@@ -36,8 +36,8 @@ export async function probarBusqueda({enviar,evaluar,esperarA,captura,comprobar,
   const buscar = await evaluar(`(()=>{const r=document.getElementById("btn-buscar-lugar").getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2]})()`);
   await enviar("Input.dispatchMouseEvent",{type:"mousePressed",x:buscar[0],y:buscar[1],button:"left",clickCount:1});
   await enviar("Input.dispatchMouseEvent",{type:"mouseReleased",x:buscar[0],y:buscar[1],button:"left",clickCount:1});
-  await esperarA(`window.peticionesLugar.length===${consultasAntes+1} && !document.getElementById("btn-buscar-lugar").disabled && document.querySelectorAll("#lista-lugares button").length>0`,5000,"buscar con ratón");
-  comprobar("Buscar con ratón funciona y envía una única consulta",await evaluar(`window.peticionesLugar.length===${consultasAntes+1}`));
+  await esperarA(`window.peticionesLugar.length===${consultasAntes} && !document.getElementById("btn-buscar-lugar").disabled && document.querySelectorAll("#lista-lugares button").length>0`,5000,"buscar con ratón");
+  comprobar("Buscar con ratón reutiliza la consulta cacheada sin duplicarla",await evaluar(`window.peticionesLugar.length===${consultasAntes}`));
   comprobar("abrir resultados conserva el tamaño del mapa",JSON.stringify(antes)===JSON.stringify(await evaluar(rect)));
   await captura("07_busqueda_lugares");
   await enviar("Input.dispatchKeyEvent",{type:"keyDown",key:"ArrowDown",code:"ArrowDown",windowsVirtualKeyCode:40});

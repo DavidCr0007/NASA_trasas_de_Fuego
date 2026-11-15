@@ -59,7 +59,7 @@ def test_punto_de_entrada_sirve_api_e_interfaz(tmp_path, monkeypatch):
     cliente = TestClient(_modulo("vercel_app", RAIZ / "vercel_app.py").app)
     assert cliente.get("/salud").json()["estado"] == "ok"
     assert cliente.get("/", follow_redirects=False).headers["location"] == "/ui/"
-    assert "Harmonized Heat Neiva" in cliente.get("/ui/").text
+    assert "Harmonized Heat · Explorador global" in cliente.get("/ui/").text
     c = cliente.get("/calendario", params={"area": "huila"}).json()
     assert c["origen_datos"] == "sintetico" and c["cita"]
 

@@ -4,7 +4,7 @@ Proyecto del reto **«Harmonization of MODIS and VIIRS Hot Spots»** (NASA Space
 
 ## Objetivo
 
-Armonizar los focos de calor (hot spots) de MODIS y VIIRS publicados por NASA FIRMS en un **calendario de actividad de quema** que respondedores de emergencia, científicos y gestores de tierras pueden consultar para un área de interés. Muestra patrones históricos, días inusuales y periodos críticos. El caso de uso es el Huila y Neiva (Colombia).
+Armonizar los focos de calor (hot spots) de MODIS y VIIRS publicados por NASA FIRMS en un **calendario de actividad de quema** que respondedores de emergencia, científicos y gestores de tierras pueden consultar para un área de interés. Muestra patrones históricos, días inusuales y periodos críticos. El explorador inicia en una vista mundial; Huila y Neiva (Colombia) se conservan como caso de referencia y muestra local.
 
 La serie histórica está repartida entre sensores con distinta resolución y hora de paso (MODIS en Terra y Aqua; VIIRS en Suomi NPP, NOAA-20 y NOAA-21). Para hacerla comparable, el proyecto aplica estas reglas versionadas (`RULES_VERSION = armonizacion-0.3.1`):
 
@@ -207,12 +207,12 @@ Cada respuesta trae la cita de FIRMS, el aviso «as is», la versión de reglas,
 
 ## Buscar ciudades, barrios y direcciones
 
-1. Escriba el lugar en la barra superior; añada ciudad o país si el nombre es ambiguo. Ejemplo: **Chapinero, Bogotá, Colombia**.
+1. Escriba un país, ciudad, barrio o dirección en la barra superior; añada ciudad o país si el nombre es ambiguo. Ejemplos: **España**, **Medellín, Colombia** y **Chapinero, Bogotá, Colombia**.
 2. Pulse **Buscar** o Enter. Los resultados indican nombre, tipo y contexto geográfico. Flechas arriba/abajo permiten recorrerlos y Escape cierra la lista.
-3. Elija un resultado: el mismo mapa se desplaza hasta él y muestra un marcador azul. La búsqueda conserva el área de los calendarios.
+3. Elija un resultado: el mismo mapa se centra y ajusta el zoom a su extensión, con un marcador azul. Cuando hay polígono, también resalta su contorno con la categoría correcta (país, ciudad o barrio). Una ubicación sin polígono retira el contorno anterior. La búsqueda conserva el área de los calendarios.
 4. Para actualizar también el análisis, pulse **Analizar esta zona** en la ficha del marcador. Se usa el **recuadro aproximado** del lugar. Puede ajustar el año desde Opciones.
 
-La búsqueda usa **Nominatim / OpenStreetMap**, necesita internet y no requiere una clave FIRMS. No añade un mapa de calles. Solo envía consultas al pulsar Buscar o Enter; escribir no genera solicitudes. El proceso API limita las consultas nuevas a una cada 1,1 segundos y conserva hasta 128 consultas en memoria durante 24 horas. La cobertura de barrios y direcciones depende del proveedor.
+La búsqueda consulta primero los límites locales disponibles y permite **Buscar también en internet**, incluso con una única coincidencia, para distinguir homónimos de otros países. Las búsquedas remotas usan **Nominatim / OpenStreetMap**, necesitan internet y no requieren una clave FIRMS. Solo envía consultas al pulsar Buscar o Enter; escribir no genera solicitudes. El proceso API limita las consultas a una cada 1,1 segundos y no guarda búsquedas ni resultados. La pestaña conserva hasta 32 consultas en memoria mientras permanece abierta. La cobertura de barrios y direcciones depende del proveedor.
 
 Endpoint: `/buscar-lugares?q=Chapinero%2C%20Bogota%2C%20Colombia`. Para un servicio propio compatible con Nominatim, configure `NOMINATIM_URL` en el entorno **antes de iniciar la API**. Si el servidor ya estaba abierto antes de incorporar esta función, reinícielo para registrar la nueva ruta.
 
@@ -243,19 +243,15 @@ El botón **Capas** abre un panel con tres grupos:
 
 Cada capa tiene opacidad y modo de mezcla. El sombreado ASTER se **multiplica** de verdad sobre la base dentro del lienzo WebGL. Los preajustes **Mapa**, **Fuego** y **Agua** cambian varias capas a la vez, y el estado se recuerda en el navegador.
 
-Los límites del departamento y de los municipios se dibujan siempre encima de cualquier base. Al pulsar un foco se resalta su departamento (zoom < 8) o su municipio (zoom ≥ 8), y una tarjeta muestra los focos del periodo, los de confianza alta, el origen y la fecha UTC.
+Los límites se dibujan encima de cualquier base con la misma jerarquía visual en todos los países: departamentos o equivalentes desde zoom 5 y municipios o equivalentes desde zoom 8. Huila no tiene un recuadro ni un resaltado inicial. Al pulsar una detección individual, el mapa busca y delimita su municipio, centra la zona y ajusta el zoom para mostrar su extensión completa. La tarjeta muestra los focos del periodo, los de confianza alta, el origen y la fecha UTC.
 
 La búsqueda consulta primero los municipios y el departamento locales, y Nominatim solo con conexión. El servidor no guarda las búsquedas.
 
 **Vías, ciudades y zonas (ADR 0014).** La base **Vías e infraestructura** (preajuste «Vías») muestra OpenStreetMap en grises para que solo destaquen los focos y la zona.
 
-La zona del foco elegido cambia sola con el zoom:
+El municipio del foco elegido permanece seleccionado al acercarse o alejarse. La pertenencia se calcula con las coordenadas originales de FIRMS, incluso si se pulsa en el borde del círculo. Una celda mundial o un grupo de focos se explora primero hasta llegar a detecciones individuales: su centro agregado no se interpreta como un municipio.
 
-- departamento, por debajo del zoom 8;
-- municipio, desde el zoom 8;
-- ciudad, desde el zoom 11, si el punto cae en un área urbana de Natural Earth.
-
-La zona lleva su nombre sobre el mapa, y «Ver zona completa» la encuadra entera. Fuera del Huila, los límites del país se piden a geoBoundaries aunque se pulse desde el globo. Las solicitudes reemplazadas se cancelan y se reutilizan los resultados disponibles.
+La zona lleva su nombre sobre el mapa, y «Ver zona completa» permite repetir el encuadre. Los límites locales funcionan sin red; en otras zonas se consulta geoBoundaries. Fuera de la muestra local, ADM2 se presenta como **municipio o equivalente**, pues la división administrativa varía por país. Si falta el límite, se centra el foco y se informa sin inventar una delimitación. Una búsqueda o selección posterior descarta las respuestas antiguas. [Validación de búsquedas y focos](docs/validacion_lugares_focos_2026-11-15.md).
 
 Al recargar se presenta la estructura de la página y un esqueleto dentro del mapa. Al cambiar de ciudad se mantienen el lienzo y los paneles mientras llegan los datos; el indicador de carga se limita al mapa y evita destellos en solicitudes rápidas.
 
@@ -325,6 +321,8 @@ La guía explica la resolución nominal de MODIS (1.000 m) y VIIRS (375 m), el c
 
 ## Validación del rediseño
 
+Actualización del **15 de noviembre de 2026**: **544 pruebas correctas** con pytest y **23/23 comprobaciones** de `lugares-focos`: país, ciudad, barrio, homónimos, clic real en una detección FIRMS, encuadre municipal completo, selección estable y respuestas obsoletas. También pasaron **17/17 comprobaciones** del buscador, **18/18 del mapa** y **15/15 del visor de capas**. Se comprobaron tres consultas reales a Nominatim: España, Medellín y Chapinero. El arranque local de Windows usa Selector para evitar perder conexiones tras cerrar el navegador. Detalles y capturas en el [informe de validación](docs/validacion_lugares_focos_2026-11-15.md).
+
 Verificación del **14 de noviembre de 2026** sobre `data/processed/global_nrt`:
 
 - **469 pruebas** correctas con pytest, incluidas la búsqueda, su caché y límite de consultas, el brillo del sensor y los límites globales.
@@ -338,6 +336,7 @@ Ejemplo del modo de validación visual en Windows, con la API en marcha:
 ```powershell
 node tools/prueba_navegador.mjs http://127.0.0.1:8000/ui/ docs/capturas/local "C:/Program Files/Google/Chrome/Application/chrome.exe" planeta
 node tools/prueba_navegador.mjs http://127.0.0.1:8000/ui/ docs/capturas/busqueda_local "C:/Program Files/Google/Chrome/Application/chrome.exe" busqueda
+node tools/prueba_navegador.mjs http://127.0.0.1:8000/ui/ docs/capturas/lugares_focos_local "C:/Program Files/Google/Chrome/Application/chrome.exe" lugares-focos
 ```
 
 [Informe y capturas del rediseño](docs/reestructuracion_visual_2026-11-14.md) · [Auditoría comparativa de ramas](docs/auditoria_diseno_ramas_2026-11-14.md). La validación no incluye un estudio con usuarios ni una evaluación formal con lectores de pantalla.

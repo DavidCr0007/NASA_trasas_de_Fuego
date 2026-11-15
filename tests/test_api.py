@@ -271,7 +271,7 @@ def test_raiz_redirige_a_la_interfaz(cliente):
 
 def test_interfaz_servida_sin_recursos_externos(cliente):
     html = cliente.get("/ui/").text
-    assert "Harmonized Heat Neiva" in html
+    assert "Harmonized Heat · Explorador global" in html
     # Funciona sin internet: ningún script ni hoja de estilos remotos (las teselas son opcionales).
     assert not re.search(r'<script[^>]+src="https?://', html)
     assert not re.search(r'<link[^>]+href="https?://', html)

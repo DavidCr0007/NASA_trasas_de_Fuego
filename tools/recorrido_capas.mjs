@@ -1,6 +1,6 @@
 // Recorrido del visor de capas (ADR 0013) en Chrome sin interfaz. Lo invoca prueba_navegador.mjs
 // con el modo «capas». Comprueba capas por defecto, límites fijos al cambiar de base, resaltado de
-// municipio contra departamento a ambos lados del umbral, búsqueda local y preajustes; mide el zoom
+// municipio estable a ambos lados del umbral, búsqueda local y preajustes; mide el zoom
 // al que el Huila deja de caber (prueba visual del umbral) y guarda capturas de escritorio y móvil
 // en claro y oscuro.
 const HUILA = [-76.6247, 1.5521, -74.4133, 3.8432];
@@ -53,7 +53,7 @@ export async function probarCapas({ enviar, evaluar, esperarA, captura, comproba
   comprobar("umbral municipal ≥ zoom en que el departamento deja de caber", cabe < (await evaluar("Zonas.UMBRAL_ZOOM_MUNICIPIO")) ,
     `el Huila cabe hasta el zoom ${cabe.toFixed(2)} en 1440×900`);
   const umbral = await evaluar("Zonas.UMBRAL_ZOOM_MUNICIPIO");
-  for (const [zoom, esperado] of [[umbral - 0.1, "Departamento"], [umbral, "Municipio"]]) {
+  for (const [zoom, esperado] of [[umbral - 0.1, "Municipio"], [umbral, "Municipio"]]) {
     await enfocar(...NEIVA, zoom);
     await quieto();
     await evaluar(`(() => { seleccionarZonaEn(${NEIVA[0]}, ${NEIVA[1]}, mapa.getZoom()); return true; })()`);
@@ -66,6 +66,8 @@ export async function probarCapas({ enviar, evaluar, esperarA, captura, comproba
 
   // 4. Búsqueda local (sin red): «garzon» encuentra Garzón y ajusta la vista a su polígono.
   await evaluar(`(() => { const c = document.getElementById("consulta-lugar"); c.value = "garzon"; document.getElementById("buscar-lugar").requestSubmit(); return true; })()`);
+  await esperarA(`document.querySelector("#lista-lugares button strong")`,5000,"resultado local");
+  await evaluar(`document.querySelector("#lista-lugares button").click()`);
   await esperarA(`document.getElementById("zona-titulo").textContent === "Garzón"`, 10000, "Garzón resaltado");
   await quieto();
   comprobar("búsqueda local de municipio", true, await evaluar(`document.getElementById("zona-nivel").textContent`));
@@ -77,20 +79,20 @@ export async function probarCapas({ enviar, evaluar, esperarA, captura, comproba
   comprobar("preajuste Fuego", fuego.base === "satelital" && fuego.sombra.mezcla === "multiplicar" && fuego.sat === "visible", JSON.stringify(fuego));
   await evaluar(`(() => { document.querySelector('[data-preajuste="mapa"]').click(); return true; })()`);
 
-  // 5b. ADR 0014: la zona del foco elegido cambia de nivel al acercarse, hasta la ciudad.
+  // 5b. La selección del foco conserva su municipio al acercarse y alejarse.
   const zonaActual = () => evaluar(`({ nivel: document.getElementById("zona-nivel").textContent,
     nombre: document.getElementById("zona-titulo").textContent,
     etiqueta: document.querySelector(".etiqueta-zona")?.textContent ?? null })`);
   await enfocar(...NEIVA, 7.5);
   await quieto();
   await evaluar(`(() => { seleccionarZonaEn(${NEIVA[0]}, ${NEIVA[1]}, mapa.getZoom()); return true; })()`);
-  await esperarA(`document.getElementById("zona-titulo").textContent === "Huila"`, 15000, "Huila");
+  await esperarA(`document.getElementById("zona-titulo").textContent === "Neiva"`, 15000, "municipio");
   const cabeMunicipio = await evaluar(`(() => { const b = municipios.find(m => m.properties.shapeName === "Neiva").properties.bbox;
     return mapa.cameraForBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 20 }).zoom; })()`);
   const ciudad = await evaluar("Zonas.UMBRAL_ZOOM_CIUDAD");
   comprobar("umbral de ciudad ≥ zoom en que el municipio deja de caber", cabeMunicipio < ciudad,
     `el municipio de Neiva cabe hasta el zoom ${cabeMunicipio.toFixed(2)}`);
-  for (const [zoom, esperado, archivo] of [[umbral + 0.3, "Municipio", null], [ciudad, "Ciudad", "umbral_zoom_11"]]) {
+  for (const [zoom, esperado, archivo] of [[umbral + 0.3, "Municipio", null], [ciudad, "Municipio", "umbral_zoom_11"]]) {
     await enfocar(...NEIVA, zoom);
     await esperarA(`document.getElementById("zona-nivel").textContent.startsWith(${JSON.stringify(esperado)})`, 15000, esperado);
     await quieto();
@@ -105,12 +107,12 @@ export async function probarCapas({ enviar, evaluar, esperarA, captura, comproba
   await evaluar(`(() => { seleccionarZonaEn(-75.23, 4.44, mapa.getZoom()); return true; })()`);
   if (await evaluar("Boolean(window.HHN_ESTATICO)")) {
     // Demo estática de GitHub Pages (ADR 0015): sin /limites; la tarjeta debe decirlo.
-    await esperarA(`document.getElementById("zona-nota").textContent.includes("demo publicada")`, 20000, "aviso de la demo estática");
-    comprobar("demo estática: fuera del Huila avisa que hace falta la API", true, await evaluar(`document.getElementById("zona-nota").textContent`));
+    await esperarA(`document.getElementById("zona-nota").textContent.includes("No se encontró")`, 20000, "aviso de la demo estática");
+    comprobar("demo estática: informa si no hay un límite municipal", true, await evaluar(`document.getElementById("zona-nota").textContent`));
   } else {
     await esperarA(`!["Fuera de los límites cargados", "Neiva"].includes(document.getElementById("zona-titulo").textContent)`, 60000, "zona fuera del Huila");
     const fuera = await zonaActual();
-    comprobar("fuera del Huila: resalta el departamento del foco", fuera.nivel.startsWith("Departamento") && /tolima/i.test(fuera.nombre), JSON.stringify(fuera));
+    comprobar("fuera del Huila: resalta el municipio del foco", fuera.nivel.startsWith("Municipio") && /ibagu/i.test(fuera.nombre), JSON.stringify(fuera));
   }
 
   // 5d. Base mínima «Vías e infraestructura» (preajuste Vías) en el municipio y en la ciudad.
@@ -120,11 +122,13 @@ export async function probarCapas({ enviar, evaluar, esperarA, captura, comproba
   comprobar("preajuste Vías: base mínima con límites", v.base === "vias" && v.vias === "visible" && v.lim === "visible", JSON.stringify(v));
   await evaluar(`(() => { quitarZona(); const c = document.getElementById("consulta-lugar"); c.value = "Neiva";
     document.getElementById("buscar-lugar").requestSubmit(); return true; })()`);
+  await esperarA(`document.querySelector("#lista-lugares button strong")`,5000,"resultado local");
+  await evaluar(`document.querySelector("#lista-lugares button").click()`);
   await esperarA(`document.getElementById("zona-titulo").textContent === "Neiva"`, 15000, "Neiva");
   await quieto();
   await captura("vias_municipio");
   await evaluar(`(() => { seleccionarZonaEn(${NEIVA[0]}, ${NEIVA[1]}, 12); return true; })()`);
-  await esperarA(`document.getElementById("zona-nivel").textContent.startsWith("Ciudad")`, 15000, "ciudad");
+  await esperarA(`document.getElementById("zona-nivel").textContent.startsWith("Municipio")`, 15000, "municipio");
   await evaluar(`(() => { encuadrarZona(); return true; })()`);
   await quieto();
   await captura("vias_ciudad");
@@ -135,6 +139,8 @@ export async function probarCapas({ enviar, evaluar, esperarA, captura, comproba
     for (const tema of ["claro", "oscuro"]) {
       await abrir(ancho, alto, movil, tema);
       await evaluar(`(() => { const c = document.getElementById("consulta-lugar"); c.value = "Neiva"; document.getElementById("buscar-lugar").requestSubmit(); return true; })()`);
+      await esperarA(`document.querySelector("#lista-lugares button strong")`,5000,"resultado local");
+      await evaluar(`document.querySelector("#lista-lugares button").click()`);
       await esperarA(`document.getElementById("zona-titulo").textContent === "Neiva" && document.getElementById("zona-focos").textContent !== "…"`, 15000, "Neiva");
       // Día con más focos del año (línea de tiempo): la captura muestra focos, celdas y cifras.
       const dia = await evaluar(`(() => { const d = [...estado.calendario.dias].sort((a, b) => b.n_brutas - a.n_brutas)[0].fecha_utc; seleccionarDia(d); return d; })()`);
