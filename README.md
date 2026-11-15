@@ -231,7 +231,31 @@ La agregación mundial pasa de 0,5° a 0,25°. Desde zoom 6 se consulta el detal
 
 En detecciones individuales, la transparencia indica confianza. La ficha identifica NRT y muestra sensor, fecha UTC, calidad, posición, resolución nominal y temperatura de brillo disponible. El círculo representa potencia; no delimita el incendio ni el tamaño real del píxel.
 
-El único fondo es **NASA GIBS Blue Marble en sus colores naturales**, con opacidad completa y sin desaturación. Cambiar el tema modifica los controles, sin alterar el color del planeta ni recargar su estilo. Se retiraron OpenStreetMap y Black Marble. Los créditos del mapa permanecen fijos: GIBS, FIRMS y geoBoundaries. Las solicitudes reemplazadas se cancelan y se reutilizan los resultados disponibles.
+El fondo por defecto es **NASA GIBS Blue Marble en sus colores naturales**. Cambiar el tema modifica los controles, sin alterar el color del planeta ni recargar su estilo. Se retiraron OpenStreetMap y Black Marble. Los créditos del mapa permanecen visibles: GIBS, FIRMS, Natural Earth y geoBoundaries.
+
+### Visor de capas (ADR 0013)
+
+El botón **Capas** abre un panel con tres grupos:
+
+- **Base**, una a la vez: Relieve, Satelital, Hidrografía o Ninguna. Sobre la base se pueden añadir el sombreado del relieve y los ríos y lagos.
+- **Focos**: MODIS, VIIRS NOAA-20, VIIRS NOAA-21, Suomi NPP como histórico y **Armonizados**, las celdas de ~1 km que cuenta el calendario.
+- **Contexto**: los límites y el clima (reanálisis).
+
+Cada capa tiene opacidad y modo de mezcla. El sombreado ASTER se **multiplica** de verdad sobre la base dentro del lienzo WebGL. Los preajustes **Mapa**, **Fuego** y **Agua** cambian varias capas a la vez, y el estado se recuerda en el navegador.
+
+Los límites del departamento y de los municipios se dibujan siempre encima de cualquier base. Al pulsar un foco se resalta su departamento (zoom < 8) o su municipio (zoom ≥ 8), y una tarjeta muestra los focos del periodo, los de confianza alta, el origen y la fecha UTC.
+
+La búsqueda consulta primero los municipios y el departamento locales, y Nominatim solo con conexión. El servidor no guarda las búsquedas.
+
+**Vías, ciudades y zonas (ADR 0014).** La base **Vías e infraestructura** (preajuste «Vías») muestra OpenStreetMap en grises para que solo destaquen los focos y la zona.
+
+La zona del foco elegido cambia sola con el zoom:
+
+- departamento, por debajo del zoom 8;
+- municipio, desde el zoom 8;
+- ciudad, desde el zoom 11, si el punto cae en un área urbana de Natural Earth.
+
+La zona lleva su nombre sobre el mapa, y «Ver zona completa» la encuadra entera. Fuera del Huila, los límites del país se piden a geoBoundaries aunque se pulse desde el globo. Las solicitudes reemplazadas se cancelan y se reutilizan los resultados disponibles.
 
 Al recargar se presenta la estructura de la página y un esqueleto dentro del mapa. Al cambiar de ciudad se mantienen el lienzo y los paneles mientras llegan los datos; el indicador de carga se limita al mapa y evita destellos en solicitudes rápidas.
 

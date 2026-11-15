@@ -43,7 +43,7 @@ export async function probarMapa({enviar,evaluar,esperarA,captura,comprobar,espe
   await esperarA(`document.querySelector(".maplibregl-popup-content")?.textContent.includes("Temperatura de brillo")`,5000,"ficha del foco");
   comprobar("calendario y ficha térmica funcionan en el mismo lienzo",await evaluar(`mapa.getCanvas()===window.lienzoInicial && Boolean(estado.dia)`));
   await captura("04_ficha_termica");
-  await evaluar(`document.querySelector(".maplibregl-popup-close-button").click();document.getElementById("btn-dibujar").click();mapa.fire("click",{lngLat:{lng:-75.3,lat:2.9},point:mapa.project([-75.3,2.9])});mapa.fire("click",{lngLat:{lng:-75.2,lat:3},point:mapa.project([-75.2,3])});void 0`);
+  await evaluar(`document.querySelector(".maplibregl-popup-close-button").click();document.getElementById("btn-dibujar").click();mapa.fire("click",{lngLat:{lng:-75.3,lat:2.9},point:mapa.project([-75.3,2.9]),originalEvent:{target:mapa.getCanvas()}});mapa.fire("click",{lngLat:{lng:-75.2,lat:3},point:mapa.project([-75.2,3]),originalEvent:{target:mapa.getCanvas()}});void 0`);
   await esperarA(`!document.getElementById("panel-analisis").hasAttribute("aria-busy")`,30000,"análisis del rectángulo");
   comprobar("dibujo de área disponible sin otro motor de mapa",await evaluar(`estado.area===null && Math.abs(estado.bbox[0]+75.3)<0.001 && mapa.getStyle().sources.seleccion.data.features.length===1`));
   // Verifica el servicio fuera de Colombia sin atribuir toda la cobertura al DANE.

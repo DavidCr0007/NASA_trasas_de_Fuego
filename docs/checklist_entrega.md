@@ -1,6 +1,6 @@
 # Lista de verificación de entrega
 
-Revisada el 2026-11-14 sobre `main` (0a0d3c7) con reglas `armonizacion-0.3.1`.
+Revisada el 2026-11-14 sobre `main` (0a0d3c7) con reglas `armonizacion-0.3.1`; sección «Visor de capas» añadida el 2026-11-15 en `feat/globo-global`.
 Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indicado).
 
 ## Entregables (§9)
@@ -75,3 +75,31 @@ Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indica
 - [x] C2 Dibujo del área y entrada de coordenadas.
 - [x] C3 Rampa accesible: contraste AA y simulación de daltonismo (`tests/test_interfaz.py`).
 
+
+## Visor de capas (ADR 0013, 2026-11-15)
+
+- [x] Panel de capas agrupado en Base / Focos / Contexto, con casilla, icono, nombre, opacidad y modo de mezcla; preajustes Mapa, Fuego y Agua (`src/ui/static/capas.js`).
+- [x] Mezcla real en el lienzo único: sombreado ASTER multiplicado sobre la base. Las capas en color quedan en modo normal y el selector lo explica.
+- [x] Límites de departamento y municipio siempre sobre cualquier base, sin depender del zoom; solo las etiquetas cambian con el zoom.
+- [x] Límite departamental como unión de los 37 municipios DANE (CC BY 4.0). ADM1 de geoBoundaries verificado: existe, pero es ODbL 1.0 y no se redistribuye.
+- [x] Clic en un foco: resalta el departamento (zoom < 8) o el municipio (zoom ≥ 8, con el departamento como contexto). Tarjeta con nombre, focos del periodo, confianza alta, origen y fecha UTC. Umbral **PROVISIONAL** medido con prueba visual (`tools/recorrido_capas.mjs`).
+- [x] Búsqueda: primero municipios y departamento locales; Nominatim solo con conexión, caché en la pestaña y una consulta por segundo. El servidor ya no guarda búsquedas.
+- [x] Leyenda mínima: escala FRP distinguible con daltonismo (ΔE ≥ 10) y confianza por opacidad y borde.
+- [x] Línea de tiempo: día anterior, día, día siguiente y «Todo el año», en UTC.
+- [x] Pie con cita FIRMS, «No usar para proteger vidas ni bienes», «detecciones térmicas, no incendios confirmados», fechas en UTC y advertencia visible con datos sintéticos o mixtos.
+- [x] Licencias verificadas (GIBS Blue Marble, Blue Marble NG y ASTER GDEM: NASA sin restricciones; Natural Earth: dominio público). Sin proveedores remotos nuevos.
+- [x] Capturas de escritorio y móvil, claro y oscuro: `docs/capturas/visor_capas_20261115/`.
+- [x] Recorrido en Chrome: `node tools/prueba_navegador.mjs URL carpeta chrome capas` da 10/10; el recorrido `normal` sigue en 18/18.
+- [ ] Recorrido `busqueda` (`tools/recorrido_busqueda.mjs`): 2/4. Falla igual en el commit anterior (b4b447a); no lo introduce este cambio.
+- [ ] Hidrografía de detalle municipal: pendiente de revisar la licencia de HydroRIVERS.
+
+## Vías, ciudades y zonas (ADR 0014, 2026-11-15)
+
+- [x] Base mínima «Vías e infraestructura»: OpenStreetMap en grises para que destaquen los focos. Preajuste «Vías». El proveedor ya estaba permitido; la prueba del globo se amplió explícitamente.
+- [x] Al elegir un foco: departamento (zoom < 8), municipio (8 a < 11) o ciudad (≥ 11, si el punto cae en un área urbana). La zona cambia de nivel sola al acercarse o alejarse. Umbrales PROVISIONALES medidos con prueba visual.
+- [x] Nombre de la zona sobre el mapa, nombres de ADM1/ADM2 cargados y botón «Ver zona completa».
+- [x] Fuera del Huila y desde el globo: el país se busca en local y sus ADM1/ADM2 se piden a `/limites` (comprobado con el Tolima).
+- [x] Ciudades: 55 áreas urbanas con nombre de Natural Earth 1:10m (dominio público), `tools/preparar_ciudades.py`.
+- [x] Recorrido en Chrome (`capas`): 15/15; `normal`: 18/18.
+- [ ] Perímetros urbanos oficiales del DANE (todas las cabeceras del Huila): pendiente de revisar su licencia.
+- [ ] Proveedor de teselas propio antes de un despliegue público (R-30).

@@ -31,9 +31,9 @@
   <section class="controles" aria-label="Controles">
     <p id="contexto-vista" class="contexto-vista" role="status">Región</p>
     <form id="buscar-lugar" class="buscar-lugar" role="search" aria-label="Buscar una ubicación">
-      <label class="solo-lectores" for="consulta-lugar">Ciudad, barrio, dirección o lugar</label>
+      <label class="solo-lectores" for="consulta-lugar">Municipio, departamento o lugar</label>
       <div class="buscar-campo">
-        <input id="consulta-lugar" type="search" placeholder="Ciudad, barrio o dirección…" autocomplete="off" minlength="3" maxlength="160" required>
+        <input id="consulta-lugar" type="search" placeholder="Municipio, departamento o lugar…" autocomplete="off" minlength="3" maxlength="160" required>
         <button id="btn-buscar-lugar" type="submit" aria-controls="resultados-lugares" aria-expanded="false">Buscar</button>
       </div>
       <div id="resultados-lugares" class="resultados-lugares" role="region" aria-label="Resultados de lugares" hidden>
@@ -41,7 +41,7 @@
         <p id="estado-busqueda" role="status" aria-live="polite"></p>
         <ul id="lista-lugares"></ul>
       </div>
-      <p class="fuente-busqueda">Lugares: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a> / <a href="https://nominatim.org/" target="_blank" rel="noopener">Nominatim</a> · requiere internet</p>
+      <p class="fuente-busqueda">Primero en los límites locales (sin red); si no, <a href="https://nominatim.org/" target="_blank" rel="noopener">Nominatim</a> / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a> con internet. No se guardan búsquedas en el servidor.</p>
     </form>
     <button id="btn-globo" type="button" aria-pressed="false">Ver mundo</button>
     <label>Tema
@@ -61,7 +61,6 @@
         <button id="btn-dibujar" class="control-regional" type="button">Dibujar área en el mapa</button>
         <a id="btn-csv" class="boton control-regional" href="#" download>Calendario regional (CSV)</a>
         <a id="btn-csv-focos" class="boton control-regional" href="#" download>Focos regionales (CSV)</a>
-        <span class="tenue">Relieve natural NASA GIBS · fijo en ambos temas</span>
       </div>
       <details class="controles-avanzados control-regional" aria-label="Rango de fechas y coordenadas">
         <summary>Rango de fechas y coordenadas</summary>
@@ -95,30 +94,71 @@
       </div>
       <div id="mapa-escena" class="mapa-escena" data-vista="continuo">
         <div id="globo" class="globo" role="region" aria-label="Globo 3D de focos de calor del mundo"></div>
+        <div class="capas-control">
+          <button id="btn-capas" type="button" class="btn-capas" aria-expanded="true" aria-controls="panel-capas">
+            <svg class="icono" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 2 8l10 5 10-5z"/><path d="m2 13 10 5 10-5"/></svg>
+            <span>Capas</span>
+          </button>
+          <p id="capas-resumen" class="capas-resumen" aria-live="polite"></p>
+          <section id="panel-capas" class="panel-capas" aria-label="Capas del mapa">
+            <div id="panel-capas-cuerpo"></div>
+          </section>
+        </div>
+        <div id="leyenda-mapa" class="leyenda-mapa flotante" role="region" aria-label="Leyenda del mapa"></div>
+        <div id="capa-clima" class="capa-clima flotante" role="region" aria-label="Clima (reanálisis)" hidden>
+          <p id="capa-clima-texto">Elija un día para ver el clima de esos días.</p>
+          <p class="tenue">Clima (reanálisis): Open-Meteo.com, CC BY 4.0; ERA5 (C3S/ECMWF). Estimación de modelo, no observaciones.</p>
+        </div>
         <div id="mapa-esqueleto" class="mapa-esqueleto inicial" role="status"><span>Actualizando el mapa…</span></div>
         <div id="estado-carga" role="status" aria-live="polite" class="estado">
           <span id="estado-texto"></span><button id="btn-reintentar" type="button" hidden>Reintentar</button>
         </div>
         <aside id="panel-mapa" class="panel-mapa" aria-label="Información del mapa">
+        <section id="tarjeta-zona" class="tarjeta-zona" aria-labelledby="zona-titulo" aria-live="polite" hidden>
+          <div class="zona-cabeza">
+            <div><p id="zona-nivel" class="zona-nivel"></p><h2 id="zona-titulo">Zona</h2></div>
+            <button id="zona-cerrar" type="button" aria-label="Quitar el resaltado de la zona">×</button>
+          </div>
+          <dl class="zona-cifras">
+            <div><dt>Focos en el periodo</dt><dd id="zona-focos">—</dd></div>
+            <div><dt>Confianza alta</dt><dd id="zona-alta">—</dd></div>
+          </dl>
+          <dl class="datos zona-datos">
+            <dt>Origen</dt><dd id="zona-origen">—</dd>
+            <dt>Fecha (UTC)</dt><dd id="zona-fecha">—</dd>
+          </dl>
+          <p id="zona-nota" class="tenue zona-nota"></p>
+          <div class="zona-acciones">
+            <button id="zona-encuadrar" type="button" hidden>Ver zona completa</button>
+            <button id="zona-analizar" type="button" hidden>Analizar esta zona</button>
+          </div>
+        </section>
         <div id="globo-panel" class="globo-panel" aria-label="Resumen mundial"></div>
         <details id="resumen" class="resumen" aria-live="polite">
           <summary>Resumen del análisis regional <span id="resumen-anio"></span></summary>
           <p id="resumen-texto">Cargando el resumen…</p>
           <p id="resumen-origen" class="aviso-caja" hidden>Estos datos son inventados para la demostración: no describen incendios reales del Huila.</p>
-        <div id="leyenda-mapa" class="leyenda-mapa" aria-label="Leyenda del mapa"></div>
         </details>
         </aside>
         <p id="aviso-truncado" class="aviso-truncado" role="alert" hidden></p>
       </div>
       <div class="mapa-pie">
-        <div class="control-imagen">
-          <label for="sel-imagen">Imagen satelital del día</label>
+        <nav id="linea-tiempo" class="linea-tiempo" aria-label="Línea de tiempo (días en UTC)">
+          <button id="dia-anterior" type="button" aria-label="Día anterior">‹</button>
+          <label class="solo-lectores" for="dia-mapa">Día del mapa (UTC)</label>
+          <input id="dia-mapa" type="date">
+          <button id="dia-siguiente" type="button" aria-label="Día siguiente">›</button>
+          <button id="dia-todos" type="button" aria-pressed="true">Todo el año</button>
+          <span id="linea-estado" class="tenue" aria-live="polite">Fechas en UTC</span>
+        </nav>
+        <div id="control-imagen" class="control-imagen">
+          <label for="sel-imagen">Imagen del día</label>
           <select id="sel-imagen" disabled>
-            <option value="">Ninguna</option>
+            <option value="">Composición sin nubes</option>
             <option value="viirs">VIIRS NOAA-20, color real (NASA GIBS)</option>
             <option value="modis">MODIS Terra, color real (NASA GIBS)</option>
           </select>
-          <span id="imagen-nota" class="tenue">Elija un día en el calendario para ver la imagen satelital de ese día.</span>
+          <span id="imagen-nota" class="tenue">Elija un día en la línea de tiempo para ver la imagen de ese día.</span>
         </div>
         <p class="enlace-visor"><a id="enlace-firms" href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank" rel="noopener">Abrir esta área en el visor NASA FIRMS</a></p>
       </div>
@@ -247,7 +287,9 @@
   <footer class="pie">
     <p id="cita" class="cita"></p>
     <p id="aviso" class="tenue"></p>
-    <p class="tenue">Los focos son detecciones térmicas, no incendios confirmados. Fechas en UTC. Relieve NASA GIBS · focos NASA FIRMS · límites geoBoundaries.</p>
+    <p id="pie-sintetico" class="pie-sintetico" role="alert" hidden></p>
+    <p class="pie-avisos"><strong>No usar para proteger vidas ni bienes.</strong> Los focos son detecciones térmicas, no incendios confirmados. Todas las fechas y horas están en UTC.</p>
+    <p class="tenue">Focos: NASA FIRMS (LANCE / ESDIS). Relieve y satélite: NASA GIBS (Blue Marble, Blue Marble Next Generation, sombreado ASTER GDEM de METI/NASA). Hidrografía: Natural Earth (dominio público). Límites: geoBoundaries (municipios y departamento del Huila: DANE, CC BY 4.0). Clima: Open-Meteo, CC BY 4.0. Vías e infraestructura: teselas de © OpenStreetMap contributors (ODbL). Ciudades: Natural Earth (dominio público). Búsqueda: Nominatim, © OpenStreetMap.</p>
     <nav class="enlaces-firms" aria-label="Conexión con NASA FIRMS">
       <strong>NASA FIRMS:</strong>
       <a href="https://www.earthdata.nasa.gov/data/tools/firms" target="_blank" rel="noopener">Inicio</a> ·
@@ -261,6 +303,8 @@
   </footer>
 
   <script src="vendor/maplibre/maplibre-gl.js"></script>
+  <script src="zonas.js"></script>
+  <script src="capas.js"></script>
   <script src="globo.js"></script>
   <script src="busqueda.js"></script>
   <script src="app.js"></script>

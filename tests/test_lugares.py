@@ -15,17 +15,15 @@ MUESTRA = [{"place_id": 1, "name": "Chapinero", "display_name": "Chapinero, Bogo
 
 @pytest.fixture
 def cliente(monkeypatch):
-    lugares._cache.clear()
     monkeypatch.setattr(lugares, "_ultima_consulta", float("-inf"))
     reloj = [100.0]
     monkeypatch.setattr(lugares, "reloj", lambda: reloj[0])
     app = FastAPI()
     app.include_router(lugares.router)
     yield TestClient(app), reloj
-    lugares._cache.clear()
 
 
-def test_busqueda_normaliza_recuadro_y_reutiliza_resultados(cliente, monkeypatch):
+def test_busqueda_normaliza_recuadro_sin_guardar_la_consulta(cliente, monkeypatch):
     api, _ = cliente
     consultas = []
     def consultar(q):
@@ -38,8 +36,11 @@ def test_busqueda_normaliza_recuadro_y_reutiliza_resultados(cliente, monkeypatch
     assert lugar["bbox"] == [-74.1, 4.55, -74.0, 4.70]
     assert lugar["tipo"] == "Barrio o sector" and lugar["nombre"] == "Chapinero"
     assert "OpenStreetMap" in r.json()["atribucion"]
-    assert api.get("/buscar-lugares", params={"q": "CHAPINERO BOGOTÁ"}).json() == r.json()
     assert consultas == ["Chapinero Bogotá"]
+    # ADR 0013: el servidor no guarda búsquedas ni resultados (la caché es de la pestaña).
+    estado = {k: v for k, v in vars(lugares).items() if not k.startswith("__")}
+    assert not any(isinstance(v, (dict, list)) and "Chapinero" in json.dumps(v, default=str) for v in estado.values())
+    assert not hasattr(lugares, "_cache")
 
 
 @pytest.mark.parametrize("q", ["", "ab", "   ", "a" * 161])
@@ -49,7 +50,7 @@ def test_consultas_invalidas_no_salen_a_internet(cliente, monkeypatch, q):
     assert api.get("/buscar-lugares", params={"q": q}).status_code == 422
 
 
-def test_limita_consultas_distintas_y_no_penaliza_cache(cliente, monkeypatch):
+def test_limita_a_una_consulta_por_segundo_para_toda_la_aplicacion(cliente, monkeypatch):
     api, reloj = cliente
     consultas = []
     monkeypatch.setattr(lugares, "consultar_proveedor", lambda q: consultas.append(q) or MUESTRA)
@@ -57,20 +58,24 @@ def test_limita_consultas_distintas_y_no_penaliza_cache(cliente, monkeypatch):
     reloj[0] += .5
     r = api.get("/buscar-lugares", params={"q": "Neiva"})
     assert r.status_code == 429 and r.headers["Retry-After"] == "2"
-    assert api.get("/buscar-lugares", params={"q": "Bogota"}).status_code == 200
+    # Sin caché en el servidor, repetir la misma consulta también espera su turno.
+    assert api.get("/buscar-lugares", params={"q": "Bogota"}).status_code == 429
     reloj[0] += 1
     assert api.get("/buscar-lugares", params={"q": "Neiva"}).status_code == 200
-    assert consultas == ["Bogota", "Neiva"]
+    reloj[0] += 1.2
+    assert api.get("/buscar-lugares", params={"q": "Bogota"}).status_code == 200
+    assert consultas == ["Bogota", "Neiva", "Bogota"]
 
 
-def test_resultados_vencidos_se_actualizan(cliente, monkeypatch):
-    api, reloj = cliente
-    consultas = []
-    monkeypatch.setattr(lugares, "consultar_proveedor", lambda q: consultas.append(q) or [])
-    assert api.get("/buscar-lugares", params={"q": "Bogota"}).json()["resultados"] == []
-    reloj[0] += lugares.TTL + 1
-    api.get("/buscar-lugares", params={"q": "Bogota"})
-    assert len(consultas) == 2
+def test_devuelve_poligono_acotado_para_resaltar_la_zona():
+    cuadro = [[[-75.5, 2.8], [-75.1, 2.8], [-75.1, 3.1], [-75.5, 3.1], [-75.5, 2.8]]]
+    con = {**MUESTRA[0], "geojson": {"type": "Polygon", "coordinates": cuadro}}
+    punto = {**MUESTRA[0], "place_id": 3, "display_name": "otro", "geojson": {"type": "Point", "coordinates": [-74, 4.6]}}
+    enorme = {**MUESTRA[0], "place_id": 4, "display_name": "enorme",
+              "geojson": {"type": "Polygon", "coordinates": [[[0, 0]] * (lugares.MAX_VERTICES + 1)]}}
+    salida = lugares.normalizar([con, punto, enorme])
+    assert salida[0]["geometria"] == {"type": "Polygon", "coordinates": cuadro}
+    assert "geometria" not in salida[1] and "geometria" not in salida[2]
 
 
 def test_error_del_proveedor_se_comunica_sin_afectar_otras_rutas(cliente, monkeypatch):
@@ -103,4 +108,5 @@ def test_proveedor_identificado_parametros_escapados_y_endpoint_configurable(mon
     req = peticiones[0]
     assert urlparse(req.full_url).netloc == "lugares.example"
     assert parse_qs(urlparse(req.full_url).query)["q"] == ["Chapinero & Bogotá"]
+    assert parse_qs(urlparse(req.full_url).query)["polygon_geojson"] == ["1"]
     assert "HarmonizedHeatNeiva" in req.get_header("User-agent")

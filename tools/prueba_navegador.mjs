@@ -3,9 +3,10 @@
 // Guarda capturas y falla si hay errores de consola o se reconstruye el mapa al explorar.
 //
 // Uso (con la API en marcha):
-//   node tools/prueba_navegador.mjs [URL=http://127.0.0.1:8000/ui/] [CARPETA_CAPTURAS] [RUTA_CHROME] [normal|planeta|busqueda|panel|separado]
+//   node tools/prueba_navegador.mjs [URL=http://127.0.0.1:8000/ui/] [CARPETA_CAPTURAS] [RUTA_CHROME] [normal|planeta|busqueda|panel|separado|capas]
 import { probarMapa } from './recorrido_mapa.mjs';
 import { probarBusqueda } from './recorrido_busqueda.mjs';
+import { probarCapas } from './recorrido_capas.mjs';
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -102,6 +103,8 @@ try {
   await enviar("Page.enable");
 
   if(MODO==="busqueda") await probarBusqueda({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI});
+  else if(MODO==="capas") await probarCapas({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,
+    guardar:(nombre,datos)=>writeFileSync(join(SALIDA,`${nombre}.png`),Buffer.from(datos,"base64"))});
   else await probarMapa({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,MODO});
 } catch (err) {
   comprobar("recorrido completo", false, err.message);

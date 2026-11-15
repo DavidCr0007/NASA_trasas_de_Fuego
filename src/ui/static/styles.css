@@ -4,7 +4,7 @@
   --tinta: #172637;
   --tenue: #526477;
   --borde: #d5dfe8;
-  --acento: #aa391e;
+  --acento: #0f766e;
   --enlace: #075985;
   --foco: #005fcc;
   --sel: #0d9488;
@@ -67,7 +67,7 @@
   --tinta: #f4f4f5;
   --tenue: #b8c0c7;
   --borde: #384f63;
-  --acento: #fb923c;
+  --acento: #2dd4bf;
   --enlace: #7dd3fc;
   --foco: #7dd3fc;
   --sel: #fde047;
@@ -129,7 +129,7 @@
     --tinta: #f4f4f5;
     --tenue: #b8c0c7;
     --borde: #384f63;
-    --acento: #fb923c;
+    --acento: #2dd4bf;
     --enlace: #7dd3fc;
     --foco: #7dd3fc;
     --sel: #fde047;
@@ -674,3 +674,113 @@ path.limite-municipio.limite-sel { stroke: var(--acento); stroke-opacity: 1; str
   .contexto-vista { width: 48px; font-size: 11px; }
   .panel-mapa .globo-cabeza { position: static; }
 }
+
+/* ADR 0013: visor de capas. Un solo color de acento (--acento); los colores del mapa son fijos. */
+.icono { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color: var(--acento); }
+.capas-control { position: absolute; z-index: 1003; top: 12px; left: 12px; display: flex; max-width: min(320px, calc(100% - 80px)); max-height: calc(100% - 240px); flex-direction: column; align-items: flex-start; gap: 6px; }
+.btn-capas { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-color: var(--borde); background: var(--tarjeta); font-weight: 650; box-shadow: 0 4px 14px #0003; }
+.btn-capas[aria-expanded="true"] { border-color: var(--acento); color: var(--acento); }
+.capas-resumen { max-width: 100%; margin: 0; padding: 3px 8px; border-radius: 6px; background: color-mix(in srgb, var(--tarjeta) 92%, transparent); color: var(--tinta); font-size: 11px; line-height: 1.35; }
+.capas-resumen:empty { display: none; }
+.panel-capas { width: 300px; max-width: 100%; min-height: 0; overflow: auto; padding: 10px 12px; border: 1px solid var(--borde); border-radius: var(--radio); background: var(--tarjeta); color: var(--tinta); box-shadow: 0 10px 28px #0004; font-size: 13px; }
+.panel-capas[hidden] { display: none; }
+.capas-preajustes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
+.capas-preajustes button { padding: 6px 4px; font-size: 12px; font-weight: 600; }
+.capas-preajustes button[aria-pressed="true"] { border-color: var(--acento); background: var(--acento); color: var(--tarjeta); }
+.grupo-capas { padding: 6px 0; border-top: 1px solid var(--borde); }
+.grupo-capas h3 { margin: 0; font-size: 12px; }
+.grupo-alternar { display: flex; width: 100%; justify-content: space-between; padding: 4px 2px; border: 0; background: transparent; color: var(--tenue); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.grupo-alternar::after { content: "▾"; transition: transform 0.15s; }
+.grupo-alternar[aria-expanded="false"]::after { transform: rotate(-90deg); }
+.grupo-cuerpo[hidden] { display: none; }
+.capa-ayuda, .capa-subtitulo { margin: 0 0 4px; color: var(--tenue); font-size: 11px; }
+.capa-subtitulo { margin-top: 6px; font-weight: 650; }
+.capa { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 4px; margin: 1px 0; padding: 2px 4px 2px 6px; border-left: 3px solid transparent; border-radius: 6px; }
+.capa[data-activa="true"] { border-left-color: var(--acento); background: color-mix(in srgb, var(--acento) 9%, transparent); }
+.capa[data-activa="true"] .capa-nombre { font-weight: 650; }
+.capa-principal { display: flex; min-width: 0; align-items: center; gap: 7px; padding: 5px 0; cursor: pointer; }
+.capa-principal input { flex: none; width: 16px; height: 16px; margin: 0; }
+.capa[data-activa="false"] .icono { opacity: 0.6; }
+.capa-nombre { min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
+.capa-nota { flex: none; padding: 0 6px; border: 1px solid var(--tenue); border-radius: 999px; color: var(--tenue); font-size: 10px; }
+.capa-ajustar { display: inline-flex; padding: 4px; border-color: transparent; background: transparent; }
+.capa-ajustar[aria-expanded="true"] { border-color: var(--acento); color: var(--acento); }
+.capa-ajustes { grid-column: 1 / -1; display: grid; gap: 6px; margin: 2px 0 6px 23px; font-size: 12px; }
+.capa-ajustes[hidden] { display: none; }
+.capa-ajustes label { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center; gap: 6px; color: var(--tenue); }
+.capa-ajustes select { padding: 3px 6px; font-size: 12px; }
+.capa-ajustes select:disabled { opacity: 0.75; cursor: not-allowed; }
+.capa-ajustes output { min-width: 3.2em; color: var(--tinta); font-variant-numeric: tabular-nums; text-align: right; }
+.capa-fuente { margin: 0; color: var(--tenue); font-size: 11px; line-height: 1.4; }
+.capa-ranura .control-imagen { display: grid; gap: 4px; margin: 0; font-size: 12px; }
+.capa-ranura #imagen-nota { font-size: 11px; }
+
+/* Leyenda mínima abajo a la izquierda */
+.leyenda-mapa.flotante { top: auto; bottom: 56px; left: 12px; z-index: 1002; display: flex; width: 230px; max-width: calc(100% - 24px); flex-direction: column; gap: 3px; padding: 8px 10px; font-size: 11px; }
+.leyenda-mapa .escala-frp { margin: 4px 0 6px; }
+.leyenda-mapa .escala-frp > span { font-size: 10px; }
+.muestra-confianza { display: inline-block; width: 11px; height: 11px; border: 1px solid var(--tinta); border-radius: 50%; background: var(--f3); }
+.leyenda-mapa a { margin-top: 2px; font-size: 11px; }
+
+/* Etiquetas de límites: solo cambian con el zoom (zonas.js). Fijas en ambos temas. */
+.etiqueta-limite { color: #ffffff; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; pointer-events: none; text-shadow: 0 0 3px #000, 0 0 2px #000; white-space: nowrap; }
+.etiqueta-departamento { font-size: 14px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.etiqueta-limite[hidden] { display: none; }
+
+/* Tarjeta de la zona seleccionada */
+.tarjeta-zona { margin: 0 0 14px; padding: 12px; border: 1px solid var(--acento); border-radius: var(--radio); background: var(--tarjeta); }
+.tarjeta-zona[hidden] { display: none; }
+.zona-cabeza { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.zona-cabeza h2 { margin: 0; font-size: 18px; }
+.zona-nivel { margin: 0; color: var(--tenue); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.zona-cabeza button { min-height: 30px; padding: 0 9px; font-size: 18px; }
+.zona-cifras { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 8px; }
+.zona-cifras dt { color: var(--tenue); font-size: 11px; }
+.zona-cifras dd { margin: 0; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.zona-datos { font-size: 12px; }
+.zona-alerta { color: var(--sint-tinta); background: var(--sint-fondo); border-radius: 4px; padding: 0 4px; font-weight: 650; }
+.zona-nota { margin: 8px 0 0; font-size: 11px; }
+.zona-acciones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.zona-acciones button { font-size: 12px; }
+
+/* Clima como capa opcional */
+.capa-clima.flotante { top: 12px; right: 330px; z-index: 1002; width: 250px; max-width: calc(100% - 24px); padding: 8px 10px; font-size: 12px; }
+.capa-clima[hidden] { display: none; }
+.capa-clima p { margin: 0 0 4px; }
+.capa-clima .tenue { font-size: 10px; }
+
+/* Línea de tiempo bajo el mapa */
+.mapa-pie { align-items: center; }
+.linea-tiempo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.linea-tiempo input[type="date"] { padding: 6px 8px; border: 1px solid var(--tenue); border-radius: 8px; background: var(--boton-fondo); color: var(--tinta); font: inherit; font-size: 13px; }
+.linea-tiempo button { min-width: 36px; }
+.linea-tiempo button:disabled { cursor: not-allowed; opacity: 0.55; }
+#dia-todos[aria-pressed="true"] { border-color: var(--acento); background: var(--acento); color: var(--tarjeta); }
+#linea-estado { font-size: 12px; }
+
+/* Estados del mapa: arriba al centro, lejos de las capas y la leyenda */
+#estado-carga { top: 12px; bottom: auto; left: 50%; max-width: min(420px, calc(100% - 700px)); transform: translateX(-50%); }
+.mapa-esqueleto > span { top: 12px; bottom: auto; left: 50%; transform: translateX(-50%); }
+.aviso-truncado { top: auto; bottom: 56px; left: 260px; max-width: calc(100% - 600px); }
+
+/* Pie */
+.pie-avisos { color: var(--tinta); font-size: 12px; }
+.pie-sintetico { padding: 6px 10px; border-radius: 6px; background: var(--sint-fondo); color: var(--sint-tinta); font-size: 12px; font-weight: 700; }
+.pie-sintetico[hidden] { display: none; }
+.buscar-internet { width: 100%; margin-top: 4px; font-size: 12px; }
+
+@media (max-width: 700px) {
+  .capas-control { max-width: calc(100% - 70px); max-height: calc(62vh - 24px); }
+  .panel-capas { width: 100%; }
+  .leyenda-mapa.flotante, .capa-clima.flotante { position: static; width: auto; max-width: none; margin: 10px; }
+  #estado-carga { max-width: calc(100% - 140px); }
+  .aviso-truncado { left: 12px; bottom: auto; top: 56px; max-width: calc(100% - 24px); }
+  .linea-tiempo { width: 100%; }
+  .linea-tiempo input[type="date"] { flex: 1 1 140px; min-height: 40px; font-size: 16px; }
+  .linea-tiempo button { min-height: 40px; }
+}
+@media (prefers-reduced-motion: reduce) { .grupo-alternar::after { transition: none; } }
+
+/* ADR 0014: nombre de la zona resaltada (fijo en ambos temas, como el resto del mapa). */
+.etiqueta-zona { padding: 2px 8px; border-radius: 4px; background: #062a26d9; color: #ffffff; font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-shadow: none; }

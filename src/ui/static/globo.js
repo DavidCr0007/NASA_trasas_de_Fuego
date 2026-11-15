@@ -6,10 +6,55 @@
 
 (function () {
   const GIBS = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/";
+  // Bases del visor de capas (ADR 0013). Capas GIBS EPSG:3857 verificadas en
+  // WMTSCapabilities el 2026-11-15; datos NASA sin restricciones de uso (CC0, citar la fuente).
   const FONDOS = {
     claro: `${GIBS}BlueMarble_ShadedRelief_Bathymetry/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg`,
+    satelital: `${GIBS}BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg`,
+    // ASTER GDEM V003 (METI/NASA), relieve sombreado en grises hasta el nivel 12.
+    sombra: `${GIBS}ASTER_GDEM_Greyscale_Shaded_Relief/default/GoogleMapsCompatible_Level12/{z}/{y}/{x}.jpeg`,
+    // ADR 0014: vías, límites y nombres de OpenStreetMap (proveedor ya permitido desde el ADR 0008),
+    // pintados en grises en el cliente. Política de uso: créditos visibles, sin precarga ni descarga
+    // masiva; un despliegue público necesita un proveedor propio (R-30).
+    vias: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   };
   const fondo = () => FONDOS.claro;
+  // Colores del mapa: fijos en ambos temas (la imagen de la Tierra no se tiñe).
+  const MAPA = { agua: "#2f7fd1", lago: "#5aa5e6", tierraNeutra: "#e9e4d8", limite: "#fff8dc",
+    municipio: "#edf5f8", zona: "#2dd4bf", zonaBorde: "#062a26", mascara: "#06121c" };
+  // Satélite → capa del panel (ADR 0013). Suomi NPP solo aporta historia.
+  const SATELITE_CAPA = { Terra: "modis", Aqua: "modis", "NOAA-20": "noaa20", "NOAA-21": "noaa21", "Suomi NPP": "snpp" };
+
+  /**
+   * Mezcla real sobre un único lienzo WebGL: el relieve gris g se convierte en píxeles
+   * negros con alfa 1 − g. Componerlos en modo normal da base·(1 − α) = base·g, que es
+   * exactamente «multiplicar». «Trama» usa blanco con alfa g: base + g·(1 − base).
+   * Los píxeles negros puros (sin dato, p. ej. el mar) quedan transparentes.
+   */
+  let protocoloSombra = false;
+  function registrarSombra() {
+    if (protocoloSombra || typeof maplibregl.addProtocol !== "function") return;
+    protocoloSombra = true;
+    maplibregl.addProtocol("sombra", async (params, abortar) => {
+      const [, modo, z, y, x] = /^sombra:\/\/(\w+)\/(\d+)\/(\d+)\/(\d+)/.exec(params.url);
+      const r = await fetch(FONDOS.sombra.replace("{z}", z).replace("{y}", y).replace("{x}", x), { signal: abortar.signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const img = await createImageBitmap(await r.blob());
+      const lienzo = new OffscreenCanvas(img.width, img.height), ctx = lienzo.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      const px = ctx.getImageData(0, 0, img.width, img.height), d = px.data;
+      const multiplicar = modo === "multiplicar";
+      for (let i = 0; i < d.length; i += 4) {
+        const g = (d[i] + d[i + 1] + d[i + 2]) / 765;
+        const v = multiplicar ? 0 : 255;
+        d[i] = d[i + 1] = d[i + 2] = v;
+        d[i + 3] = g <= 0.01 ? 0 : Math.round(255 * (multiplicar ? 1 - g : g));
+      }
+      ctx.putImageData(px, 0, 0);
+      return { data: await (await lienzo.convertToBlob({ type: "image/png" })).arrayBuffer() };
+    });
+  }
+  const tejasSombra = (modo) => (modo === "normal" ? FONDOS.sombra : `sombra://${modo}/{z}/{y}/{x}`);
   // Clases de FRP máximo (MW) de la celda: mismas que la leyenda y el mapa regional.
   const CORTES_FRP = [5, 20, 100, 500];
   const PERIODOS = [[1, "1 día del archivo"], [2, "2 días del archivo"], [7, "7 días del archivo"]];
@@ -39,6 +84,8 @@
     let consulta = null;
     let activo = true;
     let detalle = null, vistaGen = 0, limitesCtrl = null, dibujando = false;
+    let detecciones = [], capasCfg = null, etiquetas = [];
+    const limitesCargados = [[], [], []];
     const limitesCache = new Map();
     let indiceLimites = null;
     const vacio = () => ({ type: "FeatureCollection", features: [] });
@@ -60,24 +107,59 @@
         sky: { "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 5, 1, 7, 0] },
         sources: {
           fondo: { type: "raster", tiles: [fondo()], tileSize: 256, maxzoom: 8 },
+          satelital: { type: "raster", tiles: [FONDOS.satelital], tileSize: 256, maxzoom: 8 },
+          sombra: { type: "raster", tiles: [tejasSombra("multiplicar")], tileSize: 256, maxzoom: 12 },
+          vias: { type: "raster", tiles: [FONDOS.vias], tileSize: 256, maxzoom: 19,
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' },
+          hidrografia: { type: "geojson", data: "/ui/datos/hidrografia_colombia.geojson" },
           paises: { type: "geojson", data: "/ui/datos/mundo_paises.geojson",
           },
           adm0: { type: "geojson", data: vacio() },
           adm1: { type: "geojson", data: vacio() },
           adm2: { type: "geojson", data: vacio() },
+          "local-departamento": { type: "geojson", data: vacio() },
+          "local-municipios": { type: "geojson", data: vacio() },
+          "zona-mascara": { type: "geojson", data: vacio() },
+          zona: { type: "geojson", data: vacio() },
+          "zona-contexto": { type: "geojson", data: vacio() },
+          celdas: { type: "geojson", data: vacio() },
           detalle: { type: "geojson", data: vacio(), cluster: true, clusterRadius: 35, clusterMaxZoom: 10,
             clusterProperties: { frp_max: ["max", ["coalesce", ["get", "frp"], 0]] } },
           seleccion: { type: "geojson", data: vacio() },
           focos: { type: "geojson", data: { type: "FeatureCollection", features: [] } },
         },
+        // Orden de abajo arriba (ADR 0013): bases → sombreado → agua → atenuación →
+        // LÍMITES (siempre sobre cualquier base) → zona resaltada → focos → área.
         layers: [
           { id: "mar", type: "background", paint: { "background-color": c.mar } },
           { id: "tierra", type: "fill", source: "paises", paint: { "fill-color": c.tierra } },
           { id: "fondo", type: "raster", source: "fondo", paint: { "raster-opacity": 1, "raster-saturation": 0, "raster-fade-duration": 200 } },
+          { id: "satelital", type: "raster", source: "satelital", layout: { visibility: "none" }, paint: { "raster-fade-duration": 200 } },
+          // Base mínima: OSM sin color y algo aclarada; así solo destacan los focos y la zona.
+          { id: "vias", type: "raster", source: "vias", layout: { visibility: "none" }, paint: {
+            "raster-saturation": -1, "raster-contrast": 0.1, "raster-brightness-min": 0.12, "raster-fade-duration": 200 } },
+          { id: "sombra", type: "raster", source: "sombra", minzoom: 4, paint: { "raster-opacity": 0.5, "raster-fade-duration": 200 } },
+          { id: "lagos", type: "fill", source: "hidrografia", filter: ["==", ["get", "tipo"], "lago"],
+            paint: { "fill-color": MAPA.lago, "fill-opacity": 0.9 } },
+          { id: "rios", type: "line", source: "hidrografia", filter: ["==", ["get", "tipo"], "rio"],
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: { "line-color": MAPA.agua, "line-opacity": 0.9,
+              "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.8, 8, 2, 12, 4] } },
+          { id: "zona-mascara", type: "fill", source: "zona-mascara", paint: { "fill-color": MAPA.mascara, "fill-opacity": 0.42 } },
           ...[0, 1, 2].map((nivel) => ({ id: `limites-adm${nivel}`, type: "line", source: `adm${nivel}`,
             minzoom: [3, 5, 8][nivel], paint: { "line-color": ["#fff8dc", "#f7e6ad", "#edf5f8"][nivel],
               "line-width": [1.1, 0.9, 0.65][nivel],
               "line-opacity": ["interpolate", ["linear"], ["zoom"], [3,5,8][nivel], 0, [4,6,9][nivel], [0.8,0.65,0.55][nivel]] } })),
+          // Límites locales del Huila: mismo estilo que ADM1/ADM2, pero sin desvanecerse con el
+          // zoom y sin depender de la base. Solo las etiquetas cambian con el zoom.
+          { id: "limites-municipio", type: "line", source: "local-municipios",
+            paint: { "line-color": MAPA.municipio, "line-width": 0.75, "line-opacity": 0.75 } },
+          { id: "limites-departamento", type: "line", source: "local-departamento",
+            paint: { "line-color": "#f7e6ad", "line-width": 1.6, "line-opacity": 0.95 } },
+          { id: "zona-contexto", type: "line", source: "zona-contexto",
+            paint: { "line-color": MAPA.zona, "line-width": 1.5, "line-dasharray": [2, 2], "line-opacity": 0.9 } },
+          { id: "zona-borde", type: "line", source: "zona", paint: { "line-color": MAPA.zonaBorde, "line-width": 5, "line-opacity": 0.7 } },
+          { id: "zona-linea", type: "line", source: "zona", paint: { "line-color": MAPA.zona, "line-width": 2.6 } },
           { id: "focos-halo", type: "circle", source: "focos", paint: {
             "circle-color": colorFrp(c), "circle-opacity": 0.28, "circle-blur": 1,
             "circle-radius": radio(2.4), "circle-pitch-alignment": "map" } },
@@ -88,14 +170,25 @@
           { id: "detalle-grupos", type: "circle", source: "detalle", filter: ["has", "point_count"], paint: {
             "circle-color": colorFrp(c), "circle-radius": ["min", 22, ["+", 4, ["sqrt", ["get", "point_count"]]]],
             "circle-stroke-color": c.trazo, "circle-stroke-width": 1, "circle-opacity": 0.92 } },
+          // Armonizados: celdas activas de la grilla de ~1 km (lo que cuenta el calendario).
+          { id: "celdas", type: "fill", source: "celdas", minzoom: 6, paint: {
+            "fill-color": colorFrp(c), "fill-opacity": 0.55, "fill-outline-color": c.trazo } },
+          // Color = FRP (ADR 0012). Confianza = opacidad y grosor del borde (ADR 0013, C4).
           { id: "detalle-focos", type: "circle", source: "detalle", filter: ["!", ["has", "point_count"]], paint: {
             "circle-color": ["step", ["coalesce", ["get", "frp"], 0], c.f[0], 5,c.f[1],20,c.f[2],100,c.f[3],500,c.f[4]],
             "circle-radius": ["step", ["coalesce", ["get", "frp"], 0], 3.5,5,5,20,7,100,9.5,500,12.5],
-            "circle-opacity": ["match", ["get", "confianza_clase"], "alta",0.95,"baja",0.55,0.8],
-            "circle-stroke-color": c.trazo, "circle-stroke-width": 1 } },
+            "circle-opacity": opacidadConfianza(),
+            "circle-stroke-color": c.trazo, "circle-stroke-width": ["match", ["get", "confianza_clase"], "alta", 2, "baja", 0.5, 1] } },
           { id: "area-seleccion", type: "line", source: "seleccion", minzoom: 5, paint: { "line-color": "#ffffff", "line-width": 1.2, "line-dasharray": [3, 3] } },
         ],
       };
+    }
+
+    /** Opacidad del foco: confianza (alta 0,95 · nominal 0,8 · baja 0,5) × opacidad de su capa. */
+    function opacidadConfianza(op = {}) {
+      const porSatelite = ["match", ["get", "satelite"], "Terra", op.modis ?? 1, "Aqua", op.modis ?? 1,
+        "NOAA-20", op.noaa20 ?? 1, "NOAA-21", op.noaa21 ?? 1, "Suomi NPP", op.snpp ?? 1, 1];
+      return ["*", porSatelite, ["match", ["get", "confianza_clase"], "alta", 0.95, "baja", 0.5, 0.8]];
     }
 
     function colorFrp(c) {
@@ -161,12 +254,153 @@
       actualizarCapas();
     }
 
+    const SENSORES = ["modis", "noaa20", "noaa21", "snpp"];
+    const visible = (id, v) => { if (mapa?.getLayer(id)) mapa.setLayoutProperty(id, "visibility", v ? "visible" : "none"); };
+
     function actualizarCapas() {
       if (!mapa?.getLayer("focos")) return;
+      const k = capasCfg?.capas;
+      const algunSensor = !k || SENSORES.some((s) => k[s].on);
       const cercano = mapa.getZoom() >= 6 && detalle !== null && (opciones.usarDetalle?.() ?? true);
-      for (const id of ["focos", "focos-halo"]) mapa.setLayoutProperty(id, "visibility", cercano ? "none" : "visible");
-      for (const id of ["detalle-focos", "detalle-grupos"]) mapa.setLayoutProperty(id, "visibility", cercano ? "visible" : "none");
+      for (const id of ["focos", "focos-halo"]) visible(id, !cercano && algunSensor);
+      for (const id of ["detalle-focos", "detalle-grupos"]) visible(id, cercano && algunSensor);
+      visible("celdas", cercano && (!k || k.armonizados.on));
     }
+
+    /** Filtra los focos por satélite (casillas del panel) y recalcula las celdas armonizadas. */
+    function refrescarDetalle() {
+      const k = capasCfg?.capas;
+      const activas = detecciones.filter((d) => !k || k[SATELITE_CAPA[d.satelite]]?.on !== false);
+      detalle = {type: "FeatureCollection", features: activas.map((p) => ({type: "Feature",
+        geometry: {type: "Point", coordinates: [p.lon, p.lat]}, properties: p}))};
+      if (mapa?.getSource("detalle")) mapa.getSource("detalle").setData(detalle);
+      if (mapa?.getSource("celdas") && window.Zonas) mapa.getSource("celdas").setData(window.Zonas.celdasActivas(activas, grillaLado));
+      actualizarCapas();
+    }
+    let grillaLado = 0.009;
+
+    /** Opacidad de los límites ADM con desvanecimiento por zoom, escalada por la capa «Límites». */
+    const opacidadAdm = (nivel, f) => ["interpolate", ["linear"], ["zoom"], [3, 5, 8][nivel], 0, [4, 6, 9][nivel], [0.8, 0.65, 0.55][nivel] * f];
+
+    /** Aplica el estado del panel de capas (capas.js) al estilo, sin reconstruir el mapa. */
+    function aplicarCapas() {
+      const cfg = capasCfg;
+      if (!cfg || !mapa?.getLayer("sombra")) return;
+      const k = cfg.capas, base = cfg.base;
+      const pintar = (id, prop, v) => { if (mapa.getLayer(id)) mapa.setPaintProperty(id, prop, v); };
+      visible("fondo", base === "relieve");
+      pintar("fondo", "raster-opacity", k.relieve.opacidad);
+      visible("satelital", base === "satelital");
+      pintar("satelital", "raster-opacity", k.satelital.opacidad);
+      visible("vias", base === "vias");
+      pintar("vias", "raster-opacity", k.vias.opacidad);
+      const neutra = base === "hidrografia" || base === "vias";
+      pintar("tierra", "fill-color", neutra ? MAPA.tierraNeutra : colores().tierra);
+      pintar("tierra", "fill-opacity", base === "hidrografia" ? k.hidrografia.opacidad : 1);
+      // Sombreado: la mezcla elegida cambia el origen de las teselas (ver registrarSombra).
+      visible("sombra", k.sombra.on);
+      pintar("sombra", "raster-opacity", k.sombra.opacidad);
+      const fuente = mapa.getSource("sombra");
+      if (fuente && fuente._modo !== k.sombra.mezcla) { fuente._modo = k.sombra.mezcla; fuente.setTiles([tejasSombra(k.sombra.mezcla)]); }
+      const agua = k.rios.on || base === "hidrografia";
+      visible("rios", agua); visible("lagos", agua);
+      pintar("rios", "line-opacity", k.rios.on ? k.rios.opacidad : 1);
+      pintar("lagos", "fill-opacity", k.rios.on ? k.rios.opacidad : 1);
+      // Límites: no dependen de la base; solo de su propia casilla.
+      for (const n of [0, 1, 2]) { visible(`limites-adm${n}`, k.limites.on); pintar(`limites-adm${n}`, "line-opacity", opacidadAdm(n, k.limites.opacidad)); }
+      visible("limites-municipio", k.limites.on); pintar("limites-municipio", "line-opacity", 0.75 * k.limites.opacidad);
+      visible("limites-departamento", k.limites.on); pintar("limites-departamento", "line-opacity", 0.95 * k.limites.opacidad);
+      const ops = Object.fromEntries(SENSORES.map((s) => [s, k[s].opacidad]));
+      const maxOp = Math.max(0.05, ...SENSORES.filter((s) => k[s].on).map((s) => k[s].opacidad));
+      pintar("detalle-focos", "circle-opacity", opacidadConfianza(ops));
+      pintar("detalle-grupos", "circle-opacity", 0.92 * maxOp);
+      pintar("focos", "circle-opacity", ["*", maxOp, ["interpolate", ["linear"], ["get", "frac_alta"], 0, 0.72, 0.3, 0.95]]);
+      pintar("focos-halo", "circle-opacity", 0.28 * maxOp);
+      pintar("celdas", "fill-opacity", 0.7 * k.armonizados.opacidad);
+      actualizarEtiquetas();
+      refrescarDetalle();
+    }
+
+    // ------------------------------------------------ límites locales, etiquetas y zona
+    let locales = null;
+    function aplicarLocales() {
+      if (!locales || !mapa?.getSource("local-municipios")) return;
+      const fc = (features) => ({ type: "FeatureCollection", features });
+      mapa.getSource("local-departamento").setData(fc(locales.departamentos));
+      mapa.getSource("local-municipios").setData(fc(locales.municipios));
+      etiquetas.forEach((e) => e.marcador.remove());
+      etiquetas = [];
+      const agregar = (f, nivel) => {
+        const p = window.Zonas?.puntoInterior(f.geometry);
+        if (!p) return;
+        const el = document.createElement("span");
+        el.className = `etiqueta-limite etiqueta-${nivel}`;
+        el.textContent = f.properties.shapeName;
+        el.setAttribute("aria-hidden", "true");
+        etiquetas.push({ nivel, el, marcador: new maplibregl.Marker({ element: el }).setLngLat(p).addTo(mapa) });
+      };
+      locales.departamentos.forEach((f) => agregar(f, "departamento"));
+      locales.municipios.forEach((f) => agregar(f, "municipio"));
+      actualizarEtiquetas();
+    }
+    /** Solo las etiquetas dependen del zoom; las líneas de los límites quedan siempre. */
+    function actualizarEtiquetas() {
+      if (!mapa || !window.Zonas) return;
+      const v = window.Zonas.etiquetasVisibles(mapa.getZoom());
+      const on = !capasCfg || capasCfg.capas.limites.on;
+      for (const e of etiquetas) e.el.hidden = !(on && v[e.nivel]);
+      actualizarEtiquetasAdm();
+    }
+
+    // Nombres de los ADM1/ADM2 descargados para la vista (ADR 0014), fuera del Huila local, que ya
+    // tiene los suyos. Marcadores HTML (sin glifos remotos), acotados a los que caen en pantalla.
+    const MAX_ETIQUETAS_ADM = 60;
+    const puntosAdm = new Map();
+    let etiquetasAdm = [];
+    function etiqueta(texto, clase, punto) {
+      const el = document.createElement("span");
+      el.className = `etiqueta-limite ${clase}`;
+      el.textContent = texto;
+      el.setAttribute("aria-hidden", "true");
+      return { el, marcador: new maplibregl.Marker({ element: el }).setLngLat(punto).addTo(mapa) };
+    }
+    function actualizarEtiquetasAdm() {
+      etiquetasAdm.forEach((e) => e.marcador.remove());
+      etiquetasAdm = [];
+      const Z = window.Zonas;
+      if (!mapa || !Z || (capasCfg && !capasCfg.capas.limites.on)) return;
+      const v = Z.etiquetasVisibles(mapa.getZoom());
+      const nivel = v.municipio ? 2 : v.departamento ? 1 : null;
+      if (nivel === null) return;
+      const b = mapa.getBounds(), w = b.getWest(), e = b.getEast(), s = b.getSouth(), n = b.getNorth();
+      const huila = locales?.departamentos?.[0];
+      for (const f of limitesCargados[nivel]) {
+        const c = f._caja ??= Z.cajaDe(f.geometry);
+        if (c[2] < w || c[0] > e || c[3] < s || c[1] > n) continue;
+        const id = `${nivel}:${f.properties?.shapeID ?? f.properties?.shapeName}`;
+        if (!puntosAdm.has(id)) puntosAdm.set(id, Z.puntoInterior(f.geometry));
+        const p = puntosAdm.get(id);
+        if (!p || p[0] < w || p[0] > e || p[1] < s || p[1] > n) continue;
+        if (huila && Z.contiene(huila.geometry, p[0], p[1])) continue;
+        etiquetasAdm.push(etiqueta(f.properties?.shapeName ?? "", `etiqueta-${nivel === 1 ? "departamento" : "municipio"}`, p));
+        if (etiquetasAdm.length >= MAX_ETIQUETAS_ADM) break;
+      }
+    }
+
+    /** GeoJSON de un nivel ADM de un país (geoBoundaries vía /limites), con la caché de la vista. */
+    async function limitesDe(iso, nivel) {
+      const clave = `${iso}:${nivel}`;
+      let geo = limitesCache.get(clave);
+      if (!geo) {
+        const r = await fetch(`/limites/${iso}/${nivel}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        geo = await r.json();
+        if (limitesCache.size >= 12) limitesCache.delete(limitesCache.keys().next().value);
+        limitesCache.set(clave, geo);
+      }
+      return geo;
+    }
+    let etiquetaZona = null;
 
     function pintarPanelCargando() {
       const caja = panel.querySelector(".globo-cifras");
@@ -373,6 +607,7 @@
             }
             if (generacion !== vistaGen) return;
             capas[n].push(...geo.features);
+            limitesCargados[n] = capas[n];
             fuentes.set(clave, geo.metadatos);
             mapa.getSource(`adm${n}`).setData({type:"FeatureCollection",features:capas[n]});
           } catch (e) { if (e.name === "AbortError") return; faltantes++; }
@@ -382,6 +617,7 @@
       }
       await Promise.all([trabajador(),trabajador(),trabajador()]);
       if (generacion !== vistaGen) return;
+      actualizarEtiquetasAdm();
       panel.querySelector(".limites-fuentes").textContent = [...fuentes.entries()].map(([clave,m]) =>
         `${clave.replace(":"," ADM")} · ${m?.boundaryYearRepresented || "año no indicado"} · ${m?.boundarySource || "fuente no indicada"} · ${m?.boundaryLicense || "licencia no indicada"}`).join("; ") || "Sin límites publicados o sin conexión. El relieve y los focos siguen disponibles.";
     }
@@ -396,6 +632,7 @@
 
     function notificarVista() {
       actualizarCapas();
+      actualizarEtiquetas();
       const c = mapa.getCenter(), cajas = cajasVisibles();
       opciones.alVista?.({zoom:mapa.getZoom(), centro:[c.lng,c.lat],
         bbox:cajas[0], cajas,
@@ -404,10 +641,13 @@
     }
 
     function construir(centro, zoom) {
+      registrarSombra();
       mapa = new maplibregl.Map({
         container: contenedor, style: estilo(), center: centro, zoom, minZoom: 0, maxZoom: 17,
         attributionControl: { compact: true, customAttribution: [
-          'Relieve: <a href="https://www.earthdata.nasa.gov/data/tools/gibs">NASA GIBS</a>',
+          'Relieve: <a href="https://www.earthdata.nasa.gov/data/tools/gibs">NASA GIBS</a> (Blue Marble; sombreado ASTER GDEM, METI/NASA)',
+          'Satélite: NASA GIBS (Blue Marble Next Generation, NASA Earth Observatory)',
+          'Hidrografía: <a href="https://www.naturalearthdata.com/">Natural Earth</a> (dominio público)',
           'Focos: <a href="https://www.earthdata.nasa.gov/data/tools/firms">NASA FIRMS</a> (LANCE / ESDIS)',
           'Límites: <a href="https://www.geoboundaries.org/">geoBoundaries</a> (DANE, CC BY 4.0 para COL ADM2; fuentes por país)',
         ] }, renderWorldCopies: true, dragRotate: false, pitchWithRotate: false,
@@ -416,23 +656,36 @@
       mapa.on("dataloading", e => { if(e.sourceId==="fondo")opciones.alCargaBase?.(true); });
       mapa.on("sourcedata", e => { if(e.sourceId==="fondo" && e.isSourceLoaded)opciones.alCargaBase?.(false); });
       mapa.on("idle", () => opciones.alCargaBase?.(false));
-      mapa.on("styledata", () => { if (!listo && mapa.getSource("focos")) { listo = true; aplicarDatos(); } });
+      mapa.on("styledata", () => { if (!listo && mapa.getSource("focos")) { listo = true; aplicarLocales(); aplicarCapas(); aplicarDatos(); } });
       mapa.on("load", () => {
         listo = true;
+        aplicarLocales();
+        aplicarCapas();
         aplicarDatos();
         mapa.getCanvas().setAttribute("aria-label", "Globo terráqueo con los focos de calor activos de todo el mundo");
+        // En pantallas estrechas los créditos quedan tras el botón «i» (y completos en el pie).
+        if (window.matchMedia("(max-width: 700px)").matches)
+          contenedor.querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show");
         notificarVista();
         opciones.alListo?.();
       });
       ["mousedown", "touchstart", "wheel"].forEach((ev) => mapa.on(ev, detenerRotacion));
-      mapa.on("mouseenter", "focos", () => { mapa.getCanvas().style.cursor = "pointer"; });
-      mapa.on("mouseleave", "focos", () => { mapa.getCanvas().style.cursor = ""; });
-      mapa.on("click", "focos", (ev) => { if (!dibujando) { detenerRotacion(); cargarPaises().then(() => popup(ev.features[0], ev.lngLat)); } });
+      mapa.on("click", "focos", (ev) => {
+        if (dibujando) return;
+        detenerRotacion(); cargarPaises().then(() => popup(ev.features[0], ev.lngLat));
+        opciones.alSeleccionarPunto?.(ev.lngLat.lng, ev.lngLat.lat, mapa.getZoom());
+      });
       mapa.on("click", "detalle-focos", (ev) => {
         if (dibujando) return;
         const d = ev.features[0].properties;
         new maplibregl.Popup({maxWidth:"340px"}).setLngLat(ev.lngLat).setHTML(opciones.ficha?.(d) || `FRP: ${esc(d.frp)} MW`).addTo(mapa);
+        // Selección de un foco: resalta su zona completa (municipio o departamento según el zoom).
+        opciones.alSeleccionarPunto?.(ev.lngLat.lng, ev.lngLat.lat, mapa.getZoom());
       });
+      for (const id of ["focos", "detalle-focos", "detalle-grupos"]) {
+        mapa.on("mouseenter", id, () => { mapa.getCanvas().style.cursor = "pointer"; });
+        mapa.on("mouseleave", id, () => { mapa.getCanvas().style.cursor = ""; });
+      }
       mapa.on("click", "detalle-grupos", async (ev) => {
         if (dibujando) return;
         const f=ev.features[0], z=await mapa.getSource("detalle").getClusterExpansionZoom(f.properties.cluster_id);
@@ -463,9 +716,6 @@
         `<a href="https://firms.modaps.eosdis.nasa.gov/map/" target="_blank" rel="noopener">Abrir visor NASA FIRMS</a>.</p>` +
         `<div class="globo-cifras" aria-live="polite"></div>` +
         `<section class="globo-pais" aria-label="País seleccionado" hidden></section>` +
-        `<div class="globo-leyenda" aria-label="Leyenda del globo"><span class="tenue">Potencia · FRP (MW):</span>` +
-        `<div class="escala-frp">`+["&lt; 5", "5–&lt;20", "20–&lt;100", "100–&lt;500", "≥ 500"].map((t, k) => `<span><i class="esc-frp f${k + 1}"></i>${t}</span>`).join("")+`</div>` +
-        `<details class="lectura-focos"><summary>Cómo leer los círculos</summary><p>En grupos: color = potencia máxima; tamaño = cantidad. En un foco: color y tamaño = potencia. La transparencia indica confianza.</p></details><a href="#guia-termica">Guía de colores y sensores</a></div>` +
         `<p class="tenue globo-nota">Detecciones térmicas, no incendios confirmados.</p>` +
         `<details class="globo-metadatos"><summary>Origen y actualización</summary><p class="globo-origen tenue"></p><p class="globo-actualizacion tenue"></p></details>` +
         `<details class="limites-guia"><summary>Límites geográficos</summary><p class="limites-estado" role="status">Escala continental</p><p class="limites-fuentes tenue"></p><p class="tenue">Países desde zoom 3; departamentos o equivalentes desde 5; municipios o equivalentes desde 8. La cobertura y el nivel administrativo varían por país.</p></details>` +
@@ -517,11 +767,33 @@
       },
       enfocar(bbox) { mapa.fitBounds([[bbox[0],bbox[1]],[bbox[2],bbox[3]]], {padding:35,maxZoom:13,duration:movimientoReducido()?0:900}); },
       detalle(d) {
-        detalle = {type:"FeatureCollection",features:(d.detecciones ?? []).map(p => ({type:"Feature",
-          geometry:{type:"Point",coordinates:[p.lon,p.lat]},properties:p}))};
-        if (mapa?.getSource("detalle")) mapa.getSource("detalle").setData(detalle);
-        actualizarCapas();
+        detecciones = d.detecciones ?? [];
+        grillaLado = d.incertidumbre?.grilla_deg ?? grillaLado;
+        refrescarDetalle();
       },
+      /** Detecciones visibles tras el filtro de satélites (para contar en una zona). */
+      deteccionesVisibles: () => detalle?.features.map((f) => f.properties) ?? [],
+      /** Estado del panel de capas: {base, capas: {id: {on, opacidad, mezcla}}}. */
+      capas(cfg) { capasCfg = cfg; aplicarCapas(); },
+      /** Límites del Huila servidos localmente: siempre visibles sobre cualquier base. */
+      limitesLocales(l) { locales = l; aplicarLocales(); },
+      /** Límites ADM descargados a demanda para la vista actual (0, 1 o 2). */
+      limites: (nivel) => limitesCargados[nivel] ?? [],
+      /** Resalta la zona (y su contexto) y atenúa el resto; null lo quita. */
+      resaltar(sel) {
+        if (!mapa?.getSource("zona")) return;
+        const fc = (f) => ({ type: "FeatureCollection", features: f ? [{ type: "Feature", properties: {}, geometry: f.geometry }] : [] });
+        mapa.getSource("zona").setData(fc(sel?.zona));
+        mapa.getSource("zona-contexto").setData(fc(sel?.contexto));
+        mapa.getSource("zona-mascara").setData({ type: "FeatureCollection", features: sel && window.Zonas ? [window.Zonas.mascara(sel.zona.geometry)] : [] });
+        mapa.setPaintProperty("zona-mascara", "fill-opacity", { departamento: 0.42, municipio: 0.3, ciudad: 0.22 }[sel?.nivel] ?? 0.42);
+        // Nombre de la zona seleccionada, siempre visible mientras está resaltada.
+        etiquetaZona?.marcador.remove();
+        etiquetaZona = null;
+        const punto = sel && window.Zonas?.puntoInterior(sel.zona.geometry);
+        if (punto) etiquetaZona = etiqueta(sel.zona.properties?.shapeName ?? "", "etiqueta-zona", punto);
+      },
+      limitesDe,
       seleccion(bbox) {
         if (!mapa?.getSource("seleccion")) return;
         const [w,s,e,n]=bbox;
@@ -532,7 +804,8 @@
         if (!mapa?.getSource("imagen")) {
           if (!url) return;
           mapa.addSource("imagen",{type:"raster",tiles:[url],tileSize:256,maxzoom:9});
-          mapa.addLayer({id:"imagen",type:"raster",source:"imagen",paint:{"raster-opacity":0.85}},"limites-adm0");
+          // Debajo del sombreado: el relieve también se multiplica sobre la imagen del día.
+          mapa.addLayer({id:"imagen",type:"raster",source:"imagen",paint:{"raster-opacity":0.85}},"sombra");
         }
         mapa.setLayoutProperty("imagen","visibility",url?"visible":"none");
         if (url) mapa.getSource("imagen").setTiles([url]);
@@ -569,5 +842,5 @@
     };
   }
 
-  window.Globo = { crear, CORTES_FRP, fondo };
+  window.Globo = { crear, CORTES_FRP, fondo, FONDOS, SATELITE_CAPA };
 })();

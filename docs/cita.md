@@ -75,6 +75,19 @@ de validación:
 
 - Runfola, D., et al. (2020). geoBoundaries: A global database of political administrative boundaries. *PLoS ONE*, 15(4), e0231866.
 
+## Capas del visor (ADR 0013)
+
+Verificado el 2026-11-15. Los datos de misiones NASA no tienen restricciones de uso (CC0) y se pide citar a NASA como fuente (<https://www.earthdata.nasa.gov/engage/open-data-services-software-policies/data-use-guidance>). Todas las capas GIBS se sirven con el reconocimiento de GIBS citado arriba.
+
+- **Relieve:** GIBS `BlueMarble_ShadedRelief_Bathymetry`. NASA Earth Observatory, Blue Marble.
+- **Satelital:** GIBS `BlueMarble_NextGeneration`. Stöckli, R., Vermote, E., Saleous, N., Simmon, R. y Herring, D. (2005). *The Blue Marble Next Generation: A true color earth dataset including seasonal dynamics from MODIS*. NASA Earth Observatory.
+- **Sombreado del relieve:** GIBS `ASTER_GDEM_Greyscale_Shaded_Relief`, derivado de NASA/METI/AIST/Japan Spacesystems y U.S./Japan ASTER Science Team (2019). *ASTER Global Digital Elevation Model V003*. NASA EOSDIS Land Processes DAAC. doi:10.5067/ASTER/ASTGTM.003. LP DAAC lo comparte «openly … without restriction».
+- **Hidrografía:** Natural Earth 1:10m v5.1.2 (ríos, ejes de lagos y lagos), dominio público. «Made with Natural Earth. Free vector and raster map data @ naturalearthdata.com.»
+- **Límite del departamento del Huila:** unión de los 37 municipios geoBoundaries/DANE (CC BY 4.0). No deriva del ADM1 de OpenStreetMap (ODbL 1.0).
+- **Búsqueda de lugares:** Nominatim, datos © OpenStreetMap contributors (ODbL 1.0). Se consultan bajo demanda y no se guardan.
+- **Vías e infraestructura (ADR 0014):** teselas de `tile.openstreetmap.org`, © OpenStreetMap contributors (ODbL 1.0), pintadas en grises. Se respeta la política de uso de teselas de la OSMF (<https://operations.osmfoundation.org/policies/tiles/>): crédito visible y sin precarga ni descarga masiva.
+- **Ciudades (ADR 0014):** áreas urbanas y centros poblados de Natural Earth 1:10m v5.1.2, dominio público.
+
 ## Cómo citar este proyecto
 
 Harmonized Heat Neiva (NASA Space Apps 2026, reto «Harmonization of MODIS and VIIRS Hot

@@ -74,3 +74,35 @@ def test_geojson_servido_por_la_interfaz():
     r = TestClient(create_app(RAIZ / "data" / "no-existe")).get("/ui/datos/huila_municipios.geojson")
     assert r.status_code == 200
     assert len(r.json()["features"]) == 37
+
+
+# ADR 0013: límite departamental como unión de los municipios DANE (no del ADM1 ODbL).
+def test_disolver_une_poligonos_con_aristas_compartidas():
+    h = _herramienta()
+    a = {"geometry": {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]}}
+    b = {"geometry": {"type": "Polygon", "coordinates": [[[1, 0], [2, 0], [2, 1], [1, 1], [1, 0]]]}}
+    union = h.disolver([a, b])
+    assert union["type"] == "Polygon" and len(union["coordinates"]) == 1
+    anillo = union["coordinates"][0]
+    assert anillo[0] == anillo[-1] and len(anillo) == 7  # 6 vértices + cierre
+    assert h._area(anillo) == pytest.approx(2)  # antihorario (RFC 7946)
+    # Un anillo de municipios alrededor de otro deja un hueco en la unión.
+    marco = {"geometry": {"type": "Polygon", "coordinates": [
+        [[0, 0], [3, 0], [3, 3], [0, 3], [0, 0]], [[1, 1], [1, 2], [2, 2], [2, 1], [1, 1]]]}}
+    con_hueco = h.disolver([marco])
+    assert len(con_hueco["coordinates"]) == 2 and h._area(con_hueco["coordinates"][1]) < 0
+
+
+def test_departamento_es_la_union_de_los_37_municipios():
+    h = _herramienta()
+    ruta = SALIDA.with_name("huila_departamento.geojson")
+    depto = json.loads(ruta.read_text(encoding="utf-8"))
+    (f,) = depto["features"]
+    assert f["properties"]["shapeName"] == "Huila"
+    meta = depto["metadatos"]
+    assert meta["licencia"] == "CC BY 4.0" and "DANE" in meta["fuente_original"]
+    assert "ODbL" in meta["metodo"] and "No deriva del ADM1" in meta["metodo"]
+    municipios = json.loads(SALIDA.read_text(encoding="utf-8"))["features"]
+    assert f["geometry"] == h.disolver(municipios)  # reproducible desde el archivo versionado
+    for m in municipios:
+        assert h.contiene(f["geometry"], h.punto_interior(m["geometry"])), m["properties"]["shapeName"]

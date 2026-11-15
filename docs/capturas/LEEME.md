@@ -53,3 +53,32 @@ Datos **reales** de NASA FIRMS, calidad estándar, 2025, **recuadro del Huila** 
 | `09_real_calendario_oscuro.jpg` | Oscuro: calendario 2025 con leyenda numérica («0 · 1–3 · 4–7 · 8–20 · 21+ focos por día»), días inusuales e incertidumbre bajo el mapa. |
 
 Pendiente: la vista de un día con la huella de cada foco sobre la rejilla nueva. No se pudo capturar en esta sesión porque el panel del navegador estaba en segundo plano y el lienzo del mapa no se repintaba al hacer zoom. Para tomarla: `make api-real`, elegir un día en el calendario (p. ej. el 15 sep 2024) y acercar el mapa. La captura `03_dia_seleccionado_huella.jpg` (demo sintética) muestra la misma idea con la versión anterior del mapa.
+
+## Visor de capas (ADR 0013, 2026-11-15)
+
+Carpeta `visor_capas_20261115/`, PNG generados por `tools/recorrido_capas.mjs`:
+
+```
+uv run python -m api --datos data/processed/demo_historica --puerto 8765
+node tools/prueba_navegador.mjs http://127.0.0.1:8765/ui/ docs/capturas/visor_capas_20261115 "C:/Program Files/Google/Chrome/Application/chrome.exe" capas
+```
+
+Los datos son **sintéticos** (muestra histórica). Requiere internet para las teselas de NASA GIBS.
+
+| archivo | qué muestra |
+|---|---|
+| `escritorio_claro.png` / `escritorio_oscuro.png` | 1440 × 900. Neiva buscada (búsqueda local) y resaltada, día con más focos del año, preajuste Mapa, panel de capas abierto, leyenda FRP y confianza, tarjeta de la zona. |
+| `movil_claro.png` / `movil_oscuro.png` | 390 px, página hasta el final del mapa: mapa con créditos plegados, leyenda, tarjeta de la zona y línea de tiempo. |
+| `movil_claro_capas.png` / `movil_oscuro_capas.png` | 390 px con el panel de capas abierto sobre el mapa. |
+| `umbral_zoom_7_9.png` | Zoom 7,9 (bajo el umbral): el clic cerca de Neiva resalta el departamento del Huila y atenúa el resto. |
+| `umbral_zoom_8.png` | Zoom 8 (umbral): resalta el municipio de Neiva, con el Huila como contexto. |
+
+### Vías, ciudades y zonas (ADR 0014)
+
+Mismo recorrido y carpeta.
+
+| archivo | qué muestra |
+|---|---|
+| `umbral_zoom_11.png` | Zoom 11: el foco elegido cerca de Neiva pasa a resaltar la ciudad (área urbana de Natural Earth), con su nombre sobre el mapa. |
+| `vias_municipio.png` | Preajuste «Vías»: base mínima de OpenStreetMap en grises con el municipio de Neiva completo, sus límites y su nombre. |
+| `vias_ciudad.png` | La ciudad de Neiva encuadrada con «Ver zona completa»: calles, barrios y aeropuerto en grises bajo el contorno de la zona. |

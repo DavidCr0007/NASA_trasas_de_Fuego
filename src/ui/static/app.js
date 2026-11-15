@@ -16,6 +16,7 @@ const CLAVE_TEMA = "hhn-tema";
 // area: "huila" o "mun:<id>" filtra por la forma real (R-40); null usa solo el recuadro bbox.
 // rango: {desde, hasta} opcional para el mapa y las descargas (H8-05).
 const estado = { bbox: AREAS.huila, area: "huila", anio: null, dia: null, calendario: null, rango: null, resumen: null };
+let capasEstado = null; // estado del panel de capas (capas.js); se aplica en globo.capas()
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -134,6 +135,7 @@ const globo = window.Globo.crear({
   alCargaBase: activa => cargaMapa("base", activa),
   alExplorar: (lon,lat,z) => mostrarRegional(lon,lat,z),
   alExploracion: () => { seguirViewport=true; },
+  alSeleccionarPunto: (lon, lat, zoom) => seleccionarZonaEn(lon, lat, zoom),
   alVolver: () => mostrarRegional(),
   alDatos: () => { if (vistaActual?.zoom >= 6 && seguirViewport) cargarVista(); },
   alVista: v => {
@@ -169,7 +171,7 @@ async function cargarVista() {
     const registros=[...new Map(partes.flatMap(p=>p.detecciones).map(d=>[d.record_id,d])).values()];
     const datos={...partes[0],detecciones:registros.slice(0,50000),truncado:partes.some(p=>p.truncado)||registros.length>50000};
     if(solicitud !== vistaSolicitud) return;
-    ultimosFocos=datos;globo.detalle(datos);
+    ultimosFocos=datos;globo.detalle(datos);fijarPeriodoMapa(desde,hasta);
     $("mapa-filtro").textContent = fmt(datos.detecciones.length)+' focos · '+fechaLegible(desde)+' → '+fechaLegible(hasta);
     $("aviso-truncado").hidden = !datos.truncado;
     $("aviso-truncado").textContent = datos.truncado ? "Consulta limitada a 50.000 focos. Acerque el mapa para consultar una zona menor." : "";
@@ -195,15 +197,194 @@ function actualizarAreaActual() {
   $("area-actual").hidden=sel.value!=="dibujo";
   $("area-actual").textContent=opcion?.dataset.nombreCompleto??"";
 }
-let municipios=[];
+let municipios=[], departamentos=[], ciudades=[], paisesMundo=[];
 function resaltarMunicipio(){dibujarArea();}
 async function cargarLimites(){
   try{
-    const geo=await pedir("/ui/datos/huila_municipios.geojson");municipios=geo.features??[];
+    const vacio=()=>({features:[]});
+    const [geo,depto,urbes,paises]=await Promise.all([pedir("/ui/datos/huila_municipios.geojson"),
+      pedir("/ui/datos/huila_departamento.geojson").catch(vacio),
+      pedir("/ui/datos/ciudades_colombia.geojson").catch(vacio),
+      pedir("/ui/datos/mundo_paises.geojson").catch(vacio)]);
+    municipios=geo.features??[]; departamentos=depto.features??[];
+    ciudades=urbes.features??[]; paisesMundo=paises.features??[];
+    globo.limitesLocales({municipios,departamentos});
     const grupo=document.createElement("optgroup");grupo.label="Municipios del Huila";
     for(const f of municipios){const o=document.createElement("option");o.value='mun:'+f.properties.shapeID;o.textContent=f.properties.shapeName;grupo.appendChild(o);}
     $("sel-area").appendChild(grupo);
   }catch{/* Las consultas por coordenadas siguen disponibles. */}
+}
+
+// ------------------------------------------------------------------ zona seleccionada (ADR 0013)
+// La pertenencia de un punto a una zona se calcula en el navegador (zonas.js) con los límites
+// locales del Huila y, fuera de él, con los ADM1/ADM2 ya descargados para la vista.
+const NIVELES_ZONA = { ciudad: "Ciudad (área urbana)", municipio: "Municipio", departamento: "Departamento" };
+let zonaSel = null, zonaGen = 0;
+let puntoSel = null; // punto del foco elegido: al cruzar un umbral de zoom se vuelve a calcular su zona
+const fuentesZonas = () => ({
+  departamentos: [...departamentos, ...globo.limites(1)],
+  municipios: [...municipios, ...globo.limites(2)],
+  ciudades,
+});
+
+/**
+ * Fuera del Huila y sin límites cargados para la vista (p. ej. desde el globo), busca el país
+ * del punto en los países locales y pide sus ADM1/ADM2 a /limites (geoBoundaries, con caché).
+ */
+async function fuentesRemotas(lon, lat) {
+  const pais = window.Zonas.zonaDe(lon, lat, paisesMundo);
+  if (!pais) return null;
+  const iso = pais.properties.iso_a3;
+  const [adm1, adm2] = await Promise.all([1, 2].map((n) => globo.limitesDe(iso, n).catch(() => null)));
+  return { departamentos: adm1?.features ?? [], municipios: adm2?.features ?? [], ciudades, pais: pais.properties.nombre };
+}
+
+/** Área de la API para una zona local (filtra por la forma real); null fuera del Huila. */
+function areaDeZona(sel) {
+  if (departamentos.includes(sel.zona)) return "huila";
+  if (municipios.includes(sel.zona)) return `mun:${sel.zona.properties.shapeID}`;
+  return null;
+}
+
+/** Periodo de los focos que el mapa muestra ahora; la tarjeta de la zona cuenta ese mismo periodo. */
+let periodoMapa = null;
+function periodoActual() {
+  if (periodoMapa) return periodoMapa;
+  const desde = estado.dia ?? estado.rango?.desde ?? (estado.anio ? `${estado.anio}-01-01` : null);
+  const hasta = estado.dia ?? estado.rango?.hasta ?? (estado.anio ? `${estado.anio}-12-31` : null);
+  return { desde, hasta };
+}
+function fijarPeriodoMapa(desde, hasta) {
+  const cambio = periodoMapa?.desde !== desde || periodoMapa?.hasta !== hasta;
+  periodoMapa = { desde, hasta };
+  if (zonaSel && (cambio || !areaDeZona(zonaSel))) mostrarZona(zonaSel);
+}
+
+async function seleccionarZonaEn(lon, lat, zoom) {
+  puntoSel = { lon, lat, nivel: window.Zonas.nivelResaltado(zoom) };
+  const gen = ++zonaGen;
+  let sel = window.Zonas.zonaSeleccionada(lon, lat, zoom, fuentesZonas());
+  // Completa: el nivel pedido existe y, si es municipio o ciudad, también su contexto. Si no
+  // (p. ej. fuera del Huila sin ADM2 cargado para la vista), se piden los límites del país.
+  const completa = (s) => s && (puntoSel.nivel === "departamento" || (s.nivel !== "departamento" && s.contexto));
+  if (!completa(sel)) {
+    if (!sel) mostrarSinZona("Buscando los límites de esta zona…");
+    const remotas = await fuentesRemotas(lon, lat).catch(() => null);
+    if (gen !== zonaGen) return;
+    sel = (remotas && window.Zonas.zonaSeleccionada(lon, lat, zoom, remotas)) ?? sel;
+  }
+  if (sel) { mostrarZona(sel); return; }
+  mostrarSinZona(navigator.onLine === false ? "Sin conexión: fuera del Huila los límites se descargan de geoBoundaries."
+    : "No hay límites administrativos publicados para este punto (mar o territorio sin datos).");
+}
+
+function mostrarSinZona(nota) {
+  globo.resaltar(null); zonaSel = null;
+  $("tarjeta-zona").hidden = false;
+  $("zona-nivel").textContent = "Sin zona";
+  $("zona-titulo").textContent = "Fuera de los límites cargados";
+  for (const id of ["zona-focos", "zona-alta", "zona-origen", "zona-fecha"]) $(id).textContent = "—";
+  $("zona-nota").textContent = nota;
+  $("zona-analizar").hidden = $("zona-encuadrar").hidden = true;
+}
+
+/** Al acercarse o alejarse con un foco elegido, la zona pasa de departamento a municipio y a ciudad. */
+function reevaluarZonaPorZoom() {
+  if (!puntoSel || !zonaSel) return;
+  const nivel = window.Zonas.nivelResaltado(mapa.getZoom());
+  if (nivel !== puntoSel.nivel) seleccionarZonaEn(puntoSel.lon, puntoSel.lat, mapa.getZoom());
+}
+
+/** Resalta la zona, atenúa el resto y llena la tarjeta con sus cifras del periodo. */
+async function mostrarZona(sel, { encuadrar = false } = {}) {
+  const gen = ++zonaGen;
+  zonaSel = sel;
+  globo.resaltar(sel);
+  if (encuadrar) globo.enfocar(sel.zona.properties?.bbox ?? window.Zonas.cajaDe(sel.zona.geometry));
+  const nombre = sel.zona.properties?.shapeName ?? "Zona";
+  const contexto = sel.contexto?.properties?.shapeName;
+  $("tarjeta-zona").hidden = false;
+  $("zona-nivel").textContent = NIVELES_ZONA[sel.nivel] + (contexto && contexto !== nombre ? ` · ${contexto}` : "");
+  $("zona-titulo").textContent = nombre;
+  $("zona-analizar").hidden = $("zona-encuadrar").hidden = false;
+  const { desde, hasta } = periodoActual();
+  $("zona-fecha").textContent = !desde ? "—" : desde === hasta ? `${fechaLegible(desde)} (UTC)` : `${fechaLegible(desde)} → ${fechaLegible(hasta)} (UTC)`;
+  $("zona-focos").textContent = $("zona-alta").textContent = "…";
+  const area = areaDeZona(sel);
+  let n, alta, origen, nota;
+  try {
+    if (area && desde) {
+      const c = await pedir(`/calendario?area=${encodeURIComponent(area)}&desde=${desde}&hasta=${hasta}`);
+      n = (c.dias ?? []).reduce((s, d) => s + (d.n_detecciones ?? 0), 0);
+      alta = c.incertidumbre?.clases_confianza?.alta ?? null;
+      origen = c.origen_datos;
+      nota = "Zona completa, todos los satélites, sin duplicados (servidor).";
+    } else {
+      ({ n, alta } = window.Zonas.contarEn(sel.zona.geometry, globo.deteccionesVisibles()));
+      origen = ultimosFocos?.origen_datos;
+      nota = "Contado en el navegador con los focos cargados y visibles en el mapa; puede estar incompleto.";
+    }
+  } catch (err) {
+    if (gen !== zonaGen) return;
+    $("zona-focos").textContent = $("zona-alta").textContent = "—";
+    $("zona-nota").textContent = `No se pudieron contar los focos: ${mensajeDe(err)}`;
+    return;
+  }
+  if (gen !== zonaGen) return;
+  $("zona-focos").textContent = fmt(n);
+  $("zona-alta").textContent = fmt(alta);
+  $("zona-origen").textContent = origen === "sintetico" ? "Sintético (demostración)" : origen === "real" ? "Real · NASA FIRMS"
+    : origen === "mixto" ? "Mixto: real y sintético" : "Sin indicar";
+  $("zona-origen").className = origen === "real" ? "" : "zona-alerta";
+  $("zona-nota").textContent = nota;
+}
+
+/** «Ver zona completa»: encuadra el polígono entero para ver sus vías, límites y nombre. */
+function encuadrarZona() {
+  if (!zonaSel) return;
+  seguirViewport = true;
+  globo.enfocar(zonaSel.zona.properties?.bbox ?? window.Zonas.cajaDe(zonaSel.zona.geometry));
+}
+
+function quitarZona() {
+  zonaGen++; zonaSel = null; puntoSel = null;
+  globo.resaltar(null);
+  $("tarjeta-zona").hidden = true;
+}
+
+function analizarZona() {
+  if (!zonaSel) return;
+  const area = areaDeZona(zonaSel);
+  seguirViewport = false;
+  estado.bbox = zonaSel.zona.properties?.bbox ?? window.Zonas.cajaDe(zonaSel.zona.geometry);
+  estado.area = area; estado.dia = null;
+  const sel = $("sel-area");
+  if (area === "huila" || (area && [...sel.options].some((o) => o.value === area))) sel.value = area;
+  else {
+    const opcion = sel.querySelector('option[value="dibujo"]');
+    opcion.disabled = false; opcion.textContent = `${zonaSel.zona.properties?.shapeName ?? "Zona"} (recuadro)`;
+    sel.value = "dibujo";
+  }
+  actualizarAreaActual();
+  cargar();
+}
+
+// ------------------------------------------------------------------ línea de tiempo (día del mapa)
+function pintarLineaTiempo() {
+  const c = estado.calendario, entrada = $("dia-mapa");
+  const desde = c?.desde ?? (estado.anio ? `${estado.anio}-01-01` : ""), hasta = c?.hasta ?? (estado.anio ? `${estado.anio}-12-31` : "");
+  entrada.min = desde; entrada.max = hasta; entrada.value = estado.dia ?? "";
+  $("dia-todos").setAttribute("aria-pressed", String(!estado.dia));
+  $("dia-anterior").disabled = Boolean(estado.dia && estado.dia <= desde);
+  $("dia-siguiente").disabled = Boolean(estado.dia && estado.dia >= hasta);
+  $("linea-estado").textContent = estado.dia ? `${fechaLegible(estado.dia)} · UTC` : estado.anio ? `${estado.anio} completo · UTC` : "Fechas en UTC";
+}
+function moverDia(paso) {
+  const c = estado.calendario;
+  const desde = c?.desde ?? `${estado.anio}-01-01`, hasta = c?.hasta ?? `${estado.anio}-12-31`;
+  const dia = estado.dia ? sumarDias(estado.dia, paso) : paso < 0 ? hasta : desde;
+  if (dia < desde || dia > hasta) return;
+  seleccionarDia(dia);
 }
 
 // ------------------------------------------------------------------ imagen del día (H7-02)
@@ -211,11 +392,13 @@ async function cargarLimites(){
 // que el filtro del tema oscuro no invierta la imagen. Requiere red; es opcional.
 const CAPAS_GIBS = {modis:"MODIS_Terra_CorrectedReflectance_TrueColor",viirs:"VIIRS_NOAA20_CorrectedReflectance_TrueColor"};
 
+// La imagen del día es una variante de la base Satelital: solo se dibuja con esa base activa.
 function actualizarImagen() {
   const sel=$("sel-imagen"),nota=$("imagen-nota");sel.disabled=!estado.dia;
-  const capa=CAPAS_GIBS[sel.value];
-  globo.imagen(estado.dia && capa ? 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/'+capa+'/default/'+estado.dia+'/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg' : null);
-  nota.textContent=estado.dia ? "Imagen opcional del día seleccionado (NASA GIBS)." : "Elija un día en el calendario para ver la imagen de ese día.";
+  const capa=CAPAS_GIBS[sel.value], satelital=!capasEstado || capasEstado.base==="satelital";
+  globo.imagen(estado.dia && capa && satelital ? 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/'+capa+'/default/'+estado.dia+'/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg' : null);
+  nota.textContent=!estado.dia ? "Elija un día en la línea de tiempo para ver la imagen de ese día."
+    : satelital ? "Imagen opcional del día seleccionado (NASA GIBS)." : "Active la base Satelital para ver la imagen del día.";
 }
 
 // ------------------------------------------------------------------ conexión NASA FIRMS
@@ -272,6 +455,8 @@ async function pintarMeteo() {
     }).join("");
     const vals = (k) => d[k].filter((v) => v != null);
     const lluvia = vals("precipitation_sum").reduce((a, b) => a + b, 0);
+    $("capa-clima-texto").textContent = `Clima ${titulo}: máx. ${fmt(Math.max(...vals("temperature_2m_max")), 1)} °C, ` +
+      `humedad mín. ${fmt(Math.min(...vals("relative_humidity_2m_min")))} %, lluvia ${fmt(lluvia, 1)} mm.`;
     caja.innerHTML =
       `<p><strong>Clima ${esc(titulo)}</strong>: máx. ${fmt(Math.max(...vals("temperature_2m_max")), 1)} °C, ` +
       `humedad mín. ${fmt(Math.min(...vals("relative_humidity_2m_min")))} %, lluvia total ${fmt(lluvia, 1)} mm.</p>` +
@@ -281,6 +466,7 @@ async function pintarMeteo() {
       `<p class="tenue">Punto central del área (${esc(fmt(Number(lat), 2))}; ${esc(fmt(Number(lon), 2))}). Calor, humedad baja y ausencia de lluvia favorecen las quemas, pero no las causan.</p>`;
   } catch {
     if (gen !== meteoGen) return;
+    $("capa-clima-texto").textContent = "No se pudo consultar el clima (requiere internet).";
     caja.innerHTML = `<p class="tenue">No se pudo consultar el clima (requiere internet o la fecha aún no está en el archivo, que tiene unos días de retraso). El resto de la herramienta funciona sin él.</p>`;
   }
 }
@@ -319,24 +505,22 @@ function popupFoco(d) {
 
 
 
-/** Leyenda flotante del mapa regional, con los mismos cortes y formas que se pintan. */
-function pintarLeyendaMapa(modo, r) {
+/** Leyenda mínima (abajo a la izquierda): escala FRP y clases de confianza, fijas en todas las vistas. */
+function pintarLeyendaMapa() {
   const caja = $("leyenda-mapa");
   if (!caja) return;
-  {
-    const tramos = ["&lt; 5", "5–20", "20–100", "100–500", "≥ 500"];
-    caja.innerHTML = `<strong>${modo === "focos" ? "Potencia del foco" : "Potencia máxima del grupo"} · FRP (MW)</strong><span class="fila-leyenda">${tramos.map((t, k) =>
-      `<span><i class="esc-frp f${k + 1}" style="width:${6 + k * 2.5}px;height:${6 + k * 2.5}px"></i>${t}</span>`).join("")}</span>` +
-      `<span class="fila-leyenda"><span><i class="forma circulo"></i>MODIS y VIIRS</span>` +
-      `<span>La ficha identifica los datos preliminares.</span></span>` +
-      `<span class="tenue">${modo === "focos" ? "Tamaño = potencia · transparencia = confianza." : `Tamaño = cantidad · agrupación de ~${fmt(r.km)} km.`}</span>` +
-      `<a href="#guia-termica">Guía de colores y sensores</a>`;
-    return;
-  }
+  const tramos = ["&lt; 5", "5–20", "20–100", "100–500", "≥ 500"];
+  // Confianza: opacidad y grosor de borde (los mismos valores que pinta globo.js); no depende del color.
+  const conf = [["alta", 0.95, 2], ["nominal", 0.8, 1], ["baja", 0.5, 0.5]];
+  caja.innerHTML = `<strong>Potencia · FRP (MW)</strong><div class="escala-frp">${tramos.map((t, k) =>
+    `<span><i class="esc-frp f${k + 1}"></i>${t}</span>`).join("")}</div>` +
+    `<strong>Confianza</strong><div class="fila-leyenda">${conf.map(([t, o, b]) =>
+      `<span><i class="muestra-confianza" style="opacity:${o};border-width:${b + 0.5}px"></i>${t}</span>`).join("")}</div>` +
+    `<a href="#guia-termica">Guía de colores y sensores</a>`;
 }
 
 function pintarFocos(datos){
-  ultimosFocos=datos;globo.detalle(datos);pintarLeyendaMapa("focos");
+  ultimosFocos=datos;globo.detalle(datos);
   if(mapa.getZoom()>=6) $("mapa-filtro").textContent=
     (datos.origen_datos==="sintetico" ? "Muestra sintética · " : datos.origen_datos==="mixto" ? "Datos reales y sintéticos · " : "")+
     fmt(datos.detecciones?.length??0)+' focos '+(estado.dia ? 'el '+fechaPrecisa(estado.dia) : 'en la consulta del análisis');
@@ -518,6 +702,12 @@ function pintarCabecera(c) {
   o.textContent = texto;
   o.title = ayuda;
   $("resumen-origen").hidden = c.origen_datos !== "sintetico";
+  // Advertencia visible en el pie cuando hay datos sintéticos (también en datos mixtos).
+  const pie = $("pie-sintetico");
+  pie.hidden = c.origen_datos !== "sintetico" && c.origen_datos !== "mixto";
+  pie.textContent = c.origen_datos === "sintetico"
+    ? "Advertencia: DATOS SINTÉTICOS de demostración. No describen incendios reales."
+    : c.origen_datos === "mixto" ? "Advertencia: los datos mezclan detecciones reales con datos sintéticos de demostración." : "";
   $("insignia-version").textContent = c.rules_version ?? "";
   $("cita").textContent = c.cita;
   $("aviso").textContent = c.aviso;
@@ -1008,6 +1198,7 @@ async function cargarFocos() {
     if (!h.vigente()) return false;
     if (seguirViewport && gestoAlPedir!==gestoMapa) return true;
     pintarFocos(datos);
+    fijarPeriodoMapa(desde, hasta);
     return true;
   } catch (err) {
     if (esAborto(err) || !h.vigente()) return false;
@@ -1023,6 +1214,7 @@ async function seleccionarDia(dia) {
   actualizarDescargas();
   actualizarImagen();
   pintarMeteo();
+  pintarLineaTiempo();
   celdas.forEach((r, k) => {
     const es = r.dataset.dia === dia;
     r.classList.toggle("sel", es);
@@ -1079,6 +1271,7 @@ async function cargar(opciones = {}) {
     $("resumen-anio").textContent = estado.anio;
     actualizarDescargas();
     pintarCabecera(c); pintarBase(c); pintarClima(c); pintarComparacion(c); pintarPeriodos(c); pintarIncertidumbre(c); pintarCalendario(c);
+    pintarLineaTiempo();
     $("panel-analisis").removeAttribute("aria-busy");
     cargarResumen();
     if (!hayDatos(c)) {
@@ -1131,17 +1324,72 @@ $("btn-dibujar").addEventListener("click", activarDibujo);
 $("btn-globo").addEventListener("click", () => (vista === "globo" ? mostrarRegional() : mostrarGlobo()));
 $("btn-reintentar").addEventListener("click", () => { if (reintento) reintento(); });
 iniciarTema();
-window.iniciarBusquedaLugares({ explorar: lugar => {
-  seguirViewport=true;
-  globo.localizar(lugar, seleccionado => {
-    seguirViewport=false;
-    estado.bbox=seleccionado.bbox; estado.area=null; estado.dia=null;
-    const opcion=$("sel-area").querySelector('option[value="dibujo"]');
-    opcion.disabled=false; opcion.textContent=seleccionado.nombre+" (recuadro)";
-    opcion.dataset.nombreCompleto=seleccionado.descripcion+" · recuadro aproximado";
-    $("sel-area").value="dibujo";actualizarAreaActual();cargar();
+pintarLeyendaMapa();
+
+// ------------------------------------------------------------------ panel de capas (ADR 0013)
+const capasCtrl = window.Capas.iniciar({
+  contenedor: $("panel-capas-cuerpo"), resumenEl: $("capas-resumen"),
+  alCambiar: (e) => {
+    const baseAntes = capasEstado?.base;
+    capasEstado = e;
+    globo.capas(e);
+    $("capa-clima").hidden = !e.capas.clima.on;
+    if (baseAntes !== e.base) actualizarImagen();
+  },
+});
+capasCtrl.ranura("imagen")?.appendChild($("control-imagen"));
+(function iniciarPanelCapas() {
+  const boton = $("btn-capas"), panel = $("panel-capas");
+  const fijar = (abierto) => { boton.setAttribute("aria-expanded", String(abierto)); panel.hidden = !abierto; };
+  // Abierto en escritorio; en pantallas estrechas el mapa tiene prioridad.
+  fijar(!window.matchMedia("(max-width: 700px)").matches);
+  boton.addEventListener("click", () => fijar(panel.hidden));
+  panel.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") { ev.stopPropagation(); fijar(false); boton.focus(); }
   });
-} });
+})();
+
+// ------------------------------------------------------------------ búsqueda: local primero
+window.iniciarBusquedaLugares({
+  buscarLocal: (q) => window.Zonas.buscarLocal(q, { municipios, departamentos }),
+  elegirLocal: (r) => {
+    seguirViewport = true; puntoSel = null; // zona buscada: no cambia de nivel con el zoom
+    const sel = r.nivel === "municipio"
+      ? { nivel: "municipio", zona: r.feature, contexto: departamentos[0] ?? null }
+      : { nivel: "departamento", zona: r.feature, contexto: null };
+    mostrarZona(sel, { encuadrar: true });
+  },
+  explorar: lugar => {
+    seguirViewport=true;
+    globo.localizar(lugar, seleccionado => {
+      seguirViewport=false;
+      estado.bbox=seleccionado.bbox; estado.area=null; estado.dia=null;
+      const opcion=$("sel-area").querySelector('option[value="dibujo"]');
+      opcion.disabled=false; opcion.textContent=seleccionado.nombre+" (recuadro)";
+      opcion.dataset.nombreCompleto=seleccionado.descripcion+" · recuadro aproximado";
+      $("sel-area").value="dibujo";actualizarAreaActual();cargar();
+    });
+    // Nominatim devuelve el polígono de municipios y departamentos: se resalta igual que uno local.
+    if (lugar.geometria) {
+      puntoSel = null;
+      const nivel = /municipio|ciudad|localidad/i.test(lugar.tipo) ? "municipio" : "departamento";
+      mostrarZona({ nivel, zona: { type: "Feature", properties: { shapeName: lugar.nombre, bbox: lugar.bbox }, geometry: lugar.geometria }, contexto: null });
+    }
+  },
+});
+$("zona-cerrar").addEventListener("click", quitarZona);
+$("zona-encuadrar").addEventListener("click", encuadrarZona);
+mapa.on("zoomend", reevaluarZonaPorZoom);
+$("zona-analizar").addEventListener("click", analizarZona);
+$("dia-anterior").addEventListener("click", () => moverDia(-1));
+$("dia-siguiente").addEventListener("click", () => moverDia(1));
+$("dia-todos").addEventListener("click", () => { if (estado.dia) seleccionarDia(null); });
+$("dia-mapa").addEventListener("change", (ev) => {
+  const v = ev.target.value;
+  if (!v) { if (estado.dia) seleccionarDia(null); return; }
+  if ((ev.target.min && v < ev.target.min) || (ev.target.max && v > ev.target.max)) { pintarLineaTiempo(); return; }
+  seleccionarDia(v);
+});
 document.addEventListener("click", (ev) => {
   if (ev.target.closest('a[href="#guia-termica"]')) $("guia-termica").open = true;
   if (!ev.target.closest(".controles-secundarios")) document.querySelector(".controles-secundarios").open = false;

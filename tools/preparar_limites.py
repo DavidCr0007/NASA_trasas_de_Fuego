@@ -8,6 +8,12 @@ descargada el 2026-11-14 en ``data/raw/geoboundaries/20261114/``:
 
 Salida: ``src/ui/static/datos/huila_municipios.geojson`` (versionada, para la demo sin red).
 
+ADR 0013: también escribe ``huila_departamento.geojson``, el límite del departamento como
+UNIÓN de los 37 municipios DANE (CC BY 4.0). El ADM1 de geoBoundaries para COL existe
+(33 unidades, OpenStreetMap 2017) pero su licencia es ODbL 1.0, con obligación de compartir
+igual las bases derivadas; por eso no se redistribuye. Sin el crudo, se reutiliza el
+GeoJSON de municipios ya versionado.
+
 Uso: ``uv run python -I tools/preparar_limites.py [carpeta_crudo]``
 """
 
@@ -21,6 +27,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 CRUDO = RAIZ / "data" / "raw" / "geoboundaries" / "20261114"
 SALIDA = RAIZ / "src" / "ui" / "static" / "datos" / "huila_municipios.geojson"
+SALIDA_DEPARTAMENTO = SALIDA.with_name("huila_departamento.geojson")
 DEPARTAMENTO = "Huila"
 
 
@@ -136,10 +143,95 @@ def preparar(crudo: Path = CRUDO, salida: Path = SALIDA) -> int:
     return len(municipios)
 
 
+def _area(anillo) -> float:
+    return sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(anillo, anillo[1:])) / 2
+
+
+def disolver(features: list[dict]) -> dict:
+    """Contorno de la unión de polígonos que comparten aristas idénticas (sin shapely).
+
+    geoBoundaries simplifica con topología compartida y el redondeo a 4 decimales es igual
+    en ambos lados, así que una arista interior aparece exactamente dos veces y se descarta;
+    las que aparecen una vez forman el contorno. Falla si la topología no es limpia.
+    """
+    cuenta: dict[tuple, int] = {}
+    dirigidas: list[tuple] = []
+    for f in features:
+        for poligono in _anillos(f["geometry"]):
+            for anillo in poligono:
+                for a, b in zip(anillo, anillo[1:]):
+                    a, b = tuple(a), tuple(b)
+                    if a == b:
+                        continue
+                    clave = (a, b) if a < b else (b, a)
+                    cuenta[clave] = cuenta.get(clave, 0) + 1
+                    dirigidas.append((a, b))
+    siguiente: dict[tuple, tuple] = {}
+    for a, b in dirigidas:
+        if cuenta[(a, b) if a < b else (b, a)] == 1:
+            if a in siguiente:
+                raise ValueError(f"topología no limpia en {a}: el contorno se bifurca")
+            siguiente[a] = b
+    anillos = []
+    while siguiente:
+        inicio, actual = next(iter(siguiente.items()))
+        del siguiente[inicio]
+        anillo = [list(inicio), list(actual)]
+        while actual != inicio:
+            if actual not in siguiente:
+                raise ValueError(f"topología no limpia en {actual}: el contorno no cierra")
+            actual = siguiente.pop(actual)
+            anillo.append(list(actual))
+        anillos.append(anillo)
+    # Exteriores: los que no están dentro de otro anillo; huecos: los contenidos.
+    exteriores = [a for a in anillos if not any(o is not a and _en_anillo(o, *a[0]) for o in anillos)]
+    poligonos = []
+    for ext in sorted(exteriores, key=lambda a: -abs(_area(a))):
+        if _area(ext) < 0:
+            ext = ext[::-1]  # RFC 7946: exterior en sentido antihorario
+        huecos = [h if _area(h) < 0 else h[::-1] for h in anillos
+                  if h not in exteriores and _en_anillo(ext, *h[0])]
+        poligonos.append([ext, *huecos])
+    if len(poligonos) == 1:
+        return {"type": "Polygon", "coordinates": poligonos[0]}
+    return {"type": "MultiPolygon", "coordinates": poligonos}
+
+
+def preparar_departamento(municipios: Path = SALIDA, salida: Path = SALIDA_DEPARTAMENTO) -> dict:
+    """Límite del Huila como unión de sus 37 municipios (DANE, CC BY 4.0), no del ADM1 (ODbL)."""
+    geo = json.loads(municipios.read_text(encoding="utf-8"))
+    geom = disolver(geo["features"])
+    meta = geo["metadatos"]
+    salida_geo = {
+        "type": "FeatureCollection",
+        "metadatos": {
+            "fuente": meta["fuente"],
+            "fuente_original": meta["fuente_original"],
+            "licencia": meta["licencia"],
+            "cita": meta["cita"],
+            "metodo": f"Unión de los {len(geo['features'])} municipios de huila_municipios.geojson "
+                      "(se descartan las aristas compartidas). No deriva del ADM1 de geoBoundaries "
+                      "(OpenStreetMap, ODbL 1.0, verificado el 2026-11-15 en la API de geoBoundaries).",
+            "sha256_municipios": hashlib.sha256(municipios.read_bytes()).hexdigest(),
+        },
+        "features": [{"type": "Feature",
+                      "properties": {"shapeName": DEPARTAMENTO, "shapeID": "huila", "bbox": _bbox(geom)},
+                      "geometry": geom}],
+    }
+    salida.write_text(json.dumps(salida_geo, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+    return salida_geo
+
+
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
-    n = preparar(Path(args[0]) if args else CRUDO)
-    print(f"{n} municipios del {DEPARTAMENTO} en {SALIDA}")
+    crudo = Path(args[0]) if args else CRUDO
+    if (crudo / "geoBoundaries-COL-ADM2_simplified.geojson").exists():
+        n = preparar(crudo)
+        print(f"{n} municipios del {DEPARTAMENTO} en {SALIDA}")
+    else:
+        print(f"Sin crudo en {crudo}: se reutiliza {SALIDA.name} ya versionado.")
+    preparar_departamento()
+    print(f"Límite departamental (unión de municipios) en {SALIDA_DEPARTAMENTO}")
     return 0
 
 

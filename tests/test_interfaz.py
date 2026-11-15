@@ -87,7 +87,9 @@ def test_css_sin_recursos_remotos():
 
 @pytest.mark.parametrize(
     "ruta",
-    ["", "vendor/leaflet/leaflet.js", "vendor/leaflet/leaflet.css", "app.js", "styles.css"],
+    ["", "vendor/leaflet/leaflet.js", "vendor/leaflet/leaflet.css", "app.js", "styles.css",
+     "zonas.js", "capas.js", "datos/huila_departamento.geojson", "datos/hidrografia_colombia.geojson",
+     "datos/ciudades_colombia.geojson"],
 )
 def test_recursos_locales_responden(cliente, ruta):
     r = cliente.get(f"/ui/{ruta}")
@@ -405,3 +407,342 @@ def test_rampa_monotona_y_distinguible_con_daltonismo(tema, vision):
     # Monótona (todos los pasos en el mismo sentido) y cada paso a ≥ 5 unidades de L*.
     assert all(d > 0 for d in difs) or all(d < 0 for d in difs), (tema, vision, [round(x, 1) for x in ls])
     assert min(abs(d) for d in difs) >= 5, (tema, vision, [round(x, 1) for x in ls])
+
+
+# ================================================= ADR 0013: visor de capas
+# Las funciones puras de zonas.js y capas.js se ejecutan con node (sin navegador ni red);
+# el comportamiento en el mapa real lo recorre tools/recorrido_capas.mjs.
+import json  # noqa: E402
+
+CAPAS_JS = (ESTATICOS / "capas.js").read_text(encoding="utf-8")
+ZONAS_JS = (ESTATICOS / "zonas.js").read_text(encoding="utf-8")
+GLOBO_JS = (ESTATICOS / "globo.js").read_text(encoding="utf-8")
+BUSQUEDA_JS = (ESTATICOS / "busqueda.js").read_text(encoding="utf-8")
+DATOS = ESTATICOS / "datos"
+NEIVA = (-75.2819, 2.9273)
+
+
+def _node(cuerpo: str):
+    """Ejecuta `cuerpo` en node con Zonas, Capas y los límites locales; devuelve su JSON."""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node no está instalado")
+    preambulo = (
+        "const fs = require('fs');"
+        f"const Zonas = require({json.dumps(str(ESTATICOS / 'zonas.js'))});"
+        f"const Capas = require({json.dumps(str(ESTATICOS / 'capas.js'))});"
+        f"const municipios = JSON.parse(fs.readFileSync({json.dumps(str(DATOS / 'huila_municipios.geojson'))}, 'utf8')).features;"
+        f"const departamentos = JSON.parse(fs.readFileSync({json.dumps(str(DATOS / 'huila_departamento.geojson'))}, 'utf8')).features;"
+        f"const ciudades = JSON.parse(fs.readFileSync({json.dumps(str(DATOS / 'ciudades_colombia.geojson'))}, 'utf8')).features;"
+    )
+    r = subprocess.run([node, "-e", preambulo + f"console.log(JSON.stringify((() => {{ {cuerpo} }})()));"],
+                       capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout)
+
+
+# ---------------------------------------------------------- capas por defecto
+def test_capas_por_defecto():
+    d = _node("return { def: Capas.POR_DEFECTO, preajuste: Capas.preajusteActivo(Capas.POR_DEFECTO),"
+              " catalogo: Capas.CATALOGO.map(c => [c.grupo, c.id]), resumen: Capas.resumen(Capas.POR_DEFECTO) };")
+    k = d["def"]["capas"]
+    assert d["def"]["base"] == "relieve" and d["preajuste"] == "mapa"
+    assert k["sombra"] == {"on": True, "opacidad": 0.45, "mezcla": "multiplicar"}
+    assert k["rios"]["on"] and k["rios"]["mezcla"] == "normal"
+    assert all(k[s]["on"] for s in ("modis", "noaa20", "noaa21", "snpp", "armonizados", "limites"))
+    assert k["clima"]["on"] is False
+    grupos = {}
+    for g, i in d["catalogo"]:
+        grupos.setdefault(g, []).append(i)
+    assert grupos["base"] == ["relieve", "satelital", "hidrografia", "vias", "ninguna"]
+    assert grupos["focos"] == ["modis", "noaa20", "noaa21", "snpp", "armonizados"]
+    assert grupos["contexto"] == ["limites", "clima"]
+    assert "Relieve" in d["resumen"] and "Límites" in d["resumen"]
+
+
+def test_estado_guardado_se_valida_y_los_preajustes_cambian_la_base():
+    d = _node(
+        "const malo = Capas.normalizar({version: 1, base: 'lava', capas: {rios: {on: false, opacidad: 7, mezcla: 'multiplicar'},"
+        " sombra: {mezcla: 'trama'}}});"
+        "const viejo = Capas.normalizar({version: 0, base: 'satelital'});"
+        "const p = Object.fromEntries(['mapa','fuego','agua','vias'].map(id => [id, Capas.aplicarPreajuste(Capas.POR_DEFECTO, id)]));"
+        "return { malo, viejo, p, activo: Capas.preajusteActivo(p.agua) };")
+    assert d["malo"]["base"] == "relieve"
+    assert d["malo"]["capas"]["rios"] == {"on": False, "opacidad": 1, "mezcla": "normal"}  # mezcla no admitida
+    assert d["malo"]["capas"]["sombra"]["mezcla"] == "trama"
+    assert d["viejo"]["base"] == "relieve"  # otra versión: valores por defecto
+    assert d["p"]["fuego"]["base"] == "satelital" and d["p"]["fuego"]["capas"]["sombra"]["mezcla"] == "multiplicar"
+    assert d["p"]["agua"]["base"] == "hidrografia" and d["p"]["agua"]["capas"]["rios"]["on"]
+    assert d["activo"] == "agua"
+    # Preajuste mínimo (ADR 0014): vías en grises, sin sombreado ni ríos.
+    vias = d["p"]["vias"]
+    assert vias["base"] == "vias" and not vias["capas"]["sombra"]["on"] and not vias["capas"]["rios"]["on"]
+    assert vias["capas"]["limites"]["on"] and vias["capas"]["modis"]["opacidad"] == 1
+
+
+def test_capas_en_localstorage_con_try_catch_y_sin_servidor():
+    assert '"hhn-capas"' in CAPAS_JS
+    usos = list(re.finditer(r"localStorage\.(getItem|setItem)", CAPAS_JS))
+    assert len(usos) == 2
+    for m in usos:
+        linea = CAPAS_JS[CAPAS_JS.rfind("\n", 0, m.start()): m.start()]
+        assert re.search(r"\btry\s*\{", linea), "localStorage fuera de try"
+    assert len(re.findall(r"catch\s*\{", CAPAS_JS)) >= 2
+    assert "fetch(" not in CAPAS_JS and "XMLHttpRequest" not in CAPAS_JS
+
+
+def test_panel_de_capas_accesible_por_teclado():
+    assert re.search(r'<button id="btn-capas"[^>]*aria-expanded="true"[^>]*aria-controls="panel-capas"', HTML)
+    assert 'id="panel-capas"' in HTML and 'aria-label="Capas del mapa"' in HTML
+    # Grupos y ajustes colapsables con aria-expanded/aria-controls; cada capa con nombre visible.
+    assert 'class="grupo-alternar" aria-expanded="true" aria-controls="grupo-' in CAPAS_JS
+    assert 'class="capa-ajustar" aria-expanded="false" aria-controls="ajustes-' in CAPAS_JS
+    assert 'aria-label="Opacidad y mezcla de' in CAPAS_JS
+    assert 'type="radio" name="capa-base"' in CAPAS_JS  # una sola base activa
+    assert re.search(r'if \(ev\.key === "Escape"\)[^\n]*boton\.focus\(\)', JS)
+    assert re.search(r":focus-visible[^{]*\{[^}]*outline: 3px solid var\(--foco\)", CSS)
+
+
+def test_mezcla_real_solo_donde_el_motor_la_admite():
+    # Sombreado: multiplicar = negro con alfa 1 − g; trama = blanco con alfa g (globo.js).
+    assert 'mezclas: ["multiplicar", "normal", "trama"]' in CAPAS_JS
+    assert "multiplicar ? 1 - g : g" in GLOBO_JS
+    assert 'maplibregl.addProtocol("sombra"' in GLOBO_JS
+    # Las demás capas muestran el selector desactivado con una explicación.
+    assert "Este motor dibuja esta capa solo en modo normal" in CAPAS_JS
+
+
+# ------------------------------------------------------ límites siempre visibles
+def test_limites_siempre_visibles_sobre_cualquier_base():
+    ids = [a or b for a, b in re.findall(r'\{ id: "([\w-]+)"|id: `(limites-adm)\$', GLOBO_JS)]
+    for base in ("fondo", "satelital", "sombra", "lagos", "rios", "zona-mascara"):
+        assert ids.index(base) < ids.index("limites-municipio"), base
+    assert ids.index("limites-departamento") < ids.index("detalle-focos") < ids.index("area-seleccion")
+    # Sin minzoom: las líneas no dependen del zoom; solo las etiquetas (zonas.etiquetasVisibles).
+    for capa in ("limites-municipio", "limites-departamento"):
+        definicion = re.search(r'\{ id: "%s".*?\} \},' % capa, GLOBO_JS, flags=re.S).group(0)
+        assert "zoom" not in definicion, capa
+    # Su visibilidad depende solo de la casilla «Límites», nunca de la base.
+    assert 'visible("limites-municipio", k.limites.on)' in GLOBO_JS
+    assert 'visible("limites-departamento", k.limites.on)' in GLOBO_JS
+    assert not re.search(r'visible\(\s*"limites-[\w-]+",[^)]*base', GLOBO_JS)
+    assert "/ui/datos/huila_departamento.geojson" in JS and "globo.limitesLocales(" in JS
+
+
+def test_etiquetas_cambian_con_el_zoom():
+    d = _node("return [4, 6, Zonas.UMBRAL_ZOOM_MUNICIPIO - 0.01, Zonas.UMBRAL_ZOOM_MUNICIPIO, 12].map(Zonas.etiquetasVisibles);")
+    assert d[0] == {"departamento": False, "municipio": False}
+    assert d[1] == d[2] == {"departamento": True, "municipio": False}
+    assert d[3] == d[4] == {"departamento": False, "municipio": True}
+
+
+# -------------------------------------- resaltado: municipio contra departamento
+def test_umbral_de_zoom_documentado():
+    m = re.search(r"((?://[^\n]*\n\s*)+)const UMBRAL_ZOOM_MUNICIPIO = (\d+(?:\.\d+)?);", ZONAS_JS)
+    assert m, "falta la constante comentada"
+    assert "PROVISIONAL" in m.group(1) and "prueba visual" in m.group(1)
+    assert 5 <= float(m.group(2)) <= 12
+
+
+GARZON_RURAL = (-75.5628, 2.1630)  # municipio de Garzón, fuera de toda área urbana de Natural Earth
+
+
+@pytest.mark.parametrize("punto, umbral, delta, nivel, nombre, contexto", [
+    (NEIVA, "MUNICIPIO", -0.1, "departamento", "Huila", None),
+    (NEIVA, "MUNICIPIO", 0, "municipio", "Neiva", "Huila"),
+    (NEIVA, "CIUDAD", -0.1, "municipio", "Neiva", "Huila"),
+    (NEIVA, "CIUDAD", 0, "ciudad", "Neiva", "Neiva"),  # área urbana con su municipio como contexto
+    (GARZON_RURAL, "CIUDAD", 2, "municipio", "Garzón", "Huila"),  # sin área urbana: baja al municipio
+])
+def test_resaltado_de_ciudad_municipio_o_departamento_segun_zoom(punto, umbral, delta, nivel, nombre, contexto):
+    d = _node(f"const s = Zonas.zonaSeleccionada({punto[0]}, {punto[1]}, Zonas.UMBRAL_ZOOM_{umbral} + ({delta}),"
+              " {departamentos, municipios, ciudades});"
+              "return { nivel: s.nivel, nombre: s.zona.properties.shapeName, contexto: s.contexto?.properties.shapeName ?? null };")
+    assert d == {"nivel": nivel, "nombre": nombre, "contexto": contexto}
+
+
+def test_umbral_de_ciudad_documentado_y_mayor_que_el_municipal():
+    m = re.search(r"((?://[^\n]*\n\s*)+)const UMBRAL_ZOOM_CIUDAD = (\d+(?:\.\d+)?);", ZONAS_JS)
+    assert m and "PROVISIONAL" in m.group(1) and "prueba visual" in m.group(1)
+    assert float(m.group(2)) > float(re.search(r"const UMBRAL_ZOOM_MUNICIPIO = (\d+)", ZONAS_JS).group(1))
+
+
+def test_zona_se_recalcula_al_cruzar_un_umbral_y_fuera_del_huila_se_pide_el_pais():
+    assert 'mapa.on("zoomend", reevaluarZonaPorZoom)' in JS
+    assert re.search(r"function reevaluarZonaPorZoom\(\).*?nivelResaltado\(mapa\.getZoom\(\)\)", JS, flags=re.S)
+    # País del punto con los países locales (Natural Earth) y sus ADM1/ADM2 vía /limites (geoBoundaries).
+    assert "window.Zonas.zonaDe(lon, lat, paisesMundo)" in JS and "globo.limitesDe(iso, n)" in JS
+    assert "fetch(`/limites/${iso}/${nivel}`)" in GLOBO_JS
+    # El nombre de la zona resaltada se dibuja sobre el mapa, y la tarjeta encuadra la zona completa.
+    assert '"etiqueta-zona"' in GLOBO_JS and 'id="zona-encuadrar"' in HTML and "Ver zona completa" in HTML
+    # Nombres de ADM1/ADM2 cargados para la vista, acotados.
+    assert "MAX_ETIQUETAS_ADM = 60" in GLOBO_JS
+
+
+def test_punto_fuera_de_zona_y_mascara_con_hueco():
+    d = _node("const fuera = Zonas.zonaSeleccionada(-74.08, 4.6, 10, {departamentos, municipios});"
+              "const m = Zonas.mascara(departamentos[0].geometry);"
+              "return { fuera, anillos: m.geometry.coordinates.length,"
+              " dentro: Zonas.contiene(m.geometry, -75.28, 2.93), lejos: Zonas.contiene(m.geometry, 0, 0) };")
+    assert d["fuera"] is None  # Bogotá no está en el Huila
+    assert d["anillos"] == 2 and d["dentro"] is False and d["lejos"] is True
+
+
+def test_pertenencia_en_el_cliente_cuenta_focos_y_celdas():
+    d = _node("const det = [{lon: -75.28, lat: 2.93, confianza_clase: 'alta', cell_id: 'f10325_c11635', frp: 3},"
+              " {lon: -75.281, lat: 2.931, confianza_clase: 'baja', cell_id: 'f10325_c11635', frp: 40},"
+              " {lon: -74.08, lat: 4.6, confianza_clase: 'alta', cell_id: 'f10511_c11769', frp: 1}];"
+              "const neiva = municipios.find(m => m.properties.shapeName === 'Neiva');"
+              "const c = Zonas.celdasActivas(det);"
+              "return { cuenta: Zonas.contarEn(neiva.geometry, det), celdas: c.features.length,"
+              " frp: c.features[0].properties.frp_max, esquina: c.features[0].geometry.coordinates[0][0] };")
+    assert d["cuenta"] == {"n": 2, "alta": 1}
+    assert d["celdas"] == 2 and d["frp"] == 40
+    # Celda f10325_c11635 de la grilla R1: origen (-90, -180), lado 0,009°.
+    assert d["esquina"] == pytest.approx([-180 + 11635 * 0.009, -90 + 10325 * 0.009])
+
+
+def test_tarjeta_de_zona_con_las_cifras_pedidas():
+    for id_ in ("zona-titulo", "zona-focos", "zona-alta", "zona-origen", "zona-fecha"):
+        assert f'id="{id_}"' in HTML, id_
+    assert "Focos en el periodo" in HTML and "Confianza alta" in HTML and "Fecha (UTC)" in HTML
+    assert "/calendario?area=${encodeURIComponent(area)}" in JS  # agregados con la ruta existente
+    assert "Sintético (demostración)" in JS and "alSeleccionarPunto" in GLOBO_JS
+
+
+# ------------------------------------------------------------------ búsqueda
+@pytest.mark.parametrize("consulta, primero, nivel", [
+    ("garzon", "Garzón", "municipio"), ("GARZÓN", "Garzón", "municipio"),
+    ("Neiva, Huila", "Neiva", "municipio"), ("municipio de La Plata", "La Plata", "municipio"),
+    ("Huila", "Huila", "departamento"), ("pital", "Pital", "municipio"),
+])
+def test_busqueda_local_por_municipio_o_departamento(consulta, primero, nivel):
+    d = _node(f"return Zonas.buscarLocal({json.dumps(consulta)}, {{municipios, departamentos}}).map(r => [r.nombre, r.nivel]);")
+    assert d and d[0] == [primero, nivel], d
+
+
+def test_busqueda_local_primero_y_remota_acotada():
+    assert _node("return Zonas.buscarLocal('ab', {municipios, departamentos}).length;") == 0
+    assert _node("return Zonas.buscarLocal('Bogotá', {municipios, departamentos}).length;") == 0
+    envio = BUSQUEDA_JS[BUSQUEDA_JS.index('form.addEventListener("submit"'):]
+    envio = envio[: envio.index("\n  });")]
+    assert envio.index("buscarLocal(q)") < envio.index("buscarRemoto(q)")
+    assert "INTERVALO_MS = 1000" in BUSQUEDA_JS and "navigator.onLine === false" in BUSQUEDA_JS
+    assert "cache.get(clave(q))" in BUSQUEDA_JS
+    # La caché vive en memoria de la pestaña: nada de almacenamiento persistente.
+    assert "localStorage" not in BUSQUEDA_JS and "sessionStorage" not in BUSQUEDA_JS
+    assert "fetch(`/buscar-lugares?q=" in BUSQUEDA_JS
+
+
+# ------------------------------------------------- contraste y color de acento
+@pytest.mark.parametrize("tema", ["claro", "oscuro"])
+@pytest.mark.parametrize("par", [("acento", "tarjeta"), ("acento", "fondo"), ("tarjeta", "acento")],
+                         ids=lambda p: "-".join(p))
+def test_contraste_del_acento_aa(tema, par):
+    t = _tema(tema)
+    assert _contraste(t[f"--{par[0]}"], t[f"--{par[1]}"]) >= 4.5, (tema, par)
+
+
+def test_un_solo_color_de_acento_en_el_visor():
+    nuevo = CSS[CSS.index("/* ADR 0013"):]
+    colores = set(re.findall(r"#[0-9a-fA-F]{3,8}\b", nuevo))
+    # Solo sombras y las etiquetas del mapa (blanco con halo negro, fijas en ambos temas).
+    # #062a26d9: fondo de la etiqueta de la zona = borde de la zona en el mapa (MAPA.zonaBorde, fijo).
+    assert colores <= {"#ffffff", "#000", "#0003", "#0004", "#062a26d9"}, colores
+    for selector in ('.capa[data-activa="true"]', '.capas-preajustes button[aria-pressed="true"]', ".tarjeta-zona"):
+        regla = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", nuevo).group(1)
+        assert "var(--acento)" in regla, selector
+
+
+# ------------------------------------------ leyenda apta para daltonismo
+def _lab(rgb):
+    x = 0.4124 * rgb[0] + 0.3576 * rgb[1] + 0.1805 * rgb[2]
+    y = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
+    z = 0.0193 * rgb[0] + 0.1192 * rgb[1] + 0.9505 * rgb[2]
+
+    def f(v):
+        return v ** (1 / 3) if v > 0.008856 else 7.787 * v + 16 / 116
+
+    fx, fy, fz = f(x / 0.95047), f(y), f(z / 1.08883)
+    return 116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)
+
+
+@pytest.mark.parametrize("vision", ["normal", "protanopia", "deuteranopia", "tritanopia"])
+def test_escala_frp_distinguible_con_daltonismo(vision):
+    t = _temas()["claro"]
+    labs = []
+    for k in range(1, 6):
+        rgb = _lineal(t[f"--f{k}"])
+        if vision != "normal":
+            m = MACHADO[vision]
+            rgb = [min(1.0, max(0.0, sum(m[i][j] * rgb[j] for j in range(3)))) for i in range(3)]
+        labs.append(_lab(rgb))
+    # ΔE*76 ≥ 10 entre clases vecinas (mínimo medido: 12,3 en deuteranopía, f2–f3).
+    for a, b in zip(labs, labs[1:]):
+        assert sum((p - q) ** 2 for p, q in zip(a, b)) ** 0.5 >= 10, vision
+    assert _temas()["oscuro"]["--f1"] == t["--f1"]  # misma escala en ambos temas
+
+
+def test_leyenda_minima_con_frp_y_confianza_sin_depender_del_color():
+    assert 'id="leyenda-mapa" class="leyenda-mapa flotante"' in HTML
+    m = re.search(r"function pintarLeyendaMapa\(\).*?\n\}\n", JS, flags=re.S).group(0)
+    assert "FRP (MW)" in m and "Confianza" in m and 'class="escala-frp"' in m
+    # Confianza: opacidad y borde, los mismos valores que el mapa.
+    assert '["alta", 0.95, 2], ["nominal", 0.8, 1], ["baja", 0.5, 0.5]' in m
+    assert '"alta", 0.95, "baja", 0.5, 0.8' in GLOBO_JS
+    assert '"circle-stroke-width": ["match", ["get", "confianza_clase"], "alta", 2, "baja", 0.5, 1]' in GLOBO_JS
+
+
+# ------------------------------------------------------------------- pie
+def test_pie_con_cita_avisos_utc_y_advertencia_sintetica():
+    pie = HTML[HTML.index('<footer class="pie">'):]
+    assert 'id="cita"' in pie and 'id="aviso"' in pie
+    assert "No usar para proteger vidas ni bienes" in pie
+    assert "Los focos son detecciones térmicas, no incendios confirmados" in pie
+    assert "UTC" in pie
+    assert re.search(r'id="pie-sintetico"[^>]*role="alert"[^>]*hidden', pie)
+    assert "Advertencia: DATOS SINTÉTICOS de demostración" in JS
+    for credito in ("NASA FIRMS", "NASA GIBS", "ASTER GDEM", "Natural Earth", "geoBoundaries", "DANE, CC BY 4.0", "Open-Meteo",
+                    "© OpenStreetMap contributors"):
+        assert credito in pie, credito
+
+
+# ------------------------------------------ recursos remotos en todo el JS propio
+JS_PROPIOS = sorted(ESTATICOS.glob("*.js"))
+
+
+@pytest.mark.parametrize("archivo", JS_PROPIOS, ids=lambda p: p.name)
+def test_js_propio_solo_carga_recursos_remotos_permitidos(archivo):
+    texto = archivo.read_text(encoding="utf-8")
+    for m in re.finditer(r"https?://[^\s\"'`)<>]+", texto):
+        url = m.group(0)
+        antes = texto[max(0, m.start() - 8): m.start()]
+        es_enlace = antes.endswith(('href="', "href='", "href = `"))
+        assert url.startswith(REMOTOS_PERMITIDOS) or es_enlace, f"{archivo.name}: {url}"
+    for r in re.findall(r"fetch\(\s*([^,)]+)", texto):
+        assert not r.strip().startswith(("'http", '"http', "`http")), f"{archivo.name}: fetch remoto literal {r}"
+    assert "import(" not in texto and "importScripts" not in texto and "new Worker(" not in texto
+
+
+def test_datos_locales_de_capas_con_licencia():
+    depto = json.loads((DATOS / "huila_departamento.geojson").read_text(encoding="utf-8"))
+    assert depto["metadatos"]["licencia"] == "CC BY 4.0" and "ODbL" in depto["metadatos"]["metodo"]
+    urbes = json.loads((DATOS / "ciudades_colombia.geojson").read_text(encoding="utf-8"))
+    assert urbes["metadatos"]["licencia"] == "Dominio público"
+    assert {"Neiva", "Bogota", "Medellín"} <= {f["properties"]["shapeName"] for f in urbes["features"]}
+    hidro = json.loads((DATOS / "hidrografia_colombia.geojson").read_text(encoding="utf-8"))
+    assert hidro["metadatos"]["licencia"] == "Dominio público"
+    assert any(f["properties"]["nombre"] == "Magdalena" for f in hidro["features"])
+
+
+# ------------------------------------------------- ADR 0014: base mínima de vías
+def test_base_minima_de_vias_en_grises_y_con_creditos():
+    assert 'vias: "https://tile.openstreetmap.org/{z}/{x}/{y}.png"' in GLOBO_JS
+    assert "https://tile.openstreetmap.org/" in REMOTOS_PERMITIDOS  # proveedor ya permitido (ADR 0008)
+    capa = re.search(r'\{ id: "vias".*?\} \},', GLOBO_JS, flags=re.S).group(0)
+    assert '"raster-saturation": -1' in capa and 'visibility: "none"' in capa
+    assert "OpenStreetMap</a> contributors" in GLOBO_JS
+    # Va bajo el sombreado, el agua y los límites: los límites y los focos quedan encima.
+    ids = [a or b for a, b in re.findall(r'\{ id: "([\w-]+)"|id: `(limites-adm)\$', GLOBO_JS)]
+    assert ids.index("satelital") < ids.index("vias") < ids.index("sombra") < ids.index("limites-municipio")
+    assert 'visible("vias", base === "vias")' in GLOBO_JS
