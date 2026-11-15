@@ -10,6 +10,7 @@ Uso: ``uv run python tools/construir_vercel.py [carpeta_salida]``
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -44,8 +45,16 @@ def construir(destino: Path = DESTINO) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
-    destino = construir(Path(args[0]) if args else DESTINO)
-    print(f"Muestra sintética procesada en {destino}")
+    modo = os.environ.get("HHN_MODO_DATOS", "demo").lower()
+    if modo == "firms":
+        from ingest.vercel_firms import construir_firms
+        destino = construir_firms(Path(args[0]) if args else DESTINO.parent/"vercel_firms")
+        print(f"Conjunto FIRMS real procesado en {destino}")
+    elif modo == "demo":
+        destino = construir(Path(args[0]) if args else DESTINO)
+        print(f"Muestra sintética procesada en {destino}")
+    else:
+        raise RuntimeError("HHN_MODO_DATOS debe ser demo o firms")
     return 0
 
 

@@ -1419,3 +1419,19 @@ document.addEventListener("keydown", (ev) => {
 });
 cargarLimites();
 cargar({encuadrarArea:location.hash==="#regional"});
+// Diagnóstico sin valores de credenciales. La ausencia de clave nunca se representa como dato real.
+(async()=>{
+  const caja=$("estado-firms");
+  try {
+    const r=await pedir("/estado-servicios"), f=r.firms;
+    const mensaje=f.estado==="sin_servidor" ? "Esta demo estática no ejecuta un servidor FIRMS."
+      : f.estado==="cifrado_invalido" ? "FIRMS: no se pudo descifrar la clave. Revise los secretos del despliegue."
+      : !f.configurada ? "FIRMS: falta configurar la clave en el servidor."
+      : f.cifrada ? "FIRMS: clave cifrada configurada en el servidor." : "FIRMS: clave configurada en el servidor.";
+    const estado=document.createElement("span");estado.textContent=mensaje;caja.replaceChildren(estado);
+    if(f.origen_datos==="sintetico" && f.modo!=="estatico"){
+      const modo=document.createElement("span");modo.textContent="Se muestran datos sintéticos de demostración. El administrador debe activar las observaciones reales.";
+      caja.append(document.createElement("br"),modo);
+    }
+  }catch{caja.textContent="No se pudo consultar el estado de conexión FIRMS.";}
+})();

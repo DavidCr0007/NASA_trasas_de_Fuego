@@ -8,6 +8,7 @@ import { probarMapa } from './recorrido_mapa.mjs';
 import { probarBusqueda } from './recorrido_busqueda.mjs';
 import { probarCapas } from './recorrido_capas.mjs';
 import { probarAuditoria } from './recorrido_auditoria.mjs';
+import { probarIdiomas } from './recorrido_idiomas.mjs';
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -103,7 +104,8 @@ try {
   await enviar("Runtime.enable");
   await enviar("Page.enable");
 
-  if(MODO==="auditoria" || MODO==="auditoria-local") await probarAuditoria({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,verificarCarga:MODO==="auditoria-local"});
+  if(MODO==="idiomas") await probarIdiomas({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,registrar:(nombre,datos)=>writeFileSync(join(SALIDA,nombre+".json"),JSON.stringify(datos,null,2))});
+  else if(MODO==="auditoria" || MODO==="auditoria-local") await probarAuditoria({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,verificarCarga:MODO==="auditoria-local"});
   else if(MODO==="busqueda") await probarBusqueda({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI});
   else if(MODO==="capas") await probarCapas({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,
     guardar:(nombre,datos)=>writeFileSync(join(SALIDA,`${nombre}.png`),Buffer.from(datos,"base64"))});

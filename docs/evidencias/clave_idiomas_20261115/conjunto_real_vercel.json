@@ -1,0 +1,174 @@
+{
+  "capturado_utc": "2026-11-15T16:00:39.734461+00:00",
+  "objetivo": "data\\processed\\vercel_firms",
+  "resumen": {
+    "origen_analisis": "real",
+    "origen_global": "real",
+    "periodo": {
+      "desde": "2026-11-14",
+      "hasta": "2026-11-14"
+    },
+    "metrica": "armonizada",
+    "metodos": [
+      "sin calibrar"
+    ],
+    "detecciones": 4,
+    "truncado": false
+  },
+  "pruebas": [
+    {
+      "criterio": "API disponible",
+      "estado": "conforme",
+      "evidencia": {
+        "http": 200,
+        "rules_version": "armonizacion-0.3.1"
+      }
+    },
+    {
+      "criterio": "Calendario y detecciones disponibles",
+      "estado": "conforme",
+      "evidencia": {
+        "calendario": 200,
+        "detecciones": 200
+      }
+    },
+    {
+      "criterio": "Origen explícito de ambos conjuntos",
+      "estado": "conforme",
+      "evidencia": {
+        "origen_analisis": "real",
+        "origen_global": "real",
+        "periodo": {
+          "desde": "2026-11-14",
+          "hasta": "2026-11-14"
+        },
+        "metrica": "armonizada",
+        "metodos": [
+          "sin calibrar"
+        ],
+        "detecciones": 4,
+        "truncado": false
+      }
+    },
+    {
+      "criterio": "Globo conserva sus sumas",
+      "estado": "conforme",
+      "evidencia": {
+        "total": 56084
+      }
+    },
+    {
+      "criterio": "Rango UTC de detecciones",
+      "estado": "conforme",
+      "evidencia": {
+        "desde": "2026-11-14",
+        "hasta": "2026-11-14"
+      }
+    },
+    {
+      "criterio": "CSV reproduce JSON /calendario.csv",
+      "estado": "conforme",
+      "evidencia": {
+        "http": 200,
+        "filas": 1
+      }
+    },
+    {
+      "criterio": "CSV declara naturaleza y versión /calendario.csv",
+      "estado": "conforme",
+      "evidencia": {
+        "origen": "real"
+      }
+    },
+    {
+      "criterio": "CSV reproduce JSON /detecciones.csv",
+      "estado": "conforme",
+      "evidencia": {
+        "http": 200,
+        "filas": 4
+      }
+    },
+    {
+      "criterio": "CSV declara naturaleza y versión /detecciones.csv",
+      "estado": "conforme",
+      "evidencia": {
+        "origen": "real"
+      }
+    },
+    {
+      "criterio": "Representantes del área coinciden por día",
+      "estado": "conforme",
+      "evidencia": {
+        "diferencias": [],
+        "nota": "No se compara valor armonizado con número de puntos. Un efecto de borde requiere revisar la definición espacial."
+      }
+    },
+    {
+      "criterio": "Linaje de detecciones público",
+      "estado": "conforme",
+      "evidencia": {
+        "campos_ausentes": []
+      }
+    },
+    {
+      "criterio": "Linaje de los datasets público",
+      "estado": "conforme",
+      "evidencia": {
+        "http": 200,
+        "dataset_id": "d219ac3d72904458173e51412f9a9b5187284ca3ead95913c344a677b38c8e81"
+      }
+    },
+    {
+      "criterio": "Todos los registros tienen vínculo al manifiesto",
+      "estado": "conforme",
+      "evidencia": {
+        "registros": 91641,
+        "sin_linaje": 0,
+        "fuentes_fuera_del_manifiesto": []
+      }
+    },
+    {
+      "criterio": "Documento público /metodologia",
+      "estado": "conforme",
+      "evidencia": {
+        "http": 200
+      }
+    },
+    {
+      "criterio": "Documento público /limitaciones",
+      "estado": "conforme",
+      "evidencia": {
+        "http": 200
+      }
+    },
+    {
+      "criterio": "Fuera de cobertura no inventa observaciones",
+      "estado": "conforme",
+      "evidencia": {
+        "http": 200,
+        "registros": 0
+      }
+    },
+    {
+      "criterio": "Hashes de Parquet verificados",
+      "estado": "conforme",
+      "evidencia": {
+        "celda_dia.parquet": true,
+        "cuarentena.parquet": true,
+        "deduplicados.parquet": true,
+        "detecciones.parquet": true
+      }
+    },
+    {
+      "criterio": "Conservación de registros",
+      "estado": "conforme",
+      "evidencia": {
+        "aceptados": 56084,
+        "celda_dia": 52482,
+        "cuarentena": 0,
+        "deduplicados": 35557,
+        "n_input": 91641
+      }
+    }
+  ]
+}

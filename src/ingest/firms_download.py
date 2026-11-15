@@ -22,6 +22,7 @@ from ingest.firms_schema import (
     HUILA_BBOX_CONFIRMADO,
 )
 from ingest.manifest import append_entry, build_entry
+from ingest.credenciales import leer_clave
 
 
 BLOCKED_MESSAGE = (
@@ -115,8 +116,7 @@ def _read_dotenv(path: Path) -> dict[str, str]:
 
 
 def read_map_key(env_path: Path) -> str | None:
-    key = os.environ.get("FIRMS_MAP_KEY") or _read_dotenv(env_path).get("FIRMS_MAP_KEY")
-    return key or None
+    return leer_clave(env_path)
 
 
 def _default_fetch(url: str) -> bytes:

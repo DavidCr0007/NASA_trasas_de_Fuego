@@ -14,6 +14,7 @@ import time
 from threading import Lock
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -28,11 +29,11 @@ TIPOS = {"city": "Ciudad", "town": "Ciudad", "village": "Localidad", "hamlet": "
          "country": "País", "road": "Calle", "house": "Dirección", "postcode": "Código postal"}
 
 
-def consultar_proveedor(q: str) -> list:
+def consultar_proveedor(q: str, idioma: str = "es") -> list:
     base = os.environ.get("NOMINATIM_URL", "https://nominatim.openstreetmap.org/search")
     if urlparse(base).scheme not in ("http", "https"):
         raise ValueError("servicio de lugares mal configurado")
-    params = urlencode({"q": q, "format": "jsonv2", "addressdetails": 1, "limit": 6, "accept-language": "es",
+    params = urlencode({"q": q, "format": "jsonv2", "addressdetails": 1, "limit": 6, "accept-language": idioma,
                         "polygon_geojson": 1, "polygon_threshold": 0.005})
     req = Request(base + ("&" if "?" in base else "?") + params, headers={
         "User-Agent": "HarmonizedHeatNeiva/0.1 (https://github.com/DavidCr0007/NASA_trasas_de_Fuego)",
@@ -102,7 +103,7 @@ def normalizar(datos: list) -> list[dict]:
 
 
 @router.get("/buscar-lugares")
-def buscar_lugares(q: str = Query(min_length=3, max_length=160)):
+def buscar_lugares(q: str = Query(min_length=3, max_length=160), idioma: Literal["es","en","fr"] = "es"):
     global _ultima_consulta
     texto = " ".join(q.split())
     if len(texto) < 3:
@@ -115,7 +116,7 @@ def buscar_lugares(q: str = Query(min_length=3, max_length=160)):
             raise HTTPException(429, "Espere un segundo antes de realizar otra búsqueda", headers={"Retry-After": "2"})
         _ultima_consulta = ahora
         try:
-            resultados = normalizar(consultar_proveedor(texto))
+            resultados = normalizar(consultar_proveedor(texto) if idioma=="es" else consultar_proveedor(texto,idioma))
         except (OSError, ValueError) as e:
             raise HTTPException(503, "El buscador de lugares no está disponible. Compruebe la conexión o vuelva a intentarlo") from e
         return {"resultados": resultados, "fuente": "Nominatim / OpenStreetMap", "atribucion": "© OpenStreetMap contributors"}

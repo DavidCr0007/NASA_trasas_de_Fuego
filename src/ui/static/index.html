@@ -47,6 +47,11 @@
     <label>Tema
       <select id="sel-tema"><option value="sistema">Sistema</option><option value="claro">Claro</option><option value="oscuro">Oscuro</option></select>
     </label>
+    <label for="sel-idioma">Idioma
+      <select id="sel-idioma" aria-label="Idioma de la aplicación">
+        <option value="es" lang="es">Español</option><option value="en" lang="en">English</option><option value="fr" lang="fr">Français</option>
+      </select>
+    </label>
     <details class="controles-secundarios">
       <summary>Opciones<span class="detalle-control"> y descargas</span></summary>
       <div class="opciones-panel">
@@ -286,6 +291,7 @@
 
   <footer class="pie">
     <details id="validacion-datos"><summary>Validar datos y método</summary>
+      <p id="estado-firms" role="status">Conexión FIRMS: comprobando configuración…</p>
       <p>El origen y la calidad se identifican en cada conjunto y registro. Una declaración de origen real no certifica por sí sola la integridad de los crudos ni la validez científica.</p>
       <p><a href="/procedencia" target="_blank" rel="noopener">Procedencia de los conjuntos</a> · <a href="/metodologia" target="_blank" rel="noopener">Metodología de armonización</a> · <a href="/limitaciones" target="_blank" rel="noopener">Limitaciones e incertidumbre</a></p>
     </details>
@@ -307,6 +313,8 @@
   </footer>
 
   <script src="vendor/maplibre/maplibre-gl.js"></script>
+  <script src="traducciones.js"></script>
+  <script src="idiomas.js"></script>
   <script src="zonas.js"></script>
   <script src="capas.js"></script>
   <script src="globo.js"></script>

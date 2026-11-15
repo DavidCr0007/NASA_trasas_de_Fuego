@@ -628,7 +628,7 @@ def test_busqueda_local_primero_y_remota_acotada():
     envio = envio[: envio.index("\n  });")]
     assert envio.index("buscarLocal(q)") < envio.index("buscarRemoto(q)")
     assert "INTERVALO_MS = 1000" in BUSQUEDA_JS and "navigator.onLine === false" in BUSQUEDA_JS
-    assert "cache.get(clave(q))" in BUSQUEDA_JS
+    assert "cache.get(claveCache)" in BUSQUEDA_JS and 'claveCache=idioma+":"+clave(q)' in BUSQUEDA_JS
     # La caché vive en memoria de la pestaña: nada de almacenamiento persistente.
     assert "localStorage" not in BUSQUEDA_JS and "sessionStorage" not in BUSQUEDA_JS
     assert "fetch(`/buscar-lugares?q=" in BUSQUEDA_JS

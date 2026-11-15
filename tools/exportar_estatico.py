@@ -37,7 +37,8 @@ ESTATICOS = RAIZ / "src" / "ui" / "static"
 DIAS_GLOBAL = (1, 2, 7)
 RES_GLOBAL = (0.25, 0.5, 1)
 CAMPOS_DETECCION = ["record_id", "sensor", "satelite", "fecha_hora_utc", "calidad", "confianza_clase", "confianza_raw",
-                    "lat", "lon", "frp", "cell_id", "version", "n_fusionados", "brillo", "semilado_nominal_m", "preliminar"]
+                    "lat", "lon", "frp", "cell_id", "version", "n_fusionados", "brillo", "semilado_nominal_m", "preliminar",
+                    "fuente","coleccion","archivo_origen","sha256_origen","fila","fecha_descarga","sintetico","rules_version","dataset_id"]
 
 
 def slug(area: str) -> str:
@@ -64,6 +65,12 @@ def exportar(datos: Path, salida: Path, anios_minimos: int | None = None) -> dic
         shutil.rmtree(salida)
     shutil.copytree(ESTATICOS, salida)
     api = salida / "api"
+    _escribir(api/"procedencia.json",_pedir(cliente,"/procedencia").json())
+    textos=salida/"textos";textos.mkdir(exist_ok=True)
+    for tipo in ("metodologia","limitaciones"):
+        for idioma in ("es","en","fr"):
+            nombre=tipo+".md" if idioma=="es" else tipo+"."+idioma+".md"
+            shutil.copy2(RAIZ/"docs"/nombre,textos/(tipo+"."+idioma+".md"))
 
     municipios = json.loads((ESTATICOS / "datos" / "huila_municipios.geojson").read_text(encoding="utf-8"))["features"]
     areas = ["huila"] + [f"mun:{m['properties']['shapeID']}" for m in municipios]

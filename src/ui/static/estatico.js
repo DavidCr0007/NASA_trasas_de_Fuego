@@ -103,6 +103,8 @@
   async function responderApi(url) {
     const p = url.searchParams, ruta = url.pathname;
     try {
+      if(ruta==="/estado-servicios")return responder({firms:{configurada:false,cifrada:false,estado:"sin_servidor",modo:"estatico",origen_datos:"sintetico",ultima_ingesta:null},idiomas:["es","en","fr"]});
+      if(ruta==="/procedencia")return responder(await leer("api/procedencia.json"));
       if (ruta === "/detecciones") return await rutaDetecciones(p);
       if (ruta === "/calendario") return await rutaCalendario(p);
       if (ruta === "/resumen") {
@@ -118,7 +120,7 @@
     return noDisponible("esta consulta");
   }
 
-  const RUTAS_API = /^\/(detecciones|calendario|resumen|global|buscar-lugares|salud|cita)$|^\/limites\//;
+  const RUTAS_API = /^\/(detecciones|calendario|resumen|global|buscar-lugares|estado-servicios|procedencia|salud|cita)$|^\/limites\//;
   window.fetch = function (entrada, opciones) {
     const url = new URL(typeof entrada === "string" || entrada instanceof URL ? entrada : entrada.url, location.href);
     if (url.origin !== location.origin) return original(entrada, opciones);

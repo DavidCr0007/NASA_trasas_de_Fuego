@@ -1,0 +1,20 @@
+# Limitations and uncertainty
+
+Rules `armonizacion-0.3.1`; harmonized indicator `celdas-eq-1.1.0`.
+
+1. **Thermal detection, not confirmed wildfire.** Agricultural burning, industrial heat and volcanoes may produce hotspots. No field validation is performed. Do not use the application to protect life or property.
+2. **Anchored, non-transitive deduplication.** R3 groups observations within three hours of the earliest anchor in a cell. A detection close to another member may remain outside the group if it is too far from the anchor. Deterministic ordering makes the process reproducible but does not remove this assumption.
+3. **Same-sensor merging.** Several VIIRS pixels from one overpass or closely timed MODIS overpasses can merge. Representative counts differ from original pixel counts. Absorbed records remain available for reconstruction.
+4. **Geographic grid.** The 0.009° cells are not equal-area. Their width decreases with latitude; assumptions acceptable near Huila need reassessment globally.
+5. **UTC dates.** Calendar days are UTC, not local civil days. Evening observations in Colombia can fall on the following UTC day.
+6. **Confidence and temperature.** MODIS thresholds are provisional. Confidence is not ±°C uncertainty. Nominal pixel dimensions grow off-nadir; the application does not yet model scan/track footprints. VIIRS I4 can saturate, making brightness temperature unreliable; FRP remains indicative.
+7. **Coverage and zero filling.** Coverage is inferred from the first and last detection dates, not independently verified overpasses. Internal gaps are filled with zero. Absence of detections does not prove absence of fire or a valid observation. A year may count as available with only one detection; complete years are not required.
+8. **Calibration across eras.** Overlap factors are empirical and dataset-dependent. Monthly MODIS reconstruction assumes a stable relationship to the reference constellation. No calibrated uncertainty interval is published. Without the Suomi NPP reference, the method is labeled uncalibrated and does not guarantee comparability across years. Factors from Huila must not be assumed valid elsewhere.
+9. **P95 sensitivity.** The ±7-day window and five-year minimum remain methodological choices. Sparse, zero-heavy data can produce a zero threshold. The evaluated year is excluded, and insufficient reference years produce null thresholds. A statistical exceedance is not an emergency alert; independent validation is still required.
+10. **NRT and synthetic data.** NRT observations are preliminary and may be revised. Synthetic demonstrations are not real observations. The origin, quality and processing identifier must remain visible in JSON, CSV and the interface.
+11. **Spatial and counting definitions.** The calendar uses cell centers; point maps use detection coordinates. Boundary effects and grouping can produce differences. Harmonized values are equivalent active cells, not individual map points, fires or burned area. The drawing tool currently supports rectangles, not arbitrary polygons. Global ADM2 boundaries may represent municipalities or other administrative units.
+12. **External services and reproducibility.** NASA GIBS, FIRMS ingestion, Nominatim, geoBoundaries and Open-Meteo depend on internet and provider coverage. Weather is model reanalysis at the area center, not a station observation. Clouds and satellite swaths affect imagery. Parquet byte identity depends on the pinned dependencies. Published checksums describe lineage; independent reproduction still requires the original files and configuration.
+
+The real NRT deployment is a snapshot built at deployment time. A configured key does not itself update the snapshot; rebuilding retrieves the configured recent period. The API never exposes the key or its decryption secret. A successful connection does not certify scientific accuracy or complete satellite coverage.
+
+Full method: `/metodologia?idioma=en`. The remaining work includes independent scientific validation, an effective-observation mask and a complete manual accessibility assessment.

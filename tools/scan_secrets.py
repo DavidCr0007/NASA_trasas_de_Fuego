@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 
 
-FIRMS_VALUE = re.compile(r"^\s*FIRMS_MAP_KEY\s*=\s*(\S.*)$")
+FIRMS_VALUE = re.compile(r"^\s*(?:FIRMS_MAP_KEY|FIRMS_MAP_KEY_ENCRYPTED|FIRMS_SECRET_KEY)\s*=\s*(\S.*)$")
 POSSIBLE_MAP_KEY = re.compile(r"(?<![0-9a-fA-F])[0-9a-fA-F]{32}(?![0-9a-fA-F])")
 AREA_URL = re.compile(r"/api/" + r"area/[^/\s?#]+/([^/\s?#]+)")
 

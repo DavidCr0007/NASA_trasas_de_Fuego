@@ -23,11 +23,18 @@ from api.app import create_app  # noqa: E402
 
 
 def _datos() -> Path:
-    datos = Path(os.environ.get("HHN_DATOS") or RAIZ / "data" / "processed" / "demo_historica")
+    modo = os.environ.get("HHN_MODO_DATOS", "demo").lower()
+    if modo not in ("demo", "firms"):
+        raise RuntimeError("HHN_MODO_DATOS debe ser demo o firms")
+    nombre = "vercel_firms" if modo == "firms" else "demo_historica"
+    datos = Path(os.environ.get("HHN_DATOS") or RAIZ / "data" / "processed" / nombre)
     if (datos / "celda_dia.parquet").exists():
         return datos
     if os.environ.get("HHN_DATOS"):
         raise RuntimeError("HHN_DATOS no contiene el conjunto procesado configurado; no se sustituirá por una demostración sintética")
+    if modo == "firms":
+        from ingest.vercel_firms import construir_firms
+        return construir_firms(TMP / "vercel_firms")
     sys.path.insert(0, str(RAIZ / "tools"))
     from construir_vercel import construir  # noqa: E402
 

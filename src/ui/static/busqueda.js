@@ -54,7 +54,8 @@ window.iniciarBusquedaLugares = function ({ explorar, buscarLocal = () => [], el
     const gen = ++generacion;
     abrir(); boton.disabled = true;
     try {
-      let d = cache.get(clave(q));
+      const idioma=window.Idiomas?.actual??"es", claveCache=idioma+":"+clave(q);
+      let d = cache.get(claveCache);
       if (!d) {
         if (navigator.onLine === false) throw new Error("Sin conexión: solo está disponible la búsqueda local de municipios y departamentos.");
         const espera = ultimaRemota + INTERVALO_MS - performance.now();
@@ -62,12 +63,12 @@ window.iniciarBusquedaLugares = function ({ explorar, buscarLocal = () => [], el
         if (gen !== generacion) return;
         estado.textContent = "Buscando lugares en internet…";
         ultimaRemota = performance.now();
-        const r = await fetch(`/buscar-lugares?q=${encodeURIComponent(q)}`, { signal: ctrl.signal });
+        const r = await fetch(`/buscar-lugares?q=${encodeURIComponent(q)}&idioma=${idioma}`, { signal: ctrl.signal });
         const cuerpo = await r.json();
         if (!r.ok) throw new Error(typeof cuerpo.detail === "string" && cuerpo.detail !== "Not Found" ? cuerpo.detail : "El buscador de lugares no está disponible");
         d = cuerpo;
         if (cache.size >= 32) cache.delete(cache.keys().next().value);
-        cache.set(clave(q), d);
+        cache.set(claveCache, d);
       }
       if (gen !== generacion) return;
       const resultados = d.resultados ?? [];
@@ -92,6 +93,7 @@ window.iniciarBusquedaLugares = function ({ explorar, buscarLocal = () => [], el
     buscarRemoto(q);
   });
   campo.addEventListener("input", () => cerrar());
+  document.addEventListener("idioma-cambiado",()=>cerrar());
   document.getElementById("cerrar-lugares").addEventListener("click", () => cerrar(true));
   document.addEventListener("pointerdown", ev => { if (!form.contains(ev.target)) cerrar(); });
   document.addEventListener("focusin", ev => { if (!form.contains(ev.target)) cerrar(); });

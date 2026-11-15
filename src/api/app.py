@@ -13,7 +13,7 @@ import csv
 import io
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import duckdb
 import pyarrow as pa
@@ -28,6 +28,7 @@ from api import mundo
 from api.limites import router as limites_router
 from api.lugares import router as lugares_router
 from api.procedencia import describir as describir_procedencia
+from ingest.credenciales import estado_publico as estado_credencial
 from harmonize import armonizada as arm
 from harmonize import linea_base as lb
 from harmonize.config import RulesConfig
@@ -422,13 +423,27 @@ def create_app(
         return {"analisis": describir_procedencia(datos), "global": describir_procedencia(datos_g),
                 "mismo_conjunto": datos.resolve() == datos_g.resolve()}
 
+    @app.get("/estado-servicios")
+    def estado_servicios():
+        import json
+        import os
+        conexion = datos / "conexion_firms.json"
+        consulta = json.loads(conexion.read_text(encoding="utf-8")) if conexion.exists() else None
+        origen_datos=describir_procedencia(datos)["origen_datos"]
+        modo="firms" if consulta else "demo" if origen_datos=="sintetico" else "archivos"
+        return {"firms": {**estado_credencial(), "modo": modo,
+                          "origen_datos": origen_datos, "ultima_ingesta": consulta},
+                "idiomas": ["es", "en", "fr"]}
+
     @app.get("/metodologia", response_class=PlainTextResponse)
-    def metodologia_publica():
-        return (Path(__file__).resolve().parents[2] / "docs/metodologia.md").read_text(encoding="utf-8")
+    def metodologia_publica(idioma: Literal["es","en","fr"]="es"):
+        nombre="metodologia.md" if idioma=="es" else f"metodologia.{idioma}.md"
+        return (Path(__file__).resolve().parents[2] / "docs" / nombre).read_text(encoding="utf-8")
 
     @app.get("/limitaciones", response_class=PlainTextResponse)
-    def limitaciones_publicas():
-        return (Path(__file__).resolve().parents[2] / "docs/limitaciones.md").read_text(encoding="utf-8")
+    def limitaciones_publicas(idioma: Literal["es","en","fr"]="es"):
+        nombre="limitaciones.md" if idioma=="es" else f"limitaciones.{idioma}.md"
+        return (Path(__file__).resolve().parents[2] / "docs" / nombre).read_text(encoding="utf-8")
 
     @app.get("/cita")
     def cita():
