@@ -88,6 +88,8 @@ Verificado el 2026-11-15. Los datos de misiones NASA no tienen restricciones de 
 - **Vías e infraestructura (ADR 0014):** teselas de `tile.openstreetmap.org`, © OpenStreetMap contributors (ODbL 1.0), pintadas en grises. Se respeta la política de uso de teselas de la OSMF (<https://operations.osmfoundation.org/policies/tiles/>): crédito visible y sin precarga ni descarga masiva.
 - **Ciudades (ADR 0014):** áreas urbanas y centros poblados de Natural Earth 1:10m v5.1.2, dominio público.
 
+Actualización hidrográfica (ADR 0017, 2026-11-15): se publica el conjunto completo mundial de ríos y lagos de Natural Earth, sin el recorte de Colombia. Desde zoom 6, el detalle de ríos, arroyos, canales y cuerpos de agua usa teselas de [OpenFreeMap](https://openfreemap.org/), datos © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL) y esquema © [OpenMapTiles](https://www.openmaptiles.org/). Los créditos aparecen en el mapa y en el pie. La cobertura depende de los elementos cartografiados; no se afirma que incluya cada afluente existente.
+
 ## Cómo citar este proyecto
 
 Harmonized Heat Neiva (NASA Space Apps 2026, reto «Harmonization of MODIS and VIIRS Hot

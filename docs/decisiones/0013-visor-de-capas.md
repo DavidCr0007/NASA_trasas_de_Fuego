@@ -90,11 +90,13 @@ La leyenda mínima (abajo a la izquierda) muestra ambas cosas. Simulando protano
 | Relieve | NASA GIBS `BlueMarble_ShadedRelief_Bathymetry` (nivel 8) | Datos NASA sin restricciones (CC0); se pide citar a NASA ([EOSDIS Data Use and Citation Guidance](https://www.earthdata.nasa.gov/engage/open-data-services-software-policies/data-use-guidance)) | GIBS (ya permitido) |
 | Satelital | NASA GIBS `BlueMarble_NextGeneration` (nivel 8) + imagen del día VIIRS/MODIS | Ídem; Blue Marble NG de NASA Earth Observatory | GIBS |
 | Sombreado | NASA GIBS `ASTER_GDEM_Greyscale_Shaded_Relief` (nivel 12) | ASTER GDEM V003 (METI/NASA), «openly shared, without restriction» (LP DAAC, doi:10.5067/ASTER/ASTGTM.003) | GIBS |
-| Hidrografía | Natural Earth 1:10m v5.1.2, ríos y lagos recortados a Colombia (`tools/preparar_hidrografia.py`, 149 kB) | Dominio público | Local, sin red |
+| Hidrografía (versión inicial, sustituida por ADR 0017) | Natural Earth 1:10m v5.1.2, ríos y lagos recortados a Colombia (`tools/preparar_hidrografia.py`, 149 kB) | Dominio público | Local, sin red |
 | Límites | geoBoundaries gbOpen COL ADM2 (DANE) y su unión departamental | CC BY 4.0 | Local, sin red |
 | Clima | Open-Meteo (ERA5, C3S/ECMWF) | CC BY 4.0; rotulado «reanálisis» | Open-Meteo (ya permitido) |
 
 Las tres capas GIBS se comprobaron en `WMTSCapabilities.xml` de EPSG:3857 (`best`). **No se añadió ningún proveedor remoto:** `REMOTOS_PERMITIDOS` no cambia, y la prueba de recursos remotos ahora recorre todo el JavaScript propio (`app.js`, `globo.js`, `capas.js`, `zonas.js`, `busqueda.js`), no solo `app.js`.
+
+Actualización del 2026-11-15: el [ADR 0017](0017-hidrografia-mundial.md) sustituye el recorte hidrográfico de Colombia por un respaldo mundial y añade OpenFreeMap como proveedor permitido para el detalle OpenStreetMap. El párrafo anterior describe la implementación inicial de este ADR.
 
 **Descartadas:**
 

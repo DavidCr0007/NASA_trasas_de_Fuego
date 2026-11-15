@@ -89,7 +89,7 @@ def test_estatico_js_cubre_las_rutas_de_la_interfaz_y_no_inventa_datos():
     assert "buscar lugares en internet" in ESTATICO_JS and "make api" in ESTATICO_JS
     assert "Demo publicada sin servidor: datos SINTÉTICOS" in ESTATICO_JS
     # MapLibre carga los GeoJSON del estilo sin window.fetch: deben pasar por recurso().
-    assert 'data: recurso("/ui/datos/hidrografia_colombia.geojson")' in GLOBO_JS
+    assert 'data: recurso("/ui/datos/hidrografia_mundial.geojson")' in GLOBO_JS
     assert 'data: recurso("/ui/datos/mundo_paises.geojson")' in GLOBO_JS
     assert not re.search(r'data: "/ui/', GLOBO_JS)
 

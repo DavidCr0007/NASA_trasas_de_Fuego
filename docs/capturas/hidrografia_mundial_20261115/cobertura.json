@@ -1,0 +1,75 @@
+[
+  {
+    "region": "amazonas",
+    "elementos": 251,
+    "clases": [
+      "river",
+      "lake",
+      "pond"
+    ],
+    "mismoMapa": true
+  },
+  {
+    "region": "nilo",
+    "elementos": 40,
+    "clases": [
+      "river",
+      "pond",
+      "lake"
+    ],
+    "mismoMapa": true
+  },
+  {
+    "region": "sena",
+    "elementos": 104,
+    "clases": [
+      "river",
+      "pond",
+      "lake"
+    ],
+    "mismoMapa": true
+  },
+  {
+    "region": "mississippi",
+    "elementos": 323,
+    "clases": [
+      "river",
+      "lake",
+      "pond"
+    ],
+    "mismoMapa": true
+  },
+  {
+    "region": "asia",
+    "elementos": 285,
+    "clases": [
+      "river",
+      "lake"
+    ],
+    "mismoMapa": true
+  },
+  {
+    "region": "australia",
+    "elementos": 88,
+    "clases": [
+      "river",
+      "lake",
+      "pond"
+    ],
+    "mismoMapa": true
+  },
+  {
+    "region": "afluentes-suiza",
+    "elementos": 287,
+    "clases": [
+      "river",
+      "stream",
+      "drain",
+      "ditch",
+      "lake",
+      "pond",
+      "swimming_pool"
+    ],
+    "mismoMapa": true
+  }
+]

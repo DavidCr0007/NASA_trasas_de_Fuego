@@ -384,6 +384,8 @@ Estado actual: [planeta continuo y carga localizada](docs/planeta_continuo_2026-
 
 ## Capas de contexto (H7)
 
+**Capas → Agua / Hidrografía** y **Ríos y lagos** ahora cubren el planeta: 2.810 elementos de Natural Earth como respaldo sin red y detalle de OpenStreetMap/OpenFreeMap desde zoom 6. Al acercarse aparecen ríos, arroyos, canales y cuerpos de agua de la zona visible, sin cambiar de mapa. La cobertura depende de la cartografía disponible; no constituye un inventario exhaustivo de todos los afluentes. [Fuentes, alcance y validación](docs/decisiones/0017-hidrografia-mundial.md).
+
 En el mapa y el panel hay tres capas de contexto (ADR 0010):
 
 - **Límites globales ADM0, ADM1 y ADM2** (geoBoundaries). Primera descarga con red y reutilización local. Los 37 municipios del Huila siguen incluidos para el selector y los filtros de la demo.
@@ -406,6 +408,8 @@ Lo esencial; el detalle está en [docs/limitaciones.md](docs/limitaciones.md):
 
 ## Documentación
 
+- [Space Agency Partner & Other Data](docs/space_agency_partner_other_data.md): recursos, datos, herramientas y enlaces públicos para la entrega de Space Apps.
+- [Hidrografía mundial](docs/decisiones/0017-hidrografia-mundial.md): ríos y lagos globales sin red, con detalle de afluentes por OpenStreetMap/OpenFreeMap al acercarse.
 - [Metodología](docs/metodologia.md): flujo, validación y reglas R1 a R4.
 - [Limitaciones](docs/limitaciones.md): lo que el método no resuelve y lo que está por confirmar.
 - [Decisiones (ADR)](docs/decisiones/): supuestos registrados uno por archivo.

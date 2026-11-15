@@ -56,6 +56,8 @@ uv run python -m api --datos data/processed/vercel_firms --puerto 8000
 
 ## Méthode, provenance et limites
 
+Inventaire des ressources pour la soumission : [Space Agency Partner & Other Data](docs/space_agency_partner_other_data.md). La couche hydrographique couvre désormais le monde avec Natural Earth et les cours d’eau détaillés OpenStreetMap/OpenFreeMap dès le zoom 6, selon la cartographie disponible et l’accès à internet.
+
 Version des règles : `armonizacion-0.3.1`. Indicateur par défaut : cellules actives équivalentes, `celdas-eq-1.1.0` ; il ne s’agit pas de la somme des pixels MODIS et VIIRS. Les fichiers sources, sommes de contrôle, dates d’acquisition et de téléchargement, règles et identifiants des jeux restent traçables dans JSON, CSV et les fiches. Les noms des champs de l’API restent identiques dans les trois langues.
 
 Consulter `/metodologia?idioma=fr`, `/limitaciones?idioma=fr` et `/procedencia`. La référence utilise le 95e percentile historique dans une fenêtre de ±7 jours, exclut l’année évaluée et exige cinq années de référence. Les données NRT récentes sans historique suffisant ne permettent pas de calculer les seuils des jours inhabituels. Les lacunes de couverture, les zéros, l’étalonnage empirique, l’emprise des pixels et la saturation de la température de brillance restent des limites ; l’exactitude scientifique n’est pas certifiée.

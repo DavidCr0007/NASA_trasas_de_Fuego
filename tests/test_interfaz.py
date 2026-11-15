@@ -88,7 +88,7 @@ def test_css_sin_recursos_remotos():
 @pytest.mark.parametrize(
     "ruta",
     ["", "vendor/leaflet/leaflet.js", "vendor/leaflet/leaflet.css", "app.js", "styles.css",
-     "zonas.js", "capas.js", "datos/huila_departamento.geojson", "datos/hidrografia_colombia.geojson",
+     "zonas.js", "capas.js", "datos/huila_departamento.geojson", "datos/hidrografia_mundial.geojson",
      "datos/ciudades_colombia.geojson"],
 )
 def test_recursos_locales_responden(cliente, ruta):
@@ -102,6 +102,7 @@ REMOTOS_PERMITIDOS = (
     "https://tile.openstreetmap.org/",
     "https://gibs.earthdata.nasa.gov/wmts/",
     "https://archive-api.open-meteo.com/v1/archive",
+    "https://tiles.openfreemap.org/",
 )
 
 
@@ -730,7 +731,7 @@ def test_datos_locales_de_capas_con_licencia():
     urbes = json.loads((DATOS / "ciudades_colombia.geojson").read_text(encoding="utf-8"))
     assert urbes["metadatos"]["licencia"] == "Dominio público"
     assert {"Neiva", "Bogota", "Medellín"} <= {f["properties"]["shapeName"] for f in urbes["features"]}
-    hidro = json.loads((DATOS / "hidrografia_colombia.geojson").read_text(encoding="utf-8"))
+    hidro = json.loads((DATOS / "hidrografia_mundial.geojson").read_text(encoding="utf-8"))
     assert hidro["metadatos"]["licencia"] == "Dominio público"
     assert any(f["properties"]["nombre"] == "Magdalena" for f in hidro["features"])
 

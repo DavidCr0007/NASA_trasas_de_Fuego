@@ -129,13 +129,14 @@ def test_maplibre_va_antes_de_globo_y_de_app():
     assert "MapLibre GL JS" in (ESTATICOS / "vendor" / "maplibre" / "maplibre-gl.js").read_text(encoding="utf-8")[:200]
 
 
-def test_globo_solo_carga_remotos_de_nasa_gibs():
+def test_globo_solo_carga_remotos_autorizados():
     for m in re.finditer(r"https?://[^\s\"'`)<>]+", GLOBO):
         url = m.group(0)
         antes = GLOBO[max(0, m.start() - 8): m.start()]
         # ADR 0014: además de GIBS, solo las teselas de OpenStreetMap de la base mínima «Vías e
         # infraestructura» (GIBS no publica vías); el proveedor ya estaba en REMOTOS_PERMITIDOS (ADR 0008).
-        permitido = url.startswith(("https://gibs.earthdata.nasa.gov/wmts/", "https://tile.openstreetmap.org/"))
+        # ADR 0017: detalle hidrográfico mundial mediante OpenFreeMap/OpenStreetMap.
+        permitido = url.startswith(("https://gibs.earthdata.nasa.gov/wmts/", "https://tile.openstreetmap.org/", "https://tiles.openfreemap.org/"))
         assert permitido or antes.endswith('href="'), url
     assert "NASA FIRMS" in GLOBO and "LANCE" in GLOBO          # D-10 también en el globo
     assert "geoBoundaries" in GLOBO and "NASA GIBS" in GLOBO

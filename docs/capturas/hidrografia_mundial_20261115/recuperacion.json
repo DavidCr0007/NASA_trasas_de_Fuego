@@ -1,0 +1,33 @@
+{
+  "opacidad": [
+    "interpolate",
+    [
+      "linear"
+    ],
+    [
+      "zoom"
+    ],
+    1,
+    0.25,
+    5.5,
+    1,
+    7,
+    1
+  ],
+  "dibujados": 14,
+  "errores": [
+    {
+      "claves": [
+        "error",
+        "type",
+        "target",
+        "isSourceLoaded",
+        "source",
+        "sourceId",
+        "style"
+      ],
+      "sourceId": "hidrografia-detalle",
+      "mensaje": "AJAXError: Failed to fetch (0): https://tiles.openfreemap.org/planet?verificacion=sinred"
+    }
+  ]
+}

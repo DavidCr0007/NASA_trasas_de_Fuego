@@ -80,7 +80,7 @@
     const { contenedor, panel } = opciones;
     const zoomPais = 4.8;
     let mapa = null, listo = false, datos = null, dias = 2, res = 0.5, gen = 0;
-    let rotar = null, paises = null;
+    let rotar = null, paises = null, hidroDetalleListo = false, hidroDetalleError = false;
     let paginaCeldas = 0, paisCeldas = "";
     let paisSeleccionado = null, marcadorLugar = null;
     const cache = new Map();
@@ -114,7 +114,8 @@
           sombra: { type: "raster", tiles: [tejasSombra("multiplicar")], tileSize: 256, maxzoom: 12 },
           vias: { type: "raster", tiles: [FONDOS.vias], tileSize: 256, maxzoom: 19,
             attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' },
-          hidrografia: { type: "geojson", data: recurso("/ui/datos/hidrografia_colombia.geojson") },
+          hidrografia: { type: "geojson", data: recurso("/ui/datos/hidrografia_mundial.geojson") },
+          "hidrografia-detalle": { type: "vector", url: "https://tiles.openfreemap.org/planet" },
           paises: { type: "geojson", data: recurso("/ui/datos/mundo_paises.geojson"),
           },
           adm0: { type: "geojson", data: vacio() },
@@ -142,12 +143,22 @@
           { id: "vias", type: "raster", source: "vias", layout: { visibility: "none" }, paint: {
             "raster-saturation": -1, "raster-contrast": 0.1, "raster-brightness-min": 0.12, "raster-fade-duration": 200 } },
           { id: "sombra", type: "raster", source: "sombra", minzoom: 4, paint: { "raster-opacity": 0.5, "raster-fade-duration": 200 } },
-          { id: "lagos", type: "fill", source: "hidrografia", filter: ["==", ["get", "tipo"], "lago"],
+          { id: "lagos", type: "fill", source: "hidrografia", filter: ["all", ["==", ["get", "tipo"], "lago"], ["<=", ["get", "min_zoom"], ["zoom"]]],
             paint: { "fill-color": MAPA.lago, "fill-opacity": 0.9 } },
-          { id: "rios", type: "line", source: "hidrografia", filter: ["==", ["get", "tipo"], "rio"],
+          { id: "rios", type: "line", source: "hidrografia", filter: ["all", ["==", ["get", "tipo"], "rio"], ["<=", ["get", "min_zoom"], ["zoom"]]],
             layout: { "line-cap": "round", "line-join": "round" },
             paint: { "line-color": MAPA.agua, "line-opacity": 0.9,
               "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.8, 8, 2, 12, 4] } },
+          { id: "agua-detalle", type: "fill", source: "hidrografia-detalle", "source-layer": "water", minzoom: 6,
+            filter: ["!=", ["get", "class"], "ocean"], layout: { visibility: "none" },
+            paint: { "fill-color": MAPA.lago, "fill-opacity": 0 } },
+          { id: "rios-detalle", type: "line", source: "hidrografia-detalle", "source-layer": "waterway", minzoom: 6,
+            filter: ["match", ["get", "class"], ["river", "stream", "canal", "drain", "ditch"], true, false],
+            layout: { visibility: "none", "line-cap": "round", "line-join": "round" },
+            paint: { "line-color": MAPA.agua, "line-opacity": 0,
+              "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.7, 10, 1.4, 14,
+                ["match", ["get", "class"], "river", 3.5, "canal", 2.2, 1.3], 17,
+                ["match", ["get", "class"], "river", 5, "canal", 3, 2]] } },
           { id: "zona-mascara", type: "fill", source: "zona-mascara", paint: { "fill-color": MAPA.mascara, "fill-opacity": 0.42 } },
           ...[0, 1, 2].map((nivel) => ({ id: `limites-adm${nivel}`, type: "line", source: `adm${nivel}`,
             minzoom: [3, 5, 8][nivel], paint: { "line-color": ["#fff8dc", "#f7e6ad", "#edf5f8"][nivel],
@@ -307,8 +318,13 @@
       if (fuente && fuente._modo !== k.sombra.mezcla) { fuente._modo = k.sombra.mezcla; fuente.setTiles([tejasSombra(k.sombra.mezcla)]); }
       const agua = k.rios.on || base === "hidrografia";
       visible("rios", agua); visible("lagos", agua);
-      pintar("rios", "line-opacity", k.rios.on ? k.rios.opacidad : 1);
-      pintar("lagos", "fill-opacity", k.rios.on ? k.rios.opacidad : 1);
+      visible("rios-detalle", agua); visible("agua-detalle", agua);
+      const opAgua = base === "hidrografia" ? k.hidrografia.opacidad : k.rios.opacidad;
+      // Las teselas solo se piden desde zoom 6. El respaldo mundial permanece si falla la red.
+      const opGeneral = ["interpolate", ["linear"], ["zoom"], 1, opAgua * 0.25, 5.5, opAgua, 7, hidroDetalleListo ? 0 : opAgua];
+      const opDetalle = ["interpolate", ["linear"], ["zoom"], 6, 0, 7, opAgua];
+      pintar("rios", "line-opacity", opGeneral); pintar("lagos", "fill-opacity", opGeneral);
+      pintar("rios-detalle", "line-opacity", opDetalle); pintar("agua-detalle", "fill-opacity", opDetalle);
       // Límites: no dependen de la base; solo de su propia casilla.
       for (const n of [0, 1, 2]) { visible(`limites-adm${n}`, k.limites.on); pintar(`limites-adm${n}`, "line-opacity", opacidadAdm(n, k.limites.opacidad)); }
       visible("limites-municipio", k.limites.on); pintar("limites-municipio", "line-opacity", 0.75 * k.limites.opacidad);
@@ -650,7 +666,7 @@
         attributionControl: { compact: true, customAttribution: [
           'Relieve: <a href="https://www.earthdata.nasa.gov/data/tools/gibs">NASA GIBS</a> (Blue Marble; sombreado ASTER GDEM, METI/NASA)',
           'Satélite: NASA GIBS (Blue Marble Next Generation, NASA Earth Observatory)',
-          'Hidrografía: <a href="https://www.naturalearthdata.com/">Natural Earth</a> (dominio público)',
+          'Hidrografía: <a href="https://www.naturalearthdata.com/">Natural Earth</a> (dominio público); detalle © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> / <a href="https://openfreemap.org/">OpenFreeMap</a> / <a href="https://www.openmaptiles.org/">OpenMapTiles</a>',
           'Focos: <a href="https://www.earthdata.nasa.gov/data/tools/firms">NASA FIRMS</a> (LANCE / ESDIS)',
           'Límites: <a href="https://www.geoboundaries.org/">geoBoundaries</a> (DANE, CC BY 4.0 para COL ADM2; fuentes por país)',
         ] }, renderWorldCopies: true, dragRotate: false, pitchWithRotate: false,
@@ -658,6 +674,24 @@
       mapa.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
       mapa.on("dataloading", e => { if(e.sourceId==="fondo")opciones.alCargaBase?.(true); });
       mapa.on("sourcedata", e => { if(e.sourceId==="fondo" && e.isSourceLoaded)opciones.alCargaBase?.(false); });
+      mapa.on("sourcedata", e => {
+        if (e.sourceId === "hidrografia-detalle" && e.sourceDataType === "content") requestAnimationFrame(actualizarAguaDisponible);
+      });
+      mapa.on("sourcedataloading", e => {
+        if (e.sourceId === "hidrografia-detalle" && e.sourceDataType === "content") hidroDetalleError = false;
+      });
+      function actualizarAguaDisponible() {
+        if (hidroDetalleListo || hidroDetalleError || mapa.getZoom() < 6 || !mapa.isSourceLoaded("hidrografia-detalle")) return;
+        // Exigir geometrías: una fuente cuyo proveedor falló también puede marcarse «cargada».
+        if (mapa.queryRenderedFeatures({ layers: ["rios-detalle", "agua-detalle"] }).length) {
+          hidroDetalleListo = true; aplicarCapas();
+        }
+      }
+      mapa.on("idle", actualizarAguaDisponible);
+      mapa.on("error", e => {
+        if (e.sourceId === "hidrografia-detalle") { hidroDetalleError = true; hidroDetalleListo = false; aplicarCapas(); }
+        else console.error(e.error || e);
+      });
       mapa.on("idle", () => opciones.alCargaBase?.(false));
       mapa.on("styledata", () => { if (!listo && mapa.getSource("focos")) { listo = true; aplicarLocales(); aplicarCapas(); aplicarDatos(); } });
       mapa.on("load", () => {
