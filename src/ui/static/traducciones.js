@@ -1,6 +1,11 @@
 /* Catálogo local: español de origen, inglés y francés. Sin servicios de traducción remotos. */
 (function(raiz){
   const textos = [
+    ["Confirmar ubicación","Confirm location","Confirmer le lieu"],
+    ["Confirmar lugar","Confirm place","Confirmer ce lieu"],
+    ["Volver a resultados","Back to results","Retour aux résultats"],
+    ["Compruebe el lugar y su categoría. El mapa se moverá solo al confirmar.","Check the place and its category. The map will move only after confirmation.","Vérifiez le lieu et sa catégorie. La carte se déplacera uniquement après confirmation."],
+    ["Ciudad o localidad","City or locality","Ville ou localité"],
     ["Cobertura mundial: Natural Earth sin red; ríos, arroyos y canales de OpenStreetMap al acercarse, con internet. La cobertura depende de la cartografía disponible.","Worldwide coverage: Natural Earth offline; OpenStreetMap rivers, streams and canals when zooming in, with internet. Coverage depends on available mapping.","Couverture mondiale : Natural Earth hors ligne ; rivières, ruisseaux et canaux OpenStreetMap en zoomant, avec internet. La couverture dépend de la cartographie disponible."],
     ["Ríos y lagos de todo el mundo · Natural Earth + OpenStreetMap / OpenFreeMap · detalle desde zoom 6","Worldwide rivers and lakes · Natural Earth + OpenStreetMap / OpenFreeMap · detail from zoom 6","Rivières et lacs du monde · Natural Earth + OpenStreetMap / OpenFreeMap · détails dès le zoom 6"],
     ["Idioma","Language","Langue"],

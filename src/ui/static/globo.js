@@ -788,6 +788,7 @@
       actualizarContexto,
       obtenerMapa: () => mapa,
       cobertura: () => datos,
+      quitarLugar() { marcadorLugar?.remove(); marcadorLugar = null; },
       localizar(lugar, analizar) {
         opciones.alExploracion?.();
         paisSeleccionado=null;pintarPaisSeleccionado();

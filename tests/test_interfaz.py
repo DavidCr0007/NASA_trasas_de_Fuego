@@ -635,6 +635,27 @@ def test_busqueda_local_primero_y_remota_acotada():
     assert "fetch(`/buscar-lugares?q=" in BUSQUEDA_JS
 
 
+@pytest.mark.parametrize("consulta,niveles", [
+    ("Colombia", ["pais", "municipio"]),
+    ("país Colombia", ["pais"]),
+    ("country Colombia", ["pais"]),
+    ("municipio de Colombia", ["municipio"]),
+    ("Colombia, Huila", ["municipio"]),
+    ("Colombia, Huila, Colombia", ["municipio"]),
+])
+def test_colombia_distingue_pais_municipio_y_contexto(consulta, niveles):
+    d = _node("const paises = [{properties:{nombre:'Colombia',iso_a3:'COL'}}];"
+              f"return Zonas.buscarLocal({json.dumps(consulta)}, {{municipios,departamentos,paises}}).map(r=>r.nivel);")
+    assert d == niveles
+
+
+def test_busqueda_respeta_otro_departamento_y_muestra_jerarquia():
+    d = _node("return {otro:Zonas.buscarLocal('Colombia, Antioquia',{municipios,departamentos}),"
+              "local:Zonas.buscarLocal('Neiva, Huila, Colombia',{municipios,departamentos})[0].descripcion};")
+    assert d["otro"] == []
+    assert d["local"].startswith("Neiva, Huila, Colombia")
+
+
 # ------------------------------------------------- contraste y color de acento
 @pytest.mark.parametrize("tema", ["claro", "oscuro"])
 @pytest.mark.parametrize("par", [("acento", "tarjeta"), ("acento", "fondo"), ("tarjeta", "acento")],

@@ -56,6 +56,8 @@ uv run python -m api --datos data/processed/vercel_firms --puerto 8000
 
 ## Méthode, provenance et limites
 
+La recherche distingue les pays et les communes homonymes. Vérifiez la catégorie et le lieu complet, puis choisissez **Confirmer ce lieu** pour déplacer la carte. **Colombia** présente le pays en premier et la commune du Huila séparément ; **Colombia, Huila** limite la correspondance locale à la commune.
+
 Inventaire des ressources pour la soumission : [Space Agency Partner & Other Data](docs/space_agency_partner_other_data.md). La couche hydrographique couvre désormais le monde avec Natural Earth et les cours d’eau détaillés OpenStreetMap/OpenFreeMap dès le zoom 6, selon la cartographie disponible et l’accès à internet.
 
 Version des règles : `armonizacion-0.3.1`. Indicateur par défaut : cellules actives équivalentes, `celdas-eq-1.1.0` ; il ne s’agit pas de la somme des pixels MODIS et VIIRS. Les fichiers sources, sommes de contrôle, dates d’acquisition et de téléchargement, règles et identifiants des jeux restent traçables dans JSON, CSV et les fiches. Les noms des champs de l’API restent identiques dans les trois langues.

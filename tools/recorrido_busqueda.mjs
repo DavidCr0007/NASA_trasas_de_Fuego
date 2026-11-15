@@ -45,6 +45,8 @@ export async function probarBusqueda({enviar,evaluar,esperarA,captura,comprobar,
   comprobar("los resultados pueden recorrerse con el teclado",await evaluar(`document.activeElement.matches("#lista-lugares button")`));
   await enviar("Input.dispatchKeyEvent",{type:"keyDown",key:"Enter",code:"Enter",windowsVirtualKeyCode:13});
   await enviar("Input.dispatchKeyEvent",{type:"keyUp",key:"Enter",code:"Enter",windowsVirtualKeyCode:13});
+  await esperarA(`!document.getElementById("confirmacion-lugar").hidden`,5000,"confirmación del barrio");
+  await evaluar(`document.getElementById("confirmar-lugar").click()`);
   await esperarA(`document.querySelector(".analizar-lugar")`,5000,"lugar seleccionado");
   await espera(1100);
   comprobar("seleccionar un barrio conserva el lienzo y centra el mapa",await evaluar(`mapa.getCanvas()===window.lienzoBusqueda && Math.abs(mapa.getCenter().lng+74.06)<0.1 && document.querySelector(".globo-pais").hidden`));

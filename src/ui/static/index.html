@@ -41,6 +41,16 @@
         <div class="resultados-cabeza"><strong>Resultados de la búsqueda</strong><button id="cerrar-lugares" type="button" aria-label="Cerrar resultados">×</button></div>
         <p id="estado-busqueda" role="status" aria-live="polite"></p>
         <ul id="lista-lugares"></ul>
+        <section id="confirmacion-lugar" aria-labelledby="confirmacion-lugar-titulo" hidden>
+          <strong id="confirmacion-lugar-titulo">Confirmar ubicación</strong>
+          <p id="confirmacion-lugar-nombre"></p>
+          <p id="confirmacion-lugar-tipo" class="tenue"></p>
+          <p id="confirmacion-lugar-contexto" class="tenue"></p>
+          <div class="confirmacion-lugar-acciones">
+            <button id="confirmar-lugar" type="button">Confirmar lugar</button>
+            <button id="volver-lugares" type="button">Volver a resultados</button>
+          </div>
+        </section>
       </div>
       <p class="fuente-busqueda">Primero en los límites locales (sin red); si no, <a href="https://nominatim.org/" target="_blank" rel="noopener">Nominatim</a> / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a> con internet. No se guardan búsquedas en el servidor.</p>
     </form>

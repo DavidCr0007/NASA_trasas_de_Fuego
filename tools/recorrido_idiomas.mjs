@@ -30,6 +30,7 @@ export async function probarIdiomas({enviar,evaluar,esperarA,captura,comprobar,e
   comprobar("fr: datos nuevos conservan el idioma",await evaluar(`document.querySelector(".globo-cabeza h2").textContent==="Résumé mondial" && /données|synthétiques/i.test(document.querySelector(".globo-naturaleza").textContent)`));
   await evaluar(`document.getElementById("consulta-lugar").value="Neiva";document.getElementById("buscar-lugar").requestSubmit()`);
   await espera(150);await evaluar(`if(!document.getElementById("resultados-lugares").hidden)document.querySelector("#lista-lugares button")?.click()`);
+  await evaluar(`document.getElementById("confirmar-lugar").click()`);
   await esperarA(`zonaSel?.zona.properties.shapeName==="Neiva"`,5000,"Neiva");await espera(250);
   comprobar("fr: la búsqueda conserva el nombre del lugar y traduce su categoría",await evaluar(`document.getElementById("zona-titulo").textContent==="Neiva" && document.getElementById("zona-nivel").textContent.includes("Commune")`));
   await enviar("Emulation.setDeviceMetricsOverride",{width:390,height:844,deviceScaleFactor:1,mobile:true});

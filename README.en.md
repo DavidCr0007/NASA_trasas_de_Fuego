@@ -56,6 +56,8 @@ uv run python -m api --datos data/processed/vercel_firms --puerto 8000
 
 ## Method, provenance and limitations
 
+Place search distinguishes countries from municipalities with the same name. Review the category and full location, then choose **Confirm place** to move the map. **Colombia** lists the country first and the municipality in Huila separately; **Colombia, Huila** restricts the local match to the municipality.
+
 Resource inventory for the submission: [Space Agency Partner & Other Data](docs/space_agency_partner_other_data.md). The water layer now has global Natural Earth coverage and detailed OpenStreetMap/OpenFreeMap waterways from zoom 6, subject to available mapping and internet access.
 
 Rules version: `armonizacion-0.3.1`. Default indicator: equivalent active cells, `celdas-eq-1.1.0`; it is not a sum of MODIS and VIIRS pixel counts. Source files, checksums, acquisition and download dates, processing rules and dataset identifiers remain traceable in JSON, CSV and record popups. The API field names remain stable across languages.

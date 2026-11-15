@@ -232,10 +232,12 @@ Cada respuesta trae la cita de FIRMS, el aviso «as is», la versión de reglas,
 
 1. Escriba el lugar en la barra superior; añada ciudad o país si el nombre es ambiguo. Ejemplo: **Chapinero, Bogotá, Colombia**.
 2. Pulse **Buscar** o Enter. Los resultados indican nombre, tipo y contexto geográfico. Flechas arriba/abajo permiten recorrerlos y Escape cierra la lista.
-3. Elija un resultado: el mismo mapa se desplaza hasta él y muestra un marcador azul. La búsqueda conserva el área de los calendarios.
+3. Elija un resultado y revise su categoría y ubicación completa. Pulse **Confirmar lugar** para centrar el mapa; **Volver a resultados** o Escape permiten cancelar. Incluso una coincidencia única requiere confirmación. La búsqueda conserva el área de los calendarios.
 4. Para actualizar también el análisis, pulse **Analizar esta zona** en la ficha del marcador. Se usa el **recuadro aproximado** del lugar. Puede ajustar el año desde Opciones.
 
-La búsqueda usa **Nominatim / OpenStreetMap**, necesita internet y no requiere una clave FIRMS. No añade un mapa de calles. Solo envía consultas al pulsar Buscar o Enter; escribir no genera solicitudes. El proceso API limita las consultas nuevas a una cada 1,1 segundos y conserva hasta 128 consultas en memoria durante 24 horas. La cobertura de barrios y direcciones depende del proveedor.
+La búsqueda consulta primero países, municipios y departamento locales, sin red. Si no encuentra coincidencias, usa **Nominatim / OpenStreetMap** con internet, sin necesitar una clave FIRMS. No añade un mapa de calles. Solo envía consultas al pulsar Buscar o Enter; escribir no genera solicitudes. El proceso API limita las consultas nuevas a una cada 1,1 segundos y no las guarda; la pestaña conserva hasta 32 respuestas en memoria, separadas por idioma. La cobertura de barrios y direcciones depende del proveedor.
+
+**Colombia** ofrece primero el país y después el municipio homónimo del Huila, con sus categorías visibles. Para acotar, use **país Colombia**, **municipio de Colombia** o **Colombia, Huila**. [Corrección y comprobaciones de la búsqueda](docs/busqueda_confirmada_2026-11-15.md).
 
 Endpoint: `/buscar-lugares?q=Chapinero%2C%20Bogota%2C%20Colombia`. Para un servicio propio compatible con Nominatim, configure `NOMINATIM_URL` en el entorno **antes de iniciar la API**. Si el servidor ya estaba abierto antes de incorporar esta función, reinícielo para registrar la nueva ruta.
 
@@ -268,7 +270,7 @@ Cada capa tiene opacidad y modo de mezcla. El sombreado ASTER se **multiplica** 
 
 Los límites del departamento y de los municipios se dibujan siempre encima de cualquier base. Al pulsar un foco se resalta su departamento (zoom < 8) o su municipio (zoom ≥ 8), y una tarjeta muestra los focos del periodo, los de confianza alta, el origen y la fecha UTC.
 
-La búsqueda consulta primero los municipios y el departamento locales, y Nominatim solo con conexión. El servidor no guarda las búsquedas.
+La búsqueda consulta primero los países, municipios y departamento locales, y Nominatim solo con conexión. Ningún resultado se selecciona sin confirmación. El servidor no guarda las búsquedas.
 
 **Vías, ciudades y zonas (ADR 0014).** La base **Vías e infraestructura** (preajuste «Vías») muestra OpenStreetMap en grises para que solo destaquen los focos y la zona.
 

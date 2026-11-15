@@ -125,14 +125,21 @@
     .toLowerCase().replace(/[^a-z0-9ñ ]+/g, " ").replace(/\s+/g, " ").trim();
 
   /**
-   * Búsqueda en la lista local (sin red). Exacto > empieza por > contiene. También acepta
-   * «Neiva, Huila» o «municipio de Neiva». Devuelve [{nombre, tipo, nivel, feature}].
+   * Búsqueda sin red, conservando países y municipios homónimos como opciones distintas.
+   * El nivel y el contexto explícitos («país Colombia», «Colombia, Huila») acotan la búsqueda.
    */
-  function buscarLocal(texto, { municipios = [], departamentos = [] } = {}) {
-    const q = normalizar(texto).replace(/^(municipio|departamento) (de |del )?/, "").split(" huila")[0].trim()
-      || normalizar(texto);
+  function buscarLocal(texto, { municipios = [], departamentos = [], paises = [] } = {}) {
+    const entrada = normalizar(texto);
+    const prefijo = /^(pais|country|pays|municipio|municipality|commune|departamento) (?:de |del |of |du )?/;
+    const pedido = prefijo.exec(entrada)?.[1];
+    const nivel = pedido && ({ pais: "pais", country: "pais", pays: "pais", municipio: "municipio",
+      municipality: "municipio", commune: "municipio", departamento: "departamento" })[pedido];
+    const sinPrefijo = entrada.replace(prefijo, "");
+    const contextoHuila = sinPrefijo !== "huila" && /\bhuila\b/.test(sinPrefijo);
+    const q = sinPrefijo === "colombia" ? sinPrefijo : sinPrefijo.replace(/ colombia$/, "").replace(/ huila$/, "").trim();
     if (q.length < 3) return [];
     const candidatos = [
+      ...paises.map((f) => ({ f, nivel: "pais", tipo: "País" })),
       ...departamentos.map((f) => ({ f, nivel: "departamento", tipo: "Departamento" })),
       ...municipios.map((f) => ({ f, nivel: "municipio", tipo: "Municipio" })),
     ];
@@ -140,14 +147,16 @@
       const n = normalizar(nombre);
       return n === q ? 3 : n.startsWith(q) ? 2 : n.includes(q) ? 1 : 0;
     };
-    // Ante un empate exacto gana el departamento; en coincidencias parciales, el municipio.
-    const orden = (c) => c.p * 10 + ((c.p === 3) === (c.nivel === "departamento") ? 1 : 0);
-    return candidatos.map((c) => ({ ...c, p: puntaje(c.f.properties.shapeName) }))
-      .filter((c) => c.p > 0)
+    const nombre = (c) => c.f.properties.shapeName ?? c.f.properties.nombre;
+    const orden = (c) => c.p * 10 + ({ pais: 3, departamento: 2, municipio: 1 })[c.nivel];
+    return candidatos.map((c) => ({ ...c, p: puntaje(nombre(c)) }))
+      .filter((c) => c.p > 0 && (!nivel || c.nivel === nivel) && (!contextoHuila || c.nivel === "municipio"))
       .sort((a, b) => orden(b) - orden(a)
-        || a.f.properties.shapeName.localeCompare(b.f.properties.shapeName, "es"))
+        || nombre(a).localeCompare(nombre(b), "es"))
       .slice(0, 6)
-      .map((c) => ({ nombre: c.f.properties.shapeName, tipo: c.tipo, nivel: c.nivel, feature: c.f }));
+      .map((c) => ({ nombre: nombre(c), tipo: c.tipo, nivel: c.nivel, feature: c.f,
+        descripcion: c.nivel === "pais" ? `${nombre(c)} · País · ${c.f.properties.iso_a3}`
+          : c.nivel === "municipio" ? `${nombre(c)}, Huila, Colombia · límite DANE` : "Huila, Colombia · unión de los municipios DANE" }));
   }
 
   /** Cuenta focos y focos de confianza alta dentro de la geometría (respaldo en el cliente). */

@@ -197,17 +197,20 @@ function actualizarAreaActual() {
   $("area-actual").hidden=sel.value!=="dibujo";
   $("area-actual").textContent=opcion?.dataset.nombreCompleto??"";
 }
-let municipios=[], departamentos=[], ciudades=[], paisesMundo=[];
+let municipios=[], departamentos=[], ciudades=[], paisesMundo=[], paisesBusqueda=[];
 function resaltarMunicipio(){dibujarArea();}
 async function cargarLimites(){
   try{
     const vacio=()=>({features:[]});
-    const [geo,depto,urbes,paises]=await Promise.all([pedir("/ui/datos/huila_municipios.geojson"),
+    const [geo,depto,urbes,paises,indice]=await Promise.all([pedir("/ui/datos/huila_municipios.geojson"),
       pedir("/ui/datos/huila_departamento.geojson").catch(vacio),
       pedir("/ui/datos/ciudades_colombia.geojson").catch(vacio),
-      pedir("/ui/datos/mundo_paises.geojson").catch(vacio)]);
+      pedir("/ui/datos/mundo_paises.geojson").catch(vacio), pedir("/ui/datos/indice_limites.json").catch(()=>({paises:[]}))]);
     municipios=geo.features??[]; departamentos=depto.features??[];
     ciudades=urbes.features??[]; paisesMundo=paises.features??[];
+    paisesBusqueda=(indice.paises??[]).map(p=>({type:"Feature",properties:{nombre:p.nombre,iso_a3:p.iso,bbox:p.bbox},
+      geometry:paisesMundo.find(f=>f.properties.iso_a3===p.iso)?.geometry??null}));
+    if (!paisesBusqueda.length) paisesBusqueda=paisesMundo;
     globo.limitesLocales({municipios,departamentos});
     const grupo=document.createElement("optgroup");grupo.label="Municipios del Huila";
     for(const f of municipios){const o=document.createElement("option");o.value='mun:'+f.properties.shapeID;o.textContent=f.properties.shapeName;grupo.appendChild(o);}
@@ -218,7 +221,8 @@ async function cargarLimites(){
 // ------------------------------------------------------------------ zona seleccionada (ADR 0013)
 // La pertenencia de un punto a una zona se calcula en el navegador (zonas.js) con los límites
 // locales del Huila y, fuera de él, con los ADM1/ADM2 ya descargados para la vista.
-const NIVELES_ZONA = { ciudad: "Ciudad (área urbana)", municipio: "Municipio", departamento: "Departamento" };
+const NIVELES_ZONA = { pais: "País", localidad: "Ciudad o localidad", barrio: "Barrio o sector", lugar: "Lugar",
+  ciudad: "Ciudad (área urbana)", municipio: "Municipio", departamento: "Departamento" };
 let zonaSel = null, zonaGen = 0;
 let puntoSel = null; // punto del foco elegido: al cruzar un umbral de zoom se vuelve a calcular su zona
 const fuentesZonas = () => ({
@@ -1367,15 +1371,24 @@ capasCtrl.ranura("imagen")?.appendChild($("control-imagen"));
 
 // ------------------------------------------------------------------ búsqueda: local primero
 window.iniciarBusquedaLugares({
-  buscarLocal: (q) => window.Zonas.buscarLocal(q, { municipios, departamentos }),
+  buscarLocal: (q) => window.Zonas.buscarLocal(q, { municipios, departamentos, paises: paisesBusqueda }),
   elegirLocal: (r) => {
+    if (r.nivel === "pais") {
+      const bbox=r.feature.properties.bbox;
+      explorarLugar({nombre:r.nombre,tipo:r.tipo,nivel:"pais",descripcion:r.descripcion,bbox,
+        lon:(bbox[0]+bbox[2])/2,lat:(bbox[1]+bbox[3])/2,geometria:r.feature.geometry});
+      return;
+    }
+    globo.quitarLugar();
     seguirViewport = true; puntoSel = null; // zona buscada: no cambia de nivel con el zoom
     const sel = r.nivel === "municipio"
       ? { nivel: "municipio", zona: r.feature, contexto: departamentos[0] ?? null }
       : { nivel: "departamento", zona: r.feature, contexto: null };
     mostrarZona(sel, { encuadrar: true });
   },
-  explorar: lugar => {
+  explorar: explorarLugar,
+});
+function explorarLugar(lugar) {
     quitarZona();
     seguirViewport=true;
     globo.localizar(lugar, seleccionado => {
@@ -1389,11 +1402,11 @@ window.iniciarBusquedaLugares({
     // Nominatim devuelve el polígono de municipios y departamentos: se resalta igual que uno local.
     if (lugar.geometria) {
       puntoSel = null;
-      const nivel = /municipio|ciudad|localidad/i.test(lugar.tipo) ? "municipio" : "departamento";
+      const nivel = lugar.nivel ?? ({ "País":"pais", "Municipio":"municipio", "Ciudad":"localidad", "Localidad":"localidad",
+        "Barrio":"barrio", "Barrio o sector":"barrio", "Departamento o estado":"departamento", "División administrativa":"departamento" }[lugar.tipo] ?? "lugar");
       mostrarZona({ nivel, zona: { type: "Feature", properties: { shapeName: lugar.nombre, bbox: lugar.bbox }, geometry: lugar.geometria }, contexto: null });
     }
-  },
-});
+}
 $("zona-cerrar").addEventListener("click", quitarZona);
 $("zona-encuadrar").addEventListener("click", encuadrarZona);
 mapa.on("zoomend", reevaluarZonaPorZoom);

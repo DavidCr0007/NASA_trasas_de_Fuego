@@ -66,6 +66,7 @@ export async function probarCapas({ enviar, evaluar, esperarA, captura, comproba
 
   // 4. Búsqueda local (sin red): «garzon» encuentra Garzón y ajusta la vista a su polígono.
   await evaluar(`(() => { const c = document.getElementById("consulta-lugar"); c.value = "garzon"; document.getElementById("buscar-lugar").requestSubmit(); return true; })()`);
+  await evaluar(`document.querySelector("#lista-lugares button").click();document.getElementById("confirmar-lugar").click()`);
   await esperarA(`document.getElementById("zona-titulo").textContent === "Garzón"`, 10000, "Garzón resaltado");
   await quieto();
   comprobar("búsqueda local de municipio", true, await evaluar(`document.getElementById("zona-nivel").textContent`));
@@ -120,6 +121,7 @@ export async function probarCapas({ enviar, evaluar, esperarA, captura, comproba
   comprobar("preajuste Vías: base mínima con límites", v.base === "vias" && v.vias === "visible" && v.lim === "visible", JSON.stringify(v));
   await evaluar(`(() => { quitarZona(); const c = document.getElementById("consulta-lugar"); c.value = "Neiva";
     document.getElementById("buscar-lugar").requestSubmit(); return true; })()`);
+  await evaluar(`document.querySelector("#lista-lugares button").click();document.getElementById("confirmar-lugar").click()`);
   await esperarA(`document.getElementById("zona-titulo").textContent === "Neiva"`, 15000, "Neiva");
   await quieto();
   await captura("vias_municipio");
@@ -135,6 +137,7 @@ export async function probarCapas({ enviar, evaluar, esperarA, captura, comproba
     for (const tema of ["claro", "oscuro"]) {
       await abrir(ancho, alto, movil, tema);
       await evaluar(`(() => { const c = document.getElementById("consulta-lugar"); c.value = "Neiva"; document.getElementById("buscar-lugar").requestSubmit(); return true; })()`);
+      await evaluar(`document.querySelector("#lista-lugares button").click();document.getElementById("confirmar-lugar").click()`);
       await esperarA(`document.getElementById("zona-titulo").textContent === "Neiva" && document.getElementById("zona-focos").textContent !== "…"`, 15000, "Neiva");
       // Día con más focos del año (línea de tiempo): la captura muestra focos, celdas y cifras.
       const dia = await evaluar(`(() => { const d = [...estado.calendario.dias].sort((a, b) => b.n_brutas - a.n_brutas)[0].fecha_utc; seleccionarDia(d); return d; })()`);
