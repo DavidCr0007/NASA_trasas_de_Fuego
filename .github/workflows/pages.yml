@@ -1,0 +1,53 @@
+# Demo estática en GitHub Pages (ADR 0015).
+# Corre las pruebas, regenera la muestra sintética histórica, precalcula las respuestas de la API
+# con tools/exportar_estatico.py y publica _site. No usa secretos ni la FIRMS_MAP_KEY.
+# Requisito único: Settings → Pages → Build and deployment → Source: «GitHub Actions».
+name: Pages (demo estática)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  construir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Dependencias (uv.lock)
+        run: uv sync --frozen
+      - name: Pruebas
+        run: uv run pytest -q
+      - name: Muestra sintética histórica (igual que make demo)
+        run: |
+          uv run python tools/generar_historico.py data/sample_historica
+          uv run python -m harmonize.pipeline --input data/sample_historica --output data/processed/demo_historica
+      - name: Sitio estático
+        run: uv run python tools/exportar_estatico.py --datos data/processed/demo_historica --salida _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  desplegar:
+    needs: construir
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - id: despliegue
+        uses: actions/deploy-pages@v4

@@ -259,6 +259,27 @@ La zona lleva su nombre sobre el mapa, y «Ver zona completa» la encuadra enter
 
 Al recargar se presenta la estructura de la página y un esqueleto dentro del mapa. Al cambiar de ciudad se mantienen el lienzo y los paneles mientras llegan los datos; el indicador de carga se limita al mapa y evita destellos en solicitudes rápidas.
 
+### Demo publicada en GitHub Pages (ADR 0015)
+
+**https://davidcr0007.github.io/NASA_trasas_de_Fuego/**: la misma interfaz, sin servidor, con la muestra **sintética** del Huila.
+
+El flujo `.github/workflows/pages.yml` publica la demo en cada push a `main`:
+
+1. corre las pruebas;
+2. regenera la muestra;
+3. precalcula las respuestas de la API con `tools/exportar_estatico.py`;
+4. publica el resultado.
+
+En la página publicada funcionan las capas, el resaltado de zonas, la búsqueda local, el calendario y las descargas del Huila. La búsqueda en internet, las áreas dibujadas y los límites fuera del Huila requieren la API local (`make api`).
+
+Para generarla localmente:
+
+```
+uv run python tools/exportar_estatico.py --datos data/processed/demo_historica --salida _site
+```
+
+Se activa una sola vez en *Settings → Pages → Source: GitHub Actions*.
+
 ### Límites geográficos globales
 
 El índice local contiene 252 países y territorios, incluidos microestados. La interfaz solicita límites simplificados de **geoBoundaries** para los países visibles:

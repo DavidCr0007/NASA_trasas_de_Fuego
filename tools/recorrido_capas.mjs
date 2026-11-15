@@ -103,9 +103,15 @@ export async function probarCapas({ enviar, evaluar, esperarA, captura, comproba
   await enfocar(-75.23, 4.44, 6.5);
   await quieto();
   await evaluar(`(() => { seleccionarZonaEn(-75.23, 4.44, mapa.getZoom()); return true; })()`);
-  await esperarA(`!["Fuera de los límites cargados", "Neiva"].includes(document.getElementById("zona-titulo").textContent)`, 60000, "zona fuera del Huila");
-  const fuera = await zonaActual();
-  comprobar("fuera del Huila: resalta el departamento del foco", fuera.nivel.startsWith("Departamento") && /tolima/i.test(fuera.nombre), JSON.stringify(fuera));
+  if (await evaluar("Boolean(window.HHN_ESTATICO)")) {
+    // Demo estática de GitHub Pages (ADR 0015): sin /limites; la tarjeta debe decirlo.
+    await esperarA(`document.getElementById("zona-nota").textContent.includes("demo publicada")`, 20000, "aviso de la demo estática");
+    comprobar("demo estática: fuera del Huila avisa que hace falta la API", true, await evaluar(`document.getElementById("zona-nota").textContent`));
+  } else {
+    await esperarA(`!["Fuera de los límites cargados", "Neiva"].includes(document.getElementById("zona-titulo").textContent)`, 60000, "zona fuera del Huila");
+    const fuera = await zonaActual();
+    comprobar("fuera del Huila: resalta el departamento del foco", fuera.nivel.startsWith("Departamento") && /tolima/i.test(fuera.nombre), JSON.stringify(fuera));
+  }
 
   // 5d. Base mínima «Vías e infraestructura» (preajuste Vías) en el municipio y en la ciudad.
   await evaluar(`(() => { document.querySelector('[data-preajuste="vias"]').click(); return true; })()`);

@@ -28,3 +28,6 @@ dist/
 build/
 # Muestra histórica sintética: se regenera con make demo
 data/sample_historica/
+
+# Demo estática de GitHub Pages (tools/exportar_estatico.py, ADR 0015)
+_site/

@@ -103,3 +103,10 @@ Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indica
 - [x] Recorrido en Chrome (`capas`): 15/15; `normal`: 18/18.
 - [ ] Perímetros urbanos oficiales del DANE (todas las cabeceras del Huila): pendiente de revisar su licencia.
 - [ ] Proveedor de teselas propio antes de un despliegue público (R-30).
+
+## Demo publicada (ADR 0015, 2026-11-15)
+
+- [x] Sitio estático generado con las respuestas exactas de la API (`tools/exportar_estatico.py`); `estatico.js` las sirve; lo que necesita servidor avisa.
+- [x] Flujo `.github/workflows/pages.yml`: pruebas → muestra → exportación → despliegue, sin secretos.
+- [x] Recorrido en Chrome sobre el sitio servido en subcarpeta: 15/15.
+- [ ] Activar Pages en *Settings → Pages → Source: GitHub Actions* (requiere administrador del repositorio) y comprobar la URL publicada.

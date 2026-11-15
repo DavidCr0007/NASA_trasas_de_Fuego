@@ -274,7 +274,8 @@ async function seleccionarZonaEn(lon, lat, zoom) {
     sel = (remotas && window.Zonas.zonaSeleccionada(lon, lat, zoom, remotas)) ?? sel;
   }
   if (sel) { mostrarZona(sel); return; }
-  mostrarSinZona(navigator.onLine === false ? "Sin conexión: fuera del Huila los límites se descargan de geoBoundaries."
+  mostrarSinZona(window.HHN_ESTATICO ? "En la demo publicada solo están los límites del Huila; fuera de él, ejecute la API local (make api)."
+    : navigator.onLine === false ? "Sin conexión: fuera del Huila los límites se descargan de geoBoundaries."
     : "No hay límites administrativos publicados para este punto (mar o territorio sin datos).");
 }
 

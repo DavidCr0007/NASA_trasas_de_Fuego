@@ -54,6 +54,9 @@
       return { data: await (await lienzo.convertToBlob({ type: "image/png" })).arrayBuffer() };
     });
   }
+  // MapLibre carga los GeoJSON del estilo por su cuenta (sin window.fetch): en la demo estática de
+  // GitHub Pages (ADR 0015) las rutas /ui/… se resuelven contra la carpeta del sitio.
+  const recurso = (ruta) => (window.HHN_ESTATICO ? window.HHN_ESTATICO.raiz + ruta.replace(/^\/ui\//, "") : ruta);
   const tejasSombra = (modo) => (modo === "normal" ? FONDOS.sombra : `sombra://${modo}/{z}/{y}/{x}`);
   // Clases de FRP máximo (MW) de la celda: mismas que la leyenda y el mapa regional.
   const CORTES_FRP = [5, 20, 100, 500];
@@ -111,8 +114,8 @@
           sombra: { type: "raster", tiles: [tejasSombra("multiplicar")], tileSize: 256, maxzoom: 12 },
           vias: { type: "raster", tiles: [FONDOS.vias], tileSize: 256, maxzoom: 19,
             attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' },
-          hidrografia: { type: "geojson", data: "/ui/datos/hidrografia_colombia.geojson" },
-          paises: { type: "geojson", data: "/ui/datos/mundo_paises.geojson",
+          hidrografia: { type: "geojson", data: recurso("/ui/datos/hidrografia_colombia.geojson") },
+          paises: { type: "geojson", data: recurso("/ui/datos/mundo_paises.geojson"),
           },
           adm0: { type: "geojson", data: vacio() },
           adm1: { type: "geojson", data: vacio() },
