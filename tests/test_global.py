@@ -51,6 +51,8 @@ def test_global_agrega_todas_las_detecciones_del_periodo(cliente, salida):
     assert sum(s["n"] for s in d["serie_diaria"]) == d["total_detecciones"]
     assert d["cita"] and d["aviso"] and d["rules_version"]
     assert d["origen_datos"] == "sintetico"
+    assert d["detalle_mismo_conjunto"] is True
+    assert d["actualizado_hasta_utc"].startswith(fin.isoformat())
 
 
 def test_global_reparte_por_pais(cliente):
@@ -75,7 +77,9 @@ def test_global_usa_su_propio_conjunto(salida, tmp_path):
     vacio.mkdir()
     # El conjunto principal no existe; el global sí: /global responde, /calendario no.
     c = TestClient(create_app(vacio, datos_global=salida))
-    assert c.get("/global").status_code == 200
+    respuesta = c.get("/global")
+    assert respuesta.status_code == 200
+    assert respuesta.json()["detalle_mismo_conjunto"] is False
     assert c.get("/calendario", params={"area": "huila"}).status_code == 503
     sin_global = TestClient(create_app(salida, datos_global=vacio))
     assert sin_global.get("/global").status_code == 503
@@ -120,7 +124,7 @@ def test_recursos_del_globo_locales(cliente, ruta):
 
 
 def test_maplibre_va_antes_de_globo_y_de_app():
-    orden = [HTML.index(f'src="{s}"') for s in ("vendor/leaflet/leaflet.js", "vendor/maplibre/maplibre-gl.js", "globo.js", "app.js")]
+    orden = [HTML.index(f'src="{s}"') for s in ("vendor/maplibre/maplibre-gl.js", "globo.js", "app.js")]
     assert orden == sorted(orden)
     assert "MapLibre GL JS" in (ESTATICOS / "vendor" / "maplibre" / "maplibre-gl.js").read_text(encoding="utf-8")[:200]
 
@@ -131,21 +135,24 @@ def test_globo_solo_carga_remotos_de_nasa_gibs():
         antes = GLOBO[max(0, m.start() - 8): m.start()]
         assert url.startswith("https://gibs.earthdata.nasa.gov/wmts/") or antes.endswith('href="'), url
     assert "NASA FIRMS" in GLOBO and "LANCE" in GLOBO          # D-10 también en el globo
-    assert "Natural Earth" in GLOBO and "NASA GIBS" in GLOBO
+    assert "geoBoundaries" in GLOBO and "NASA GIBS" in GLOBO
     assert "import(" not in GLOBO
 
 
-def test_globo_con_histeresis_y_solo_por_zoom_del_usuario():
-    assert re.search(r"const UMBRAL_GLOBO = 5;", JS) and re.search(r"const UMBRAL_REGIONAL = 5\.2;", JS)
-    assert "z < zoomPrevio && z <= UMBRAL_GLOBO" in JS and "!guardaZoom" in JS
-    assert "z > zoomInicio && z >= umbral" in GLOBO and "!programatico" in GLOBO
+def test_planeta_con_proyeccion_continua_y_estilo_fijo():
+    assert 'projection: { type: "globe" }' in GLOBO
+    assert 'maxZoom: 17' in GLOBO
+    assert 'opciones.alExplorar(c.lng' not in GLOBO
+    assert '"raster-opacity": 1, "raster-saturation": 0' in GLOBO
+    assert "Black_Marble" not in GLOBO
     assert "prefers-reduced-motion" in GLOBO
 
 
 def test_simbologia_por_frp_y_sin_textos_falsos():
     assert "misma escala que el calendario" not in JS
     assert "const CORTES_FRP = [5, 20, 100, 500];" in JS and "CORTES_FRP = [5, 20, 100, 500]" in GLOBO
-    assert "OPACIDAD_CONFIANZA" in JS and "Rombo" in JS
+    assert "confianza_clase" in GLOBO and "Rombo" not in JS
+    assert "Guía de colores, temperatura y precisión" in HTML
     assert 'id="aviso-truncado"' in HTML and 'role="alert"' in HTML
     assert "&limite=50000" in JS
 

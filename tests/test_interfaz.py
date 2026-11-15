@@ -257,7 +257,8 @@ def test_app_js_guarda_tema_con_try_catch():
 
 # ------------------------------------------------------------ 6. cita D-10
 def test_cita_d10_en_app_js_e_index():
-    assert "addAttribution" in JS
+    globo = (ESTATICOS / "globo.js").read_text(encoding="utf-8")
+    assert "customAttribution" in globo and "LANCE / ESDIS" in globo
     assert "NASA FIRMS" in JS and "LANCE" in JS
     assert '$("cita").textContent = c.cita' in JS
     assert '$("aviso").textContent = c.aviso' in JS
@@ -323,8 +324,9 @@ def test_estado_vacio_no_ocupa_espacio():
 
 
 # ------------------------------------------------- H7: fuentes complementarias
-def test_imagen_gibs_en_panel_propio_sin_filtro_oscuro():
-    assert 'createPane("imagen")' in JS and 'pane: "imagen"' in JS
+def test_imagen_gibs_en_capa_propia_sin_filtro_oscuro():
+    globo = (ESTATICOS / "globo.js").read_text(encoding="utf-8")
+    assert 'globo.imagen(' in JS and 'id:"imagen",type:"raster"' in globo
     assert "NASA GIBS" in JS
     # El filtro del tema oscuro solo actúa sobre .leaflet-tile-pane (ver
     # test_filtro_de_teselas_solo_en_teselas); la imagen va en otro panel y no se invierte.
@@ -339,13 +341,15 @@ def test_clima_rotulado_como_reanalisis_con_credito():
 
 def test_limites_locales_con_credito():
     assert "/ui/datos/huila_municipios.geojson" in JS
-    assert "geoBoundaries" in JS and "DANE, CC BY 4.0" in JS
+    globo = (ESTATICOS / "globo.js").read_text(encoding="utf-8")
+    assert "geoBoundaries" in globo and "DANE, CC BY 4.0 para COL ADM2" in globo
 
 
-def test_area_y_limites_en_svg_para_conservar_el_tema():
-    # Canvas ignora las clases CSS: el área y los límites deben usar el renderizador SVG.
-    assert re.search(r"L\.rectangle\([^;]*renderer:\s*svgVector", JS)
-    assert re.search(r"L\.geoJSON\([^;]*renderer:\s*svgVector", JS, flags=re.S)
+def test_un_solo_lienzo_y_limites_vectoriales():
+    globo = (ESTATICOS / "globo.js").read_text(encoding="utf-8")
+    assert "L.map(" not in JS and "vendor/leaflet/leaflet.js" not in HTML
+    assert 'id: "area-seleccion", type: "line"' in globo
+    assert 'source: `adm${nivel}`' in globo
 
 
 def test_conexion_con_nasa_firms():

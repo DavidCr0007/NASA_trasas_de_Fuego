@@ -170,6 +170,14 @@ def test_detecciones_filtradas_por_fecha(cliente):
     assert {d["fecha_hora_utc"][:10] for d in cuerpo["detecciones"]} == {"2026-11-11"}
 
 
+def test_temperatura_de_brillo_conserva_valor_del_sensor(cliente, salida):
+    originales = {d["record_id"]: d["brillo"] for d in _tabla(salida, "detecciones")}
+    datos = cliente.get(f"/detecciones?bbox={BBOX}").json()["detecciones"]
+    assert datos and any(d["brillo"] is not None for d in datos)
+    for d in datos:
+        assert d["brillo"] == originales[d["record_id"]]
+
+
 # ---------------------------------------------------------------- H3-03 (D-02)
 def test_calidad_mixta_es_preliminar(cliente):
     cuerpo = cliente.get(f"/calendario?bbox={BBOX}").json()
@@ -267,7 +275,7 @@ def test_interfaz_servida_sin_recursos_externos(cliente):
     # Funciona sin internet: ningún script ni hoja de estilos remotos (las teselas son opcionales).
     assert not re.search(r'<script[^>]+src="https?://', html)
     assert not re.search(r'<link[^>]+href="https?://', html)
-    for recurso in ("vendor/leaflet/leaflet.js", "vendor/leaflet/leaflet.css", "app.js", "styles.css"):
+    for recurso in ("vendor/maplibre/maplibre-gl.js", "vendor/maplibre/maplibre-gl.css", "globo.js", "app.js", "styles.css"):
         assert recurso in html
         assert cliente.get(f"/ui/{recurso}").status_code == 200
 
@@ -276,7 +284,8 @@ def test_interfaz_muestra_la_cita_en_el_mapa(cliente):
     # Mapa: forma corta «NASA FIRMS» con enlace (FAQ de FIRMS) en la atribución.
     # Pie: la cita completa y el aviso tal como los entrega la API.
     js = cliente.get("/ui/app.js").text
-    assert "addAttribution" in js and "NASA FIRMS" in js and "LANCE" in js
+    mapa_js = cliente.get("/ui/globo.js").text
+    assert "customAttribution" in mapa_js and "NASA FIRMS" in mapa_js and "LANCE" in mapa_js
     assert '$("cita").textContent = c.cita' in js and '$("aviso").textContent = c.aviso' in js
 
 

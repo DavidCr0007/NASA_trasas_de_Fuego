@@ -25,6 +25,8 @@ from fastapi.staticfiles import StaticFiles
 from api.area import contiene, resolver_area
 from api.cita import AVISO, CITA
 from api import mundo
+from api.limites import router as limites_router
+from api.lugares import router as lugares_router
 from harmonize import armonizada as arm
 from harmonize import linea_base as lb
 from harmonize.config import RulesConfig
@@ -89,6 +91,8 @@ def create_app(
         description="Calendario armonizado de focos de calor MODIS y VIIRS (NASA FIRMS). " + CITA,
         version="0.1.0",
     )
+    app.include_router(limites_router)
+    app.include_router(lugares_router)
 
     ruta = {nombre.removesuffix(".parquet"): datos / nombre for nombre in ARCHIVOS_PARQUET.values()}
     # ADR 0012: el globo puede leer un conjunto aparte (p. ej. NRT global reciente) o el mismo.
@@ -546,10 +550,11 @@ def create_app(
             f"origen_datos: {cuerpo['origen_datos']}; truncado: {str(cuerpo['truncado']).lower()}",
             "Cada fila es un foco representante tras deduplicar (R3); preliminar=true si es NRT. "
             "Los focos son detecciones térmicas, no incendios confirmados.",
+            "brillo: temperatura de brillo del pixel en kelvin; no es temperatura de llama. frp: MW.",
         ):
             buf.write(f"# {linea}\n")
         campos = ["fecha_hora_utc", "lat", "lon", "sensor", "satelite", "confianza_clase", "confianza_raw",
-                  "frp", "calidad", "preliminar", "version", "cell_id", "semilado_nominal_m", "n_fusionados", "record_id"]
+                  "frp", "calidad", "preliminar", "version", "cell_id", "semilado_nominal_m", "n_fusionados", "record_id", "brillo"]
         escritor = csv.DictWriter(buf, fieldnames=campos, lineterminator="\n", extrasaction="ignore")
         escritor.writeheader()
         escritor.writerows(cuerpo["detecciones"])
@@ -571,7 +576,7 @@ def create_app(
             desde, hasta = rango(con, caja, desde, hasta)
             filas = [] if desde is None or desde > hasta else con.execute(
                 f"select record_id, sensor, satelite, fecha_hora_utc at time zone 'UTC', calidad,"
-                f" confianza_clase, confianza_raw, lat, lon, frp, cell_id, version, n_fusionados"
+                f" confianza_clase, confianza_raw, lat, lon, frp, cell_id, version, n_fusionados, brillo"
                 f" from read_parquet('{ruta['detecciones']}')"
                 " where lat between ? and ? and lon between ? and ?"
                 " and cast(fecha_hora_utc at time zone 'UTC' as date) between ? and ?" + fd +
@@ -583,7 +588,7 @@ def create_app(
         finally:
             con.close()
         columnas = ["record_id", "sensor", "satelite", "fecha_hora_utc", "calidad", "confianza_clase",
-                    "confianza_raw", "lat", "lon", "frp", "cell_id", "version", "n_fusionados"]
+                    "confianza_raw", "lat", "lon", "frp", "cell_id", "version", "n_fusionados", "brillo"]
         detecciones = []
         for fila in filas[:limite]:
             d = dict(zip(columnas, fila))
@@ -675,6 +680,9 @@ def create_app(
             "hasta": fin.isoformat() if fin else None,
             "cobertura": {"desde": lo.isoformat() if lo else None, "hasta": hi.isoformat() if hi else None},
             "res_grados": res,
+            # Solo se promete el detalle de estas mismas detecciones cuando ambos mapas leen el mismo conjunto.
+            "detalle_mismo_conjunto": datos.resolve() == datos_g.resolve(),
+            "actualizado_hasta_utc": max((c[7] for c in celdas), default=None),
             "total_detecciones": sum(c[2] for c in celdas),
             "total_alta": sum(c[5] for c in celdas),
             "n_paises": sum(1 for p in por_pais.values() if p["iso_a3"]),

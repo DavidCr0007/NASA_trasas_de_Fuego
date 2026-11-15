@@ -11,15 +11,15 @@
       if (t === "claro" || t === "oscuro") document.documentElement.setAttribute("data-tema", t);
     } catch (e) { /* sin almacenamiento: se usa el tema del sistema */ }
   </script>
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="vendor/maplibre/maplibre-gl.css">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body data-vista="continuo">
   <header class="barra">
     <div class="marca">
       <h1>Harmonized Heat Neiva</h1>
       <p>Focos de calor MODIS + VIIRS armonizados · del globo al municipio · NASA FIRMS</p>
+      <p class="alerta-breve"><strong>No usar para proteger vidas ni bienes.</strong></p>
     </div>
     <div class="insignias">
       <span id="insignia-calidad" class="insignia">calidad…</span>
@@ -29,72 +29,85 @@
   </header>
 
   <section class="controles" aria-label="Controles">
-    <label>Área
-      <select id="sel-area">
-        <option value="huila">Huila (límite oficial)</option>
-        <option value="neiva">Neiva ± 0,25°</option>
-        <option value="dibujo" disabled>Rectángulo dibujado</option>
-        <!-- Los municipios del Huila se añaden desde datos/huila_municipios.geojson -->
-      </select>
-    </label>
-    <button id="btn-dibujar" type="button">Dibujar área en el mapa</button>
-    <button id="btn-globo" type="button" aria-pressed="false">Ver el globo 3D</button>
-    <label>Año
-      <select id="sel-anio"></select>
-    </label>
-    <a id="btn-csv" class="boton" href="#" download>Calendario (CSV)</a>
-    <a id="btn-csv-focos" class="boton" href="#" download>Focos de la búsqueda (CSV)</a>
+    <p id="contexto-vista" class="contexto-vista" role="status">Región</p>
+    <form id="buscar-lugar" class="buscar-lugar" role="search" aria-label="Buscar una ubicación">
+      <label class="solo-lectores" for="consulta-lugar">Ciudad, barrio, dirección o lugar</label>
+      <div class="buscar-campo">
+        <input id="consulta-lugar" type="search" placeholder="Ciudad, barrio o dirección…" autocomplete="off" minlength="3" maxlength="160" required>
+        <button id="btn-buscar-lugar" type="submit" aria-controls="resultados-lugares" aria-expanded="false">Buscar</button>
+      </div>
+      <div id="resultados-lugares" class="resultados-lugares" role="region" aria-label="Resultados de lugares" hidden>
+        <div class="resultados-cabeza"><strong>Resultados de la búsqueda</strong><button id="cerrar-lugares" type="button" aria-label="Cerrar resultados">×</button></div>
+        <p id="estado-busqueda" role="status" aria-live="polite"></p>
+        <ul id="lista-lugares"></ul>
+      </div>
+      <p class="fuente-busqueda">Lugares: <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a> / <a href="https://nominatim.org/" target="_blank" rel="noopener">Nominatim</a> · requiere internet</p>
+    </form>
+    <button id="btn-globo" type="button" aria-pressed="false">Ver mundo</button>
     <label>Tema
-      <select id="sel-tema">
-        <option value="sistema">Sistema</option>
-        <option value="claro">Claro</option>
-        <option value="oscuro">Oscuro</option>
-      </select>
+      <select id="sel-tema"><option value="sistema">Sistema</option><option value="claro">Claro</option><option value="oscuro">Oscuro</option></select>
     </label>
+    <details class="controles-secundarios">
+      <summary>Opciones<span class="detalle-control"> y descargas</span></summary>
+      <div class="opciones-panel">
+      <div class="controles-secundarios-cuerpo">
+        <label class="control-regional">Área del análisis
+          <select id="sel-area">
+            <option value="huila">Huila (límite oficial)</option><option value="neiva">Neiva ± 0,25°</option>
+            <option value="dibujo" disabled>Rectángulo dibujado</option>
+          </select><span id="area-actual" class="area-actual" hidden></span>
+        </label>
+        <label class="control-regional">Año del análisis<select id="sel-anio"></select></label>
+        <button id="btn-dibujar" class="control-regional" type="button">Dibujar área en el mapa</button>
+        <a id="btn-csv" class="boton control-regional" href="#" download>Calendario regional (CSV)</a>
+        <a id="btn-csv-focos" class="boton control-regional" href="#" download>Focos regionales (CSV)</a>
+        <span class="tenue">Relieve natural NASA GIBS · fijo en ambos temas</span>
+      </div>
+      <details class="controles-avanzados control-regional" aria-label="Rango de fechas y coordenadas">
+        <summary>Rango de fechas y coordenadas</summary>
+        <div class="fila-avanzada">
+          <fieldset>
+            <legend>Rango para el mapa y las descargas</legend>
+            <label>Desde <input type="date" id="rango-desde" min="2000-11-01"></label>
+            <label>Hasta <input type="date" id="rango-hasta" min="2000-11-01"></label>
+            <button id="btn-rango" type="button">Aplicar rango</button>
+            <span class="tenue">Vacío = el año elegido.</span>
+          </fieldset>
+          <fieldset>
+            <legend>Área por coordenadas (grados decimales)</legend>
+            <label>Oeste <input type="text" inputmode="decimal" id="coord-w" placeholder="-75,6" size="7"></label>
+            <label>Sur <input type="text" inputmode="decimal" id="coord-s" placeholder="2,7" size="6"></label>
+            <label>Este <input type="text" inputmode="decimal" id="coord-e" placeholder="-74,9" size="7"></label>
+            <label>Norte <input type="text" inputmode="decimal" id="coord-n" placeholder="3,3" size="6"></label>
+            <button id="btn-coordenadas" type="button">Usar coordenadas</button>
+          </fieldset>
+        </div>
+      </details>
+      </div>
+    </details>
   </section>
-
-  <details class="controles-avanzados" aria-label="Rango de fechas y coordenadas">
-    <summary>Rango de fechas y coordenadas</summary>
-    <div class="fila-avanzada">
-      <fieldset>
-        <legend>Rango para el mapa y las descargas</legend>
-        <label>Desde <input type="date" id="rango-desde" min="2000-11-01"></label>
-        <label>Hasta <input type="date" id="rango-hasta" min="2000-11-01"></label>
-        <button id="btn-rango" type="button">Aplicar rango</button>
-        <span class="tenue">Vacío = el año elegido.</span>
-      </fieldset>
-      <fieldset>
-        <legend>Área por coordenadas (grados decimales)</legend>
-        <label>Oeste <input type="text" inputmode="decimal" id="coord-w" placeholder="-75,6" size="7"></label>
-        <label>Sur <input type="text" inputmode="decimal" id="coord-s" placeholder="2,7" size="6"></label>
-        <label>Este <input type="text" inputmode="decimal" id="coord-e" placeholder="-74,9" size="7"></label>
-        <label>Norte <input type="text" inputmode="decimal" id="coord-n" placeholder="3,3" size="6"></label>
-        <button id="btn-coordenadas" type="button">Usar coordenadas</button>
-      </fieldset>
-    </div>
-  </details>
-
-  <div id="estado-carga" role="status" aria-live="polite" class="estado">
-    <span id="estado-texto"></span>
-    <button id="btn-reintentar" type="button" hidden>Reintentar</button>
-  </div>
 
   <main class="rejilla">
     <section class="tarjeta mapa-tarjeta" aria-labelledby="mapa-titulo">
       <div class="tarjeta-cabeza">
-        <h2 id="mapa-titulo">Mapa de focos</h2>
+        <h2 id="mapa-titulo">Explorador de focos</h2>
         <span id="mapa-filtro" class="tenue"></span>
       </div>
-      <div id="mapa-escena" class="mapa-escena" data-vista="regional">
-        <div id="mapa" role="region" aria-label="Mapa regional de focos de calor"></div>
+      <div id="mapa-escena" class="mapa-escena" data-vista="continuo">
         <div id="globo" class="globo" role="region" aria-label="Globo 3D de focos de calor del mundo"></div>
-        <aside id="globo-panel" class="globo-panel flotante" aria-label="Resumen mundial"></aside>
-        <section id="resumen" class="resumen flotante" aria-live="polite">
-          <h2>En pocas palabras</h2>
+        <div id="mapa-esqueleto" class="mapa-esqueleto inicial" role="status"><span>Actualizando el mapa…</span></div>
+        <div id="estado-carga" role="status" aria-live="polite" class="estado">
+          <span id="estado-texto"></span><button id="btn-reintentar" type="button" hidden>Reintentar</button>
+        </div>
+        <aside id="panel-mapa" class="panel-mapa" aria-label="Información del mapa">
+        <div id="globo-panel" class="globo-panel" aria-label="Resumen mundial"></div>
+        <details id="resumen" class="resumen" aria-live="polite">
+          <summary>Resumen del análisis regional <span id="resumen-anio"></span></summary>
           <p id="resumen-texto">Cargando el resumen…</p>
           <p id="resumen-origen" class="aviso-caja" hidden>Estos datos son inventados para la demostración: no describen incendios reales del Huila.</p>
-        </section>
-        <div id="leyenda-mapa" class="leyenda-mapa flotante" aria-label="Leyenda del mapa"></div>
+        <div id="leyenda-mapa" class="leyenda-mapa" aria-label="Leyenda del mapa"></div>
+        </details>
+        </aside>
         <p id="aviso-truncado" class="aviso-truncado" role="alert" hidden></p>
       </div>
       <div class="mapa-pie">
@@ -116,21 +129,44 @@
           <dt>Foco de calor</dt>
           <dd>Es una detección térmica de un satélite en un píxel. No es un incendio confirmado: puede ser una quema agrícola, un fuego o una superficie muy caliente.</dd>
           <dt>Globo y mapa regional</dt>
-          <dd>Al alejarse hasta la vista de país aparece el globo 3D con los focos de todo el mundo, agrupados en celdas. Al acercarse vuelve el mapa regional, con cada foco.</dd>
+          <dd>Un solo mapa pasa de la esfera al detalle. Al acercarse aparecen países, divisiones administrativas y focos individuales, sin sustituir el lienzo.</dd>
           <dt>FRP</dt>
-          <dd>Potencia radiativa del fuego, en megavatios (MW): cuanto mayor, más intenso. En el mapa, el tamaño y el color del punto la indican.</dd>
-          <dt>Huella del píxel</dt>
-          <dd>Con mucho zoom, el círculo es el tamaño nominal del píxel: MODIS ~1 km y VIIRS ~375 m. El fuego está en algún punto dentro del círculo. Hacia el borde del barrido el píxel crece.</dd>
+          <dd>Potencia radiativa del fuego, en megavatios (MW). El color indica FRP; en grupos se usa el máximo y el tamaño indica cantidad de detecciones. En focos individuales el tamaño indica FRP.</dd>
+          <dt>Resolución del píxel</dt>
+          <dd>MODIS ~1 km y VIIRS ~375 m en nadir; el píxel crece hacia el borde del barrido. El círculo indica potencia, no el tamaño real del fuego o del píxel.</dd>
         </dl>
       </details>
     </section>
 
-    <div id="aviso-emergencia" class="aviso-caja" role="note">
-      <strong>No usar para proteger vidas ni bienes.</strong> Esta herramienta orienta; confirme siempre en terreno y por los canales oficiales de gestión del riesgo.
-      <br>Cita original: <q lang="en">Do not use for the preservation of life or property</q> (aviso de NASA FIRMS, consultado el 13 nov 2026).
-    </div>
+    <details id="guia-termica" class="guia-termica">
+      <summary>Guía de colores, temperatura y precisión de los sensores</summary>
+      <div class="guia-contenido">
+        <section><h2>Una escala en todas las vistas</h2>
+          <p>Amarillo → naranja → rojo → rosa: aumenta la potencia radiativa (FRP). Los cortes son fijos al cambiar de región o acercarse.</p>
+          <div class="guia-escala"><span><i class="esc-frp f1"></i>&lt; 5 MW</span><span><i class="esc-frp f2"></i>5–&lt;20 MW</span><span><i class="esc-frp f3"></i>20–&lt;100 MW</span><span><i class="esc-frp f4"></i>100–&lt;500 MW</span><span><i class="esc-frp f5"></i>≥ 500 MW</span></div>
+          <p>Lejos: círculos agrupados, tamaño por cantidad y color por FRP máximo. Cerca: cada detección conserva la escala de color. Un círculo agrupado no representa el área quemada.</p>
+        </section>
+        <section><h2>Cómo leer la temperatura</h2>
+          <p>FRP (MW) no tiene una equivalencia directa en °C. Al seleccionar una detección se muestra su temperatura de brillo, cuando está disponible: °C = K − 273,15. Es la señal térmica del píxel, que combina fuego y entorno; no es la temperatura de la llama ni la del aire.</p>
+          <p>Referencia de conversión: 300 K ≈ 27 °C; 330 K ≈ 57 °C; 367 K ≈ 94 °C. Estos valores no son los cortes de color. VIIRS I4 puede saturarse y registrar 367 K; no debe interpretarse como límite de temperatura del fuego.</p>
+        </section>
+        <section><h2>Resolución y margen de calibración</h2>
+          <p>MODIS: píxel nominal de 1.000 m. VIIRS: 375 m. El píxel crece hacia el borde del barrido. Los círculos representan detecciones y potencia; no delimitan un incendio ni el tamaño del píxel.</p>
+          <p>El archivo no incluye un margen de error térmico individual (± °C). La confianza alta, nominal o baja indica calidad de detección; no es un error de temperatura. La armonización de conteos del calendario tampoco calibra temperaturas. Los datos NRT pueden corregirse.</p>
+          <a href="https://firms.modaps.eosdis.nasa.gov/content/descriptions/FIRMS_VIIRS_Firehotspots.html" target="_blank" rel="noopener">Campos VIIRS · NASA FIRMS</a> · <a href="https://www.earthdata.nasa.gov/s3fs-public/2025-06/VIIRS_C2_AF-375m_User_Guide_1.2.pdf" target="_blank" rel="noopener">Guía científica de sensores</a>
+        </section>
+      </div>
+    </details>
 
-    <aside class="panel">
+    <details id="aviso-emergencia" class="aviso-caja" role="note">
+      <summary><strong>No usar para proteger vidas ni bienes.</strong> Leer advertencia completa</summary>
+      <p>Esta herramienta orienta; confirme siempre en terreno y por los canales oficiales de gestión del riesgo.</p>
+      <p>Cita original: <q lang="en">Do not use for the preservation of life or property</q> (aviso de NASA FIRMS, consultado el 13 nov 2026).</p>
+    </details>
+
+    <details id="analisis-zona" class="analisis-zona">
+    <summary>Análisis de la zona <span>Calendario, tendencias y calidad de los datos</span></summary>
+    <aside id="panel-analisis" class="panel" aria-label="Análisis de la consulta regional">
       <section class="tarjeta" id="tarjeta-base">
         <h2>Línea base y días inusuales</h2>
         <div id="base-estado"></div>
@@ -146,21 +182,18 @@
       </section>
       <section class="tarjeta" id="tarjeta-mes-reciente">
         <h2>Mes más reciente frente a la mediana</h2>
-        <div id="mes-reciente"><p class="tenue">Calculando…</p></div>
+        <div id="mes-reciente" aria-live="polite"><p class="tenue">Calculando…</p></div>
       </section>
-      <section class="tarjeta">
+      <section class="tarjeta" id="tarjeta-periodos">
         <h2>Periodos críticos del año</h2>
         <ol id="periodos" class="lista"></ol>
       </section>
-      <section class="tarjeta">
-        <h2>Temporada (climatología mensual)</h2>
-        <div id="clima"></div>
-        <div id="comparacion"></div>
-      </section>
       <section class="tarjeta" id="tarjeta-meteo">
         <h2>Clima (reanálisis)</h2>
-        <div id="meteo"><p class="tenue">Elija un día en el calendario para ver el clima de esos días.</p></div>
-        <p class="tenue nota-fuente"><a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>); reanálisis ERA5 y ERA5-Land del Copernicus Climate Change Service (C3S) y modelo IFS de ECMWF. Son estimaciones de modelo para el centro del área, no observaciones de estaciones. Requiere internet.</p>
+        <div id="meteo" aria-live="polite"><p class="tenue">Elija un día en el calendario para ver el clima de esos días.</p></div>
+        <details class="fuente-detalle"><summary>Fuente y límites</summary>
+          <p class="tenue nota-fuente"><a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>); reanálisis ERA5 y ERA5-Land del Copernicus Climate Change Service (C3S) y modelo IFS de ECMWF. Son estimaciones de modelo para el centro del área, no observaciones de estaciones. Requiere internet.</p>
+        </details>
       </section>
       <section class="tarjeta">
         <h2>Incertidumbre</h2>
@@ -172,6 +205,11 @@
             <dd>El calendario cuenta las celdas de ~1 km cuyo centro cae dentro del área. El mapa muestra los focos por su posición. Cerca del límite del área ambos conteos pueden diferir un poco.</dd>
           </dl>
         </details>
+      </section>
+      <section class="tarjeta" id="tarjeta-temporada">
+        <h2 id="temporada-titulo">Temporada (climatología mensual)</h2>
+        <div id="clima"></div>
+        <div id="comparacion"></div>
       </section>
     </aside>
 
@@ -203,12 +241,13 @@
       </div>
       <div id="matriz"></div>
     </section>
+    </details>
   </main>
 
   <footer class="pie">
     <p id="cita" class="cita"></p>
     <p id="aviso" class="tenue"></p>
-    <p class="tenue">Los focos son detecciones térmicas, no incendios confirmados. Fechas en UTC. Países: Natural Earth (dominio público).</p>
+    <p class="tenue">Los focos son detecciones térmicas, no incendios confirmados. Fechas en UTC. Relieve NASA GIBS · focos NASA FIRMS · límites geoBoundaries.</p>
     <nav class="enlaces-firms" aria-label="Conexión con NASA FIRMS">
       <strong>NASA FIRMS:</strong>
       <a href="https://www.earthdata.nasa.gov/data/tools/firms" target="_blank" rel="noopener">Inicio</a> ·
@@ -221,9 +260,9 @@
     </nav>
   </footer>
 
-  <script src="vendor/leaflet/leaflet.js"></script>
   <script src="vendor/maplibre/maplibre-gl.js"></script>
   <script src="globo.js"></script>
+  <script src="busqueda.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

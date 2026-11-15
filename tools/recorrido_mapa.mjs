@@ -1,0 +1,65 @@
+// Recorrido del mapa continuo; se invoca desde prueba_navegador.mjs.
+export async function probarMapa({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,MODO}) {
+  await enviar("Emulation.setDeviceMetricsOverride",{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await enviar("Page.navigate",{url:URL_UI});
+  await esperarA(`typeof mapa !== "undefined" && document.querySelector(".globo-cifra strong")`,30000,"planeta y datos mundiales");
+  await esperarA(`!document.getElementById("mapa-esqueleto").classList.contains("inicial")`,30000,"primer dibujo del planeta");
+  await evaluar(`window.lienzoInicial=mapa.getCanvas();window.mapaInicial=mapa;void 0`);
+  comprobar("un solo motor y un único lienzo cartográfico",await evaluar(`document.querySelectorAll(".maplibregl-canvas").length===1 && !document.querySelector(".leaflet-container")`));
+  comprobar("proyección de globo y relieve natural sin desaturación",await evaluar(`mapa.getProjection().type==="globe" && mapa.getPaintProperty("fondo","raster-opacity")===1 && mapa.getPaintProperty("fondo","raster-saturation")===0`));
+  await espera(1000);await captura("01_planeta_natural");
+  const estilo=await evaluar(`JSON.stringify({fondo:mapa.getStyle().sources.fondo,capas:mapa.getStyle().layers})`);
+  await evaluar(`(()=>{const s=document.getElementById("sel-tema");s.value="claro";s.dispatchEvent(new Event("change"));})()`);
+  await espera(200);
+  comprobar("cambiar de tema no altera ni recarga el estilo del planeta",estilo===await evaluar(`JSON.stringify({fondo:mapa.getStyle().sources.fondo,capas:mapa.getStyle().layers})`));
+  const geometria=`(()=>{const r=document.getElementById("globo").getBoundingClientRect(),p=document.getElementById("panel-mapa").getBoundingClientRect(),b=document.querySelector(".controles").getBoundingClientRect();return [r.x,r.y,r.width,r.height,p.x,p.y,p.width,p.height,b.height].map(Math.round)})()`;
+  const antes=await evaluar(geometria);
+  await evaluar(`document.getElementById("analisis-zona").open=true;document.querySelector(".globo-ranking").open=true;void mapa.jumpTo({center:[-75.28,2.93],zoom:9})`);
+  await esperarA(MODO==="separado" ? `mapa.getLayoutProperty("focos","visibility")==="visible"` : `mapa.getLayoutProperty("detalle-focos","visibility")==="visible"`,30000,"focos del área");
+  comprobar("zoom conserva el mismo mapa, lienzo y distribución",await evaluar(`mapa===window.mapaInicial && mapa.getCanvas()===window.lienzoInicial`) && JSON.stringify(antes)===JSON.stringify(await evaluar(geometria)));
+  comprobar("desplegables conservan su apertura",await evaluar(`document.getElementById("analisis-zona").open && document.querySelector(".globo-ranking").open`));
+  await esperarA(`mapa.getStyle().sources.adm2.data.features?.length>0`,90000,"límites municipales reales de geoBoundaries");
+  comprobar("límites ADM0, ADM1 y ADM2 cargados para Colombia",await evaluar(`[0,1,2].every(n=>mapa.getStyle().sources['adm'+n].data.features.length>0)`));
+  await captura("02_detalle_limites");
+  await enviar("Network.enable");
+  await enviar("Network.emulateNetworkConditions",{offline:false,latency:700,downloadThroughput:-1,uploadThroughput:-1});
+  comprobar("cambiar de ciudad conserva el contenido sin recargar la página",await evaluar(`(()=>{const html=document.getElementById("panel-analisis").innerHTML;const s=document.getElementById("sel-area");s.value="neiva";s.dispatchEvent(new Event("change"));return document.getElementById("panel-analisis").innerHTML===html && mapa.getCanvas()===window.lienzoInicial && !document.body.hasAttribute("aria-busy")})()`));
+  await esperarA(`!document.getElementById("mapa-esqueleto").hidden`,2000,"indicador de carga localizado");
+  comprobar("el esqueleto se limita al área del mapa",await evaluar(`(()=>{const s=document.getElementById("mapa-esqueleto").getBoundingClientRect(),m=document.getElementById("globo").getBoundingClientRect();return s.x===m.x && s.width===m.width && s.height===m.height})()`));
+  await captura("03_carga_local");
+  await esperarA(`!document.getElementById("panel-analisis").hasAttribute("aria-busy") && document.getElementById("mapa-esqueleto").hidden`,30000,"consulta de ciudad");
+  await enviar("Network.emulateNetworkConditions",{offline:false,latency:0,downloadThroughput:-1,uploadThroughput:-1});
+  await evaluar(`document.querySelector(".controles-secundarios").open=true`);
+  comprobar("menú de opciones no desplaza el mapa",JSON.stringify(antes)===JSON.stringify(await evaluar(geometria)));
+  await evaluar(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}))`);
+  comprobar("Escape cierra las opciones",await evaluar(`!document.querySelector(".controles-secundarios").open`));
+  await evaluar(`(()=>{const d=[...document.querySelectorAll("rect.dia")].find(x=>/[1-9]\\d* foco/.test(x.getAttribute("aria-label")));if(!d)throw Error("no hay día de muestra");d.dispatchEvent(new MouseEvent("click",{bubbles:true}));})()`);
+  await esperarA(`ultimosFocos?.desde===estado.dia && ultimosFocos?.hasta===estado.dia && ultimosFocos.detecciones.length>0`,30000,"focos del día");
+  await evaluar(`void mapa.jumpTo({zoom:12,center:mapa.getStyle().sources.detalle.data.features[0].geometry.coordinates})`);
+  await esperarA(`mapa.queryRenderedFeatures({layers:["detalle-focos"]}).length>0`,15000,"detecciones individuales del día");
+  const punto=await evaluar(`(()=>{const f=mapa.queryRenderedFeatures({layers:["detalle-focos"]})[0],p=mapa.project(f.geometry.coordinates),r=mapa.getCanvas().getBoundingClientRect();return [r.left+p.x,r.top+p.y]})()`);
+  await enviar("Input.dispatchMouseEvent",{type:"mousePressed",x:punto[0],y:punto[1],button:"left",clickCount:1});
+  await enviar("Input.dispatchMouseEvent",{type:"mouseReleased",x:punto[0],y:punto[1],button:"left",clickCount:1});
+  await esperarA(`document.querySelector(".maplibregl-popup-content")?.textContent.includes("Temperatura de brillo")`,5000,"ficha del foco");
+  comprobar("calendario y ficha térmica funcionan en el mismo lienzo",await evaluar(`mapa.getCanvas()===window.lienzoInicial && Boolean(estado.dia)`));
+  await captura("04_ficha_termica");
+  await evaluar(`document.querySelector(".maplibregl-popup-close-button").click();document.getElementById("btn-dibujar").click();mapa.fire("click",{lngLat:{lng:-75.3,lat:2.9},point:mapa.project([-75.3,2.9])});mapa.fire("click",{lngLat:{lng:-75.2,lat:3},point:mapa.project([-75.2,3])});void 0`);
+  await esperarA(`!document.getElementById("panel-analisis").hasAttribute("aria-busy")`,30000,"análisis del rectángulo");
+  comprobar("dibujo de área disponible sin otro motor de mapa",await evaluar(`estado.area===null && Math.abs(estado.bbox[0]+75.3)<0.001 && mapa.getStyle().sources.seleccion.data.features.length===1`));
+  // Verifica el servicio fuera de Colombia sin atribuir toda la cobertura al DANE.
+  const esp=await evaluar(`(async()=>{const r=await fetch('/limites/ESP/1');const d=await r.json();return {ok:r.ok,n:d.features?.length,meta:d.metadatos}})()`);
+  comprobar("límites globales disponibles fuera de Colombia",esp.ok && esp.n>0,JSON.stringify(esp.meta));
+  await evaluar(`mapa.fire("dragstart");void mapa.jumpTo({center:[179.9,-17.8],zoom:6})`);
+  comprobar("consulta global cruza el antimeridiano sin coordenadas inválidas",await evaluar(`vistaActual.cajas.length===2 && vistaActual.cajas.every(c=>c[0]>=-180 && c[2]<=180 && c[0]<c[2])`),JSON.stringify(await evaluar(`({cajas:vistaActual.cajas,centro:vistaActual.centro,zoom:vistaActual.zoom})`)));
+  await evaluar(`void mapa.jumpTo({center:[-72,4],zoom:1})`);
+  await espera(600);
+  comprobar("al alejar vuelve la esfera sin reconstruir el mapa",await evaluar(`mapa.getProjection().type==="globe" && mapa.getCanvas()===window.lienzoInicial && mapa.queryRenderedFeatures({layers:["limites-adm0","limites-adm1","limites-adm2"]}).length===0`));
+  const credito=await evaluar(`document.querySelector(".maplibregl-ctrl-attrib").textContent`);
+  comprobar("créditos GIBS, FIRMS y geoBoundaries sin mapas de calles",credito.includes("NASA GIBS")&&credito.includes("NASA FIRMS")&&credito.includes("geoBoundaries")&&!credito.includes("OpenStreetMap"),credito);
+  if(MODO==="separado")comprobar("conjuntos separados informados",await evaluar(`!document.querySelector(".globo-detalle-estado").hidden`));
+  if(MODO==="panel") {await evaluar(`document.getElementById("panel-analisis").scrollIntoView()`);await captura("04_analisis");}
+  await enviar("Emulation.setDeviceMetricsOverride",{width:390,height:844,deviceScaleFactor:2,mobile:true});
+  await evaluar(`scrollTo(0,0)`);await espera(600);await captura("05_planeta_movil");
+  comprobar("móvil sin desborde y con el planeta en primera pantalla",await evaluar(`document.documentElement.scrollWidth<=innerWidth && document.getElementById("globo").getBoundingClientRect().top<innerHeight`));
+  comprobar("sin errores de consola",errores.length===0,errores.slice(0,8).join(" | "));
+}
