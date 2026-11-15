@@ -26,6 +26,8 @@ def _datos() -> Path:
     datos = Path(os.environ.get("HHN_DATOS") or RAIZ / "data" / "processed" / "demo_historica")
     if (datos / "celda_dia.parquet").exists():
         return datos
+    if os.environ.get("HHN_DATOS"):
+        raise RuntimeError("HHN_DATOS no contiene el conjunto procesado configurado; no se sustituirá por una demostración sintética")
     sys.path.insert(0, str(RAIZ / "tools"))
     from construir_vercel import construir  # noqa: E402
 

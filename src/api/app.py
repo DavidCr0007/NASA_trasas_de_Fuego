@@ -27,6 +27,7 @@ from api.cita import AVISO, CITA
 from api import mundo
 from api.limites import router as limites_router
 from api.lugares import router as lugares_router
+from api.procedencia import describir as describir_procedencia
 from harmonize import armonizada as arm
 from harmonize import linea_base as lb
 from harmonize.config import RulesConfig
@@ -113,6 +114,7 @@ def create_app(
             "config_fingerprint": meta.get(b"config_fingerprint", b"").decode(),
             "cita": CITA,
             "aviso": AVISO,
+            "dataset_id": describir_procedencia(datos)["dataset_id"],
         }
 
     # ------------------------------------------------ H8-02: métrica armonizada (ADR 0011)
@@ -274,15 +276,7 @@ def create_app(
 
     def origen(con) -> str | None:
         """H6-01: 'sintetico', 'real', 'mixto' o None según la columna `sintetico` de TODO el conjunto."""
-        n_sint, n_real = con.execute(
-            "select count(*) filter (where sintetico), count(*) filter (where not sintetico)"
-            f" from read_parquet('{ruta['detecciones']}')"
-        ).fetchone()
-        if n_sint and n_real:
-            return "mixto"
-        if n_sint:
-            return "sintetico"
-        return "real" if n_real else None
+        return describir_procedencia(datos)["origen_datos"]
 
     def calendario(bbox_txt: str | None, desde: date | None, hasta: date | None,
                    area: str | None = None, metrica: str = "armonizada") -> dict[str, Any]:
@@ -348,6 +342,9 @@ def create_app(
             historia = {f_: v for f_, (v, _m) in serie.items()}
         estado_base = linea_base(inc["anios_con_dato"])
         estado_base["metrica"] = "celdas activas equivalentes" if metrica == "armonizada" else "n_brutas"
+        if estado_base["estado"] == "suficiente":
+            estado_base["nota"] = (f"Un día es inusual si {estado_base['metrica']} supera el umbral; "
+                                   "si faltan años de referencia suficientes queda sin umbral. No es una alerta de emergencia.")
         periodos = meses_pico = clima = None
         if estado_base["estado"] == "suficiente":
             calc = lb.calcular(historia, percentil=percentil, anios_minimos=minimo, ventana_dias=ventana_dias,
@@ -415,7 +412,23 @@ def create_app(
                 status_code=503,
                 content={"estado": "sin datos", "detalle": f"falta(n) {', '.join(falta)} en {datos}"},
             )
-        return {"estado": "ok", **base()}
+        p = describir_procedencia(datos)
+        return {"estado": "ok", **base(), "origen_datos": p["origen_datos"],
+                "estado_procedencia": p["estado_procedencia"]}
+
+    @app.get("/procedencia")
+    def procedencia():
+        base()
+        return {"analisis": describir_procedencia(datos), "global": describir_procedencia(datos_g),
+                "mismo_conjunto": datos.resolve() == datos_g.resolve()}
+
+    @app.get("/metodologia", response_class=PlainTextResponse)
+    def metodologia_publica():
+        return (Path(__file__).resolve().parents[2] / "docs/metodologia.md").read_text(encoding="utf-8")
+
+    @app.get("/limitaciones", response_class=PlainTextResponse)
+    def limitaciones_publicas():
+        return (Path(__file__).resolve().parents[2] / "docs/limitaciones.md").read_text(encoding="utf-8")
 
     @app.get("/cita")
     def cita():
@@ -444,6 +457,7 @@ def create_app(
             f"bbox: {','.join(str(v) for v in cuerpo['bbox'])} desde: {cuerpo['desde']} hasta: {cuerpo['hasta']}",
             f"linea_base: {cuerpo['linea_base']['estado']}",
             f"origen_datos: {cuerpo['origen_datos']}",
+            f"dataset_id: {cuerpo['dataset_id']}",
             f"area: {cuerpo['area']['nombre'] or 'recuadro'} ({cuerpo['area']['filtro']})",
             f"metrica: {cuerpo['armonizacion']['metrica']} ({cuerpo['armonizacion']['version']}); "
             "valor = celdas activas equivalentes (ADR 0011) o n_brutas",
@@ -548,13 +562,15 @@ def create_app(
             f"area: {cuerpo['area']['nombre'] or 'recuadro'} ({cuerpo['area']['filtro']}); "
             f"bbox: {','.join(str(v) for v in cuerpo['bbox'])} desde: {cuerpo['desde']} hasta: {cuerpo['hasta']}",
             f"origen_datos: {cuerpo['origen_datos']}; truncado: {str(cuerpo['truncado']).lower()}",
+            f"dataset_id: {cuerpo['dataset_id']}",
             "Cada fila es un foco representante tras deduplicar (R3); preliminar=true si es NRT. "
             "Los focos son detecciones térmicas, no incendios confirmados.",
             "brillo: temperatura de brillo del pixel en kelvin; no es temperatura de llama. frp: MW.",
         ):
             buf.write(f"# {linea}\n")
         campos = ["fecha_hora_utc", "lat", "lon", "sensor", "satelite", "confianza_clase", "confianza_raw",
-                  "frp", "calidad", "preliminar", "version", "cell_id", "semilado_nominal_m", "n_fusionados", "record_id", "brillo"]
+                  "frp", "calidad", "preliminar", "version", "cell_id", "semilado_nominal_m", "n_fusionados", "record_id", "brillo",
+                  "fuente", "coleccion", "archivo_origen", "sha256_origen", "fila", "fecha_descarga", "sintetico", "rules_version", "dataset_id"]
         escritor = csv.DictWriter(buf, fieldnames=campos, lineterminator="\n", extrasaction="ignore")
         escritor.writeheader()
         escritor.writerows(cuerpo["detecciones"])
@@ -576,7 +592,8 @@ def create_app(
             desde, hasta = rango(con, caja, desde, hasta)
             filas = [] if desde is None or desde > hasta else con.execute(
                 f"select record_id, sensor, satelite, fecha_hora_utc at time zone 'UTC', calidad,"
-                f" confianza_clase, confianza_raw, lat, lon, frp, cell_id, version, n_fusionados, brillo"
+                f" confianza_clase, confianza_raw, lat, lon, frp, cell_id, version, n_fusionados, brillo,"
+                " fuente, coleccion, archivo_origen, sha256_origen, fila, fecha_descarga at time zone 'UTC', sintetico, rules_version"
                 f" from read_parquet('{ruta['detecciones']}')"
                 " where lat between ? and ? and lon between ? and ?"
                 " and cast(fecha_hora_utc at time zone 'UTC' as date) between ? and ?" + fd +
@@ -588,11 +605,14 @@ def create_app(
         finally:
             con.close()
         columnas = ["record_id", "sensor", "satelite", "fecha_hora_utc", "calidad", "confianza_clase",
-                    "confianza_raw", "lat", "lon", "frp", "cell_id", "version", "n_fusionados", "brillo"]
+                    "confianza_raw", "lat", "lon", "frp", "cell_id", "version", "n_fusionados", "brillo",
+                    "fuente", "coleccion", "archivo_origen", "sha256_origen", "fila", "fecha_descarga", "sintetico", "rules_version"]
         detecciones = []
         for fila in filas[:limite]:
             d = dict(zip(columnas, fila))
             d["fecha_hora_utc"] = d["fecha_hora_utc"].strftime("%Y-%m-%dT%H:%M:%SZ")
+            d["fecha_descarga"] = d["fecha_descarga"].strftime("%Y-%m-%dT%H:%M:%SZ") if d["fecha_descarga"] else None
+            d["dataset_id"] = cuerpo["dataset_id"]
             d["semilado_nominal_m"] = SEMILADO_NOMINAL_M[d["sensor"]]
             d["preliminar"] = d["calidad"] == "NRT"
             detecciones.append(d)
@@ -667,13 +687,15 @@ def create_app(
             celdas.append([round(la, 3), round(lon_media, 3), n, None if frp_max is None else round(frp_max, 1),
                            round(frp_sum or 0.0, 1), n_alta, n_viirs, ultimo.strftime("%Y-%m-%dT%H:%MZ"), iso])
         ranking = sorted(por_pais.values(), key=lambda x: (-x["n"], x["nombre"]))
-        n_sint, n_real = sint
+        procedencia_global = describir_procedencia(datos_g)
         return {
             "rules_version": meta.get(b"rules_version", b"").decode(),
             "config_fingerprint": meta.get(b"config_fingerprint", b"").decode(),
             "cita": CITA,
             "aviso": AVISO,
-            "origen_datos": "mixto" if n_sint and n_real else "sintetico" if n_sint else "real" if n_real else None,
+            "dataset_id": procedencia_global["dataset_id"],
+            "origen_datos": procedencia_global["origen_datos"],
+            "estado_procedencia": procedencia_global["estado_procedencia"],
             "calidad": _calidad(cals),
             "preliminar": "NRT" in cals,
             "desde": ini.isoformat() if ini else None,

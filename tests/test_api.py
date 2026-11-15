@@ -334,6 +334,10 @@ def test_origen_datos_sintetico_tambien_en_area_sin_focos(cliente):
 def test_origen_datos_real_si_ninguna_fila_es_sintetica(salida, tmp_path):
     n = pq.read_table(salida / "detecciones.parquet").num_rows
     copia = _copia_con_sintetico(salida, tmp_path / "real", [False] * n)
+    import pyarrow as pa
+    tabla = pq.read_table(copia / "deduplicados.parquet")
+    pos = tabla.schema.get_field_index("sintetico")
+    pq.write_table(tabla.set_column(pos, tabla.schema.field(pos), pa.array([False]*tabla.num_rows)), copia / "deduplicados.parquet")
     cl = TestClient(create_app(copia))
     assert cl.get(f"/calendario?bbox={BBOX}").json()["origen_datos"] == "real"
     assert cl.get(f"/detecciones?bbox={BBOX}").json()["origen_datos"] == "real"

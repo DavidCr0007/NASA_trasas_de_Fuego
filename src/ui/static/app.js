@@ -501,7 +501,16 @@ function popupFoco(d) {
     `<dt>Píxel</dt><dd>±${fmt(d.semilado_nominal_m)} m nominal: el fuego está dentro de ese cuadro</dd>` +
     `<dt>Posición</dt><dd>${fmt(d.lat, 4)}; ${fmt(d.lon, 4)}</dd>` +
     (d.n_fusionados ? `<dt>Fusionados</dt><dd>agrupa ${fmt(d.n_fusionados)} detección(es) casi simultánea(s)</dd>` : "") +
-    `</dl></div>`;
+    `</dl><details class="foco-procedencia"><summary>Procedencia del registro</summary><dl>` +
+    `<dt>Identificador</dt><dd>${esc(d.record_id ?? "No disponible")}</dd>` +
+    `<dt>Origen</dt><dd>${d.sintetico === true || d.sintetico === "true" ? "Sintético · demostración" : d.sintetico === false || d.sintetico === "false" ? "Real declarado · NASA FIRMS" : "Origen no verificado"}</dd>` +
+    `<dt>Producto</dt><dd>${esc(d.fuente ?? "No disponible")} · colección ${esc(d.coleccion ?? "sin indicar")} · versión ${esc(d.version ?? "sin indicar")}</dd>` +
+    `<dt>Archivo y registro</dt><dd>${esc(d.archivo_origen ?? "No disponible")} · ${esc(d.fila ?? "—")} (desde 1, sin cabecera)</dd>` +
+    `<dt>SHA-256 crudo</dt><dd>${esc(d.sha256_origen ?? "No disponible")}</dd>` +
+    `<dt>Descarga UTC</dt><dd>${esc(fechaHoraLegible(d.fecha_descarga))}</dd>` +
+    `<dt>Reglas</dt><dd>${esc(d.rules_version ?? "No disponible")}</dd>` +
+    `<dt>Conjunto</dt><dd>${esc(d.dataset_id ?? "Sin manifiesto de ejecución")}</dd>` +
+    `</dl><a href="/procedencia" target="_blank" rel="noopener">Consultar linaje del conjunto</a></details></div>`;
 }
 
 

@@ -64,14 +64,14 @@ def test_punto_de_entrada_sirve_api_e_interfaz(tmp_path, monkeypatch):
     assert c["origen_datos"] == "sintetico" and c["cita"]
 
 
-def test_punto_de_entrada_genera_datos_en_tmp_si_faltan(tmp_path, monkeypatch):
+def test_configuracion_explicita_invalida_no_se_sustituye_por_datos_sinteticos(tmp_path, monkeypatch):
     monkeypatch.setenv("HHN_DATOS", str(tmp_path / "no_existe"))
     monkeypatch.setenv("HHN_TMP", str(tmp_path / "tmp"))
     monkeypatch.setenv("HHN_CACHE_LIMITES", str(tmp_path / "tmp" / "limites"))
     monkeypatch.setattr(sys, "path", list(sys.path))
-    cliente = TestClient(_modulo("vercel_app", RAIZ / "vercel_app.py").app)
-    assert (tmp_path / "tmp" / "demo_historica" / "celda_dia.parquet").exists()
-    assert cliente.get("/salud").json()["estado"] == "ok"
+    with pytest.raises(RuntimeError, match="no se sustituirá"):
+        _modulo("vercel_app", RAIZ / "vercel_app.py")
+    assert not (tmp_path / "tmp" / "demo_historica").exists()
 
 
 def test_cache_de_limites_configurable_para_disco_de_solo_lectura(tmp_path, monkeypatch):

@@ -7,6 +7,7 @@
 import { probarMapa } from './recorrido_mapa.mjs';
 import { probarBusqueda } from './recorrido_busqueda.mjs';
 import { probarCapas } from './recorrido_capas.mjs';
+import { probarAuditoria } from './recorrido_auditoria.mjs';
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -102,7 +103,8 @@ try {
   await enviar("Runtime.enable");
   await enviar("Page.enable");
 
-  if(MODO==="busqueda") await probarBusqueda({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI});
+  if(MODO==="auditoria") await probarAuditoria({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI});
+  else if(MODO==="busqueda") await probarBusqueda({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI});
   else if(MODO==="capas") await probarCapas({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,
     guardar:(nombre,datos)=>writeFileSync(join(SALIDA,`${nombre}.png`),Buffer.from(datos,"base64"))});
   else await probarMapa({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,MODO});

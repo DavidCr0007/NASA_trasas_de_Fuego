@@ -4,6 +4,12 @@ Este documento describe cómo se transforman los focos de calor crudos de NASA F
 
 ## 1. Flujo general
 
+### Evidencia pública y alcance de la verificación (2026-11-15)
+
+`/procedencia` identifica por separado el conjunto del análisis y el del globo: origen declarado, calidad, productos, colecciones, archivos de entrada, hashes SHA-256, fechas de adquisición y descarga, versión de reglas, configuración y conteos del pipeline. `dataset_id` enlaza las respuestas y los CSV con el manifiesto de ejecución declarado. Cada detección publica también archivo, fila y checksum originales, accesibles en «Procedencia del registro».
+
+Este linaje no equivale a una certificación: el endpoint no vuelve a descargar los crudos ni verifica sus hashes. La auditoría reproducible `tools/auditar_plataforma.py --datos … --crudos …` verifica los archivos disponibles y compara JSON y CSV. Los resultados sintéticos validan ejecución y consistencia, nunca la validez empírica de los datos. Las limitaciones de cobertura y de calibración se publican en `/limitaciones`.
+
 ```
 crudo (data/raw, inmutable)
    -> manifiesto SHA-256 (data/raw/manifest.jsonl)

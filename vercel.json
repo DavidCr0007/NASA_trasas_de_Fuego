@@ -3,7 +3,7 @@
   "functions": {
     "vercel_app.py": {
       "maxDuration": 60,
-      "excludeFiles": "{tests/**,docs/**,.github/**,data/raw/**,data/processed/global_nrt/**,data/processed/huila_real/**,data/processed/limites_globales/**,src/ui/static/vendor/leaflet/**}"
+      "excludeFiles": "{tests/**,docs/capturas/**,.github/**,data/raw/**,data/processed/global_nrt/**,data/processed/huila_real/**,data/processed/limites_globales/**,src/ui/static/vendor/leaflet/**}"
     }
   }
 }

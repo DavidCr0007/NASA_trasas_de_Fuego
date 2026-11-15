@@ -39,9 +39,9 @@ Los umbrales 30 y 80 para MODIS, y el mapeo de las clases VIIRS, son **PROVISION
 
 El bbox de descarga `(W, S, E, N) = (-76.7, 1.4, -74.3, 3.9)` es aproximado. **No está confirmado** contra una fuente autoritativa (IGAC, DANE o geoBoundaries ADM1) y el margen no está definido. Un bbox distinto cambia el conjunto de focos descargados.
 
-## 7. Solo el último año descargado
+## 7. Cobertura de cada conjunto
 
-La descarga cubre únicamente el último año. No hay historia suficiente para una línea base robusta. Esto afecta a la propuesta de percentil y de mínimo de años (`docs/decisiones/0004-percentil.md` y `docs/decisiones/0005-minimo-anios.md`). VIIRS además tiene menos historia que MODIS.
+La cobertura depende del conjunto procesado: el archivo público por país permite historia 2001–2025, mientras un conjunto NRT reciente solo cubre los días descargados. La demo histórica contiene años sintéticos y no valida tendencias reales. Consultar las fechas y el origen del conjunto activo, no asumir historia suficiente por la presencia de un calendario. Con menos de cinco años de referencia no se calculan umbrales; VIIRS tiene menos historia que MODIS.
 
 ## 8. Reproducibilidad del hash
 
@@ -68,8 +68,9 @@ El hash del Parquet (D-06) depende de las versiones de las librerías fijadas en
 - **Ventana de ±7 días PROVISIONAL** (ADR 0004). Sin ventana, con pocos años y focos dispersos, el umbral sería 0 y cualquier día con un foco saldría inusual.
 - **Cobertura deducida de los datos.** Se toma del primer al último día con focos del conjunto procesado, no de las fechas de descarga del manifiesto. Si el último día descargado no tuvo focos, queda fuera de la cobertura (R-29).
 - **Años con dato.** Un año cuenta para el mínimo si tiene al menos un foco en el área; no se exige que esté completo (ADR 0005).
-- **Métrica.** Se usa `n_brutas` y no `n_detecciones`, para no depender de la deduplicación (R-25).
-- **Sensores en el tiempo.** La línea base mezcla años con distinta combinación de sensores (Suomi NPP hasta su fin, NOAA-21 desde su lanzamiento). Un cambio de sensores puede desplazar la serie sin que cambie el fuego.
+- **Métrica.** Desde ADR 0011 se usa por defecto `celdas activas equivalentes` (`celdas-eq-1.1.0`), reconstruidas con representantes y deduplicados; `metrica=n_brutas` conserva el conteo original como alternativa explícita. No se compara el valor armonizado con el número de puntos del mapa.
+- **Sensores en el tiempo.** Se fija como referencia MODIS ∪ Suomi NPP y se estiman factores de solapamiento para otras eras. Es una corrección empírica provisional, no una validación independiente. Si falta la referencia, el método se identifica como «sin calibrar» y cuenta las celdas de todas las constelaciones. Esos valores no garantizan comparabilidad temporal.
+- **Cobertura no equivale a observación válida.** Dentro del intervalo global se rellenan ausencias con cero; no hay una máscara de pasadas válidas, nubes ni fallos de sensor. Un cero puede representar ausencia de detecciones sin demostrar ausencia de fuego. Los años con huecos internos y la sensibilidad del P95 a ceros y pocos años requieren validación adicional.
 
 ## 12. Fuentes complementarias (H7)
 
@@ -83,7 +84,7 @@ El hash del Parquet (D-06) depende de las versiones de las librerías fijadas en
 - **Era solo MODIS (2001–2011):** se reconstruye con factores mensuales (k_M ≈ 4–5) estimados en 2012–2025. Supone que la relación MODIS/VIIRS se mantiene en el tiempo. Su incertidumbre es mayor y no se publica un intervalo.
 - **Origen de los factores:** se estiman en el conjunto procesado, el recuadro del Huila. En otra región hay que recalcularlos.
 - **Qué cuenta la métrica:** celdas de ~1 km con detección, no incendios. Un fuego grande ocupa varias celdas y un fuego pequeño entre dos celdas puede contar dos veces.
-- **Año en curso:** 2026 no está en el archivo por país. Cuando llegue (por la MAP_KEY o los archivos de 7 días), se calibrará con NOAA-20 (k_N20 ≈ 1,00).
+- **Año en curso:** un conjunto NRT de 2026 puede estar disponible sin historia de Suomi NPP. En ese caso la API devuelve «sin calibrar»; no se debe aplicar automáticamente un factor de otro conjunto ni prometer k_N20 ≈ 1,00.
 
 ## 14. Lo que sigue por confirmar
 
