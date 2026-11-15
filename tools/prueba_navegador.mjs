@@ -103,7 +103,7 @@ try {
   await enviar("Runtime.enable");
   await enviar("Page.enable");
 
-  if(MODO==="auditoria") await probarAuditoria({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI});
+  if(MODO==="auditoria" || MODO==="auditoria-local") await probarAuditoria({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,verificarCarga:MODO==="auditoria-local"});
   else if(MODO==="busqueda") await probarBusqueda({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI});
   else if(MODO==="capas") await probarCapas({enviar,evaluar,esperarA,captura,comprobar,espera,errores,URL_UI,
     guardar:(nombre,datos)=>writeFileSync(join(SALIDA,`${nombre}.png`),Buffer.from(datos,"base64"))});

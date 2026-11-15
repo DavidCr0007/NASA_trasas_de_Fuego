@@ -1,0 +1,44 @@
+{
+  "naturaleza": "Experimento sintético; no son observaciones FIRMS ni una medición de exactitud",
+  "objetivo": "2026-08-15",
+  "configuracion": {
+    "percentil": 95,
+    "minimo_anios": 5,
+    "excluye_anio_objetivo": true
+  },
+  "casos": [
+    {
+      "caso": "seis años con un pico al día siguiente",
+      "ventana_dias": 0,
+      "valor": 1,
+      "umbral": 0.0,
+      "n_anios_referencia": 6,
+      "inusual": true
+    },
+    {
+      "caso": "seis años con un pico al día siguiente",
+      "ventana_dias": 7,
+      "valor": 1,
+      "umbral": 10.0,
+      "n_anios_referencia": 6,
+      "inusual": false
+    },
+    {
+      "caso": "referencia rellenada con ceros",
+      "inicio": 2020,
+      "valor": 1,
+      "umbral": 0.0,
+      "n_anios_referencia": 6,
+      "inusual": true
+    },
+    {
+      "caso": "referencia rellenada con ceros",
+      "inicio": 2023,
+      "valor": 1,
+      "umbral": null,
+      "n_anios_referencia": 3,
+      "inusual": null
+    }
+  ],
+  "limite": "Los ceros se derivan de la cobertura declarada; no verifican pasadas válidas. No se estima tasa de falsos positivos sin referencia independiente."
+}

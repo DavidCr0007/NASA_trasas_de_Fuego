@@ -473,6 +473,7 @@ async function pintarMeteo() {
 }
 
 function activarDibujo(){
+  quitarZona();
   const b=$("btn-dibujar");b.textContent="Seleccione dos esquinas…";b.classList.add("activo");
   globo.dibujar(bbox=>{b.textContent="Dibujar área en el mapa";b.classList.remove("activo");
     if(!bbox || bbox[0]===bbox[2] || bbox[1]===bbox[3])return;
@@ -1120,6 +1121,7 @@ function aplicarCoordenadas() {
   if (w >= e || s >= n) { mostrarEstado("error", "El oeste debe ser menor que el este y el sur menor que el norte."); return; }
   seguirViewport=false;
   estado.bbox = [w, s, e, n];
+  quitarZona();
   estado.area = null;
   estado.dia = null;
   const opcion = $("sel-area").querySelector('option[value="dibujo"]');
@@ -1282,10 +1284,10 @@ async function cargar(opciones = {}) {
     actualizarDescargas();
     pintarCabecera(c); pintarBase(c); pintarClima(c); pintarComparacion(c); pintarPeriodos(c); pintarIncertidumbre(c); pintarCalendario(c);
     pintarLineaTiempo();
-    $("panel-analisis").removeAttribute("aria-busy");
     cargarResumen();
     if (!hayDatos(c)) {
       pintarVacio(c);
+      $("panel-analisis").removeAttribute("aria-busy");
       if (encuadrarArea && gestoInicial===gestoMapa) globo.enfocar(estado.bbox);
       mostrarEstado("vacio", "No hay observaciones para esta área y año.");
       return;
@@ -1295,7 +1297,9 @@ async function cargar(opciones = {}) {
     actualizarEnlaceFirms();
     pintarMeteo();
     const ok = await cargarFocos();
-    if (!h.vigente() || !ok) return;
+    if (!h.vigente()) return;
+    $("panel-analisis").removeAttribute("aria-busy");
+    if (!ok) return;
     if (encuadrarArea && gestoInicial===gestoMapa) globo.enfocar(estado.bbox);
     mostrarEstado("");
   } catch (err) {
@@ -1307,6 +1311,7 @@ async function cargar(opciones = {}) {
 }
 
 $("sel-area").addEventListener("change", (ev) => {
+  quitarZona();
   const v = ev.target.value;
   seguirViewport=false;
   actualizarAreaActual();
@@ -1370,6 +1375,7 @@ window.iniciarBusquedaLugares({
     mostrarZona(sel, { encuadrar: true });
   },
   explorar: lugar => {
+    quitarZona();
     seguirViewport=true;
     globo.localizar(lugar, seleccionado => {
       seguirViewport=false;

@@ -681,7 +681,9 @@
       mapa.on("click", "detalle-focos", (ev) => {
         if (dibujando) return;
         const d = ev.features[0].properties;
-        new maplibregl.Popup({maxWidth:"340px"}).setLngLat(ev.lngLat).setHTML(opciones.ficha?.(d) || `FRP: ${esc(d.frp)} MW`).addTo(mapa);
+        const ventana = new maplibregl.Popup({maxWidth:"340px"}).setLngLat(ev.lngLat).setHTML(opciones.ficha?.(d) || `FRP: ${esc(d.frp)} MW`).addTo(mapa);
+        // Al desplegar el linaje cambia la altura: recalcula el anclaje con la API pública.
+        ventana.getElement().querySelector(".foco-procedencia")?.addEventListener("toggle", () => ventana.setLngLat(ventana.getLngLat()));
         // Selección de un foco: resalta su zona completa (municipio o departamento según el zoom).
         opciones.alSeleccionarPunto?.(ev.lngLat.lng, ev.lngLat.lat, mapa.getZoom());
       });

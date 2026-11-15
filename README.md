@@ -325,6 +325,21 @@ La guía explica la resolución nominal de MODIS (1.000 m) y VIIRS (375 m), el c
 
 ## Validación del rediseño
 
+### Auditoría técnica de segunda fase — 15 de noviembre de 2026
+
+[Informe de conformidad y evidencias](docs/auditoria_tecnica_segunda_fase_2026-11-15.md): **539 pruebas correctas**, **16/16 criterios de endpoints públicos**, **19/19 por conjunto local** (real y demo, incluidos hashes), **13/13 comprobaciones públicas de Chrome** y **15/15 locales** con una descarga de focos demorada y la ficha expandida. F04 es parcial porque se dibujan recuadros; F10 sigue pendiente de lector de pantalla y evaluación WCAG completa. No es una certificación científica.
+
+El apartado **Validar datos y método** enlaza `/procedencia`, `/metodologia` y `/limitaciones`. La ficha **Procedencia del registro** y los CSV identifican producto, colección, archivo, registro, checksum, descarga UTC, naturaleza sintética, reglas y conjunto. Los hashes de los endpoints son declarados; la auditoría local los verifica contra los archivos disponibles. El despliegue público continúa siendo una demostración **sintética**.
+
+`HHN_DATOS` permite seleccionar un conjunto procesado en Vercel. Si se configura y falta el conjunto, el arranque falla explícitamente; no se sustituye por una demo sintética. El ajuste final de la interfaz mantiene el estado de carga hasta recibir los focos y limpia la zona anterior al cambiar de área.
+
+```powershell
+uv run python tools/auditar_plataforma.py --url https://nasa-trasas-de-fuego.vercel.app --salida docs/evidencias/auditoria_publica.json
+uv run python tools/auditar_plataforma.py --datos data/processed/global_nrt --crudos data/raw/global --salida docs/evidencias/auditoria_real.json
+```
+
+### Verificación visual anterior
+
 Verificación del **14 de noviembre de 2026** sobre `data/processed/global_nrt`:
 
 - **469 pruebas** correctas con pytest, incluidas la búsqueda, su caché y límite de consultas, el brillo del sensor y los límites globales.
