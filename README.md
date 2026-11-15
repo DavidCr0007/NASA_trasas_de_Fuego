@@ -259,6 +259,20 @@ La zona lleva su nombre sobre el mapa, y «Ver zona completa» la encuadra enter
 
 Al recargar se presenta la estructura de la página y un esqueleto dentro del mapa. Al cambiar de ciudad se mantienen el lienzo y los paneles mientras llegan los datos; el indicador de carga se limita al mapa y evita destellos en solicitudes rápidas.
 
+### App completa en Vercel (ADR 0016)
+
+Vercel ejecuta la API de Python. El proyecto se conecta desde la web de Vercel: *Add New → Project → Import* del repositorio, sin variables de entorno ni comando de compilación manual.
+
+- `pyproject.toml` (`[tool.vercel]`) indica el punto de entrada `vercel_app:app` y la compilación `tools/construir_vercel.py`. Esta genera la muestra **sintética** procesada.
+- `vercel.json` fija `maxDuration` y los archivos excluidos.
+- En el despliegue funcionan también la búsqueda con Nominatim, las áreas dibujadas y los límites fuera del Huila.
+
+Para probarlo localmente:
+
+```
+uv run python tools/construir_vercel.py && uv run uvicorn vercel_app:app
+```
+
 ### Demo publicada en GitHub Pages (ADR 0015)
 
 **https://davidcr0007.github.io/NASA_trasas_de_Fuego/**: la misma interfaz, sin servidor, con la muestra **sintética** del Huila.

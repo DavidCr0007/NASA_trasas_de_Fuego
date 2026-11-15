@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import tempfile
 from threading import Lock
@@ -14,7 +15,8 @@ from urllib.request import Request, urlopen
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter()
-CACHE = Path(__file__).resolve().parents[2] / "data/processed/limites_globales"
+# ADR 0016: en Vercel el disco es de solo lectura salvo /tmp; HHN_CACHE_LIMITES cambia la carpeta.
+CACHE = Path(os.environ.get("HHN_CACHE_LIMITES") or Path(__file__).resolve().parents[2] / "data/processed/limites_globales")
 MAX_BYTES = 48 * 1024 * 1024
 
 

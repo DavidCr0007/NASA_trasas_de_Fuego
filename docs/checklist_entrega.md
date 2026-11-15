@@ -110,3 +110,10 @@ Leyenda: [x] hecho y verificado · [ ] pendiente · [!] bloqueado (motivo indica
 - [x] Flujo `.github/workflows/pages.yml`: pruebas → muestra → exportación → despliegue, sin secretos.
 - [x] Recorrido en Chrome sobre el sitio servido en subcarpeta: 15/15.
 - [ ] Activar Pages en *Settings → Pages → Source: GitHub Actions* (requiere administrador del repositorio) y comprobar la URL publicada.
+
+## Despliegue en Vercel (ADR 0016, 2026-11-15)
+
+- [x] Punto de entrada `vercel_app.py` y compilación `tools/construir_vercel.py` declarados en `pyproject.toml`; `vercel.json` con `maxDuration` y exclusiones.
+- [x] Caché de límites configurable (`HHN_CACHE_LIMITES`) para el disco de solo lectura; datos de respaldo en `/tmp`.
+- [x] Pruebas `tests/test_vercel.py` y recorrido en Chrome contra `uvicorn vercel_app:app` sin datos previos: 15/15.
+- [ ] Importar el repositorio en Vercel, desplegar y comprobar `/salud` y `/ui/` en la URL publicada.

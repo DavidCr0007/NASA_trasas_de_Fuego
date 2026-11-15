@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "vercel_app.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{tests/**,docs/**,.github/**,data/raw/**,data/processed/global_nrt/**,data/processed/huila_real/**,data/processed/limites_globales/**,src/ui/static/vendor/leaflet/**}"
+    }
+  }
+}

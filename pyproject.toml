@@ -23,6 +23,13 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/ingest", "src/harmonize", "src/api", "src/ui"]
 
+# ADR 0016: despliegue en Vercel importando el repositorio (app completa con API).
+[tool.vercel]
+entrypoint = "vercel_app:app"
+
+[tool.vercel.scripts]
+build = "python tools/construir_vercel.py"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
