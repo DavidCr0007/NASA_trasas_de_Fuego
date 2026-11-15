@@ -13,6 +13,25 @@ MUESTRA = [{"place_id": 1, "name": "Chapinero", "display_name": "Chapinero, Bogo
             "boundingbox": ["4.55", "4.70", "-74.1", "-74.0"]}]
 
 
+@pytest.mark.parametrize("tipo,etiqueta,lat,lon,caja", [
+    ("country", "País", 40.4, -3.7, ["35", "44", "-10", "5"]),
+    ("city", "Ciudad", 6.24, -75.58, ["6.1", "6.4", "-75.7", "-75.4"]),
+    ("neighbourhood", "Barrio", 4.64, -74.06, ["4.63", "4.66", "-74.07", "-74.05"]),
+])
+def test_pais_ciudad_y_barrio_conservan_escala_y_contexto(cliente, monkeypatch, tipo, etiqueta, lat, lon, caja):
+    api, _ = cliente
+    monkeypatch.setattr(lugares, "consultar_proveedor", lambda q: [{
+        "name": q, "display_name": f"{q}, contexto geográfico", "lat": str(lat), "lon": str(lon),
+        "addresstype": tipo, "boundingbox": caja,
+    }])
+    r = api.get("/buscar-lugares", params={"q": "Lugar de prueba"})
+    assert r.status_code == 200
+    lugar = r.json()["resultados"][0]
+    assert lugar["tipo"] == etiqueta and lugar["descripcion"].endswith("contexto geográfico")
+    s, n, w, e = map(float, caja)
+    assert lugar["bbox"] == [w, s, e, n] and lugar["lat"] == lat and lugar["lon"] == lon
+
+
 @pytest.fixture
 def cliente(monkeypatch):
     monkeypatch.setattr(lugares, "_ultima_consulta", float("-inf"))

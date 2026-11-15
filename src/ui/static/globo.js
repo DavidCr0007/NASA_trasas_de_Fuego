@@ -153,12 +153,11 @@
             minzoom: [3, 5, 8][nivel], paint: { "line-color": ["#fff8dc", "#f7e6ad", "#edf5f8"][nivel],
               "line-width": [1.1, 0.9, 0.65][nivel],
               "line-opacity": ["interpolate", ["linear"], ["zoom"], [3,5,8][nivel], 0, [4,6,9][nivel], [0.8,0.65,0.55][nivel]] } })),
-          // Límites locales del Huila: mismo estilo que ADM1/ADM2, pero sin desvanecerse con el
-          // zoom y sin depender de la base. Solo las etiquetas cambian con el zoom.
+          // Los límites locales siguen la misma jerarquía visual que el resto del mundo.
           { id: "limites-municipio", type: "line", source: "local-municipios",
-            paint: { "line-color": MAPA.municipio, "line-width": 0.75, "line-opacity": 0.75 } },
+            minzoom: 8, paint: { "line-color": MAPA.municipio, "line-width": 0.65, "line-opacity": opacidadAdm(2, 1) } },
           { id: "limites-departamento", type: "line", source: "local-departamento",
-            paint: { "line-color": "#f7e6ad", "line-width": 1.6, "line-opacity": 0.95 } },
+            minzoom: 5, paint: { "line-color": "#f7e6ad", "line-width": 0.9, "line-opacity": opacidadAdm(1, 1) } },
           { id: "zona-contexto", type: "line", source: "zona-contexto",
             paint: { "line-color": MAPA.zona, "line-width": 1.5, "line-dasharray": [2, 2], "line-opacity": 0.9 } },
           { id: "zona-borde", type: "line", source: "zona", paint: { "line-color": MAPA.zonaBorde, "line-width": 5, "line-opacity": 0.7 } },
@@ -311,8 +310,8 @@
       pintar("lagos", "fill-opacity", k.rios.on ? k.rios.opacidad : 1);
       // Límites: no dependen de la base; solo de su propia casilla.
       for (const n of [0, 1, 2]) { visible(`limites-adm${n}`, k.limites.on); pintar(`limites-adm${n}`, "line-opacity", opacidadAdm(n, k.limites.opacidad)); }
-      visible("limites-municipio", k.limites.on); pintar("limites-municipio", "line-opacity", 0.75 * k.limites.opacidad);
-      visible("limites-departamento", k.limites.on); pintar("limites-departamento", "line-opacity", 0.95 * k.limites.opacidad);
+      visible("limites-municipio", k.limites.on); pintar("limites-municipio", "line-opacity", opacidadAdm(2, k.limites.opacidad));
+      visible("limites-departamento", k.limites.on); pintar("limites-departamento", "line-opacity", opacidadAdm(1, k.limites.opacidad));
       const ops = Object.fromEntries(SENSORES.map((s) => [s, k[s].opacidad]));
       const maxOp = Math.max(0.05, ...SENSORES.filter((s) => k[s].on).map((s) => k[s].opacidad));
       pintar("detalle-focos", "circle-opacity", opacidadConfianza(ops));
@@ -676,14 +675,18 @@
       mapa.on("click", "focos", (ev) => {
         if (dibujando) return;
         detenerRotacion(); cargarPaises().then(() => popup(ev.features[0], ev.lngLat));
-        opciones.alSeleccionarPunto?.(ev.lngLat.lng, ev.lngLat.lat, mapa.getZoom());
+        // Es una celda agregada: primero se exploran sus focos; su centro no identifica un municipio.
       });
       mapa.on("click", "detalle-focos", (ev) => {
         if (dibujando) return;
-        const d = ev.features[0].properties;
-        new maplibregl.Popup({maxWidth:"340px"}).setLngLat(ev.lngLat).setHTML(opciones.ficha?.(d) || `FRP: ${esc(d.frp)} MW`).addTo(mapa);
-        // Selección de un foco: resalta su zona completa (municipio o departamento según el zoom).
-        opciones.alSeleccionarPunto?.(ev.lngLat.lng, ev.lngLat.lat, mapa.getZoom());
+        detenerRotacion();
+        const f = ev.features[0], d = f.properties;
+        // El GeoJSON renderizado puede cuantizar coordenadas en las teselas. Las
+        // propiedades conservan la posición original de FIRMS, incluso junto a un límite.
+        const lon = Number(d.lon), lat = Number(d.lat);
+        new maplibregl.Popup({maxWidth:"340px",focusAfterOpen:false}).setLngLat([lon,lat]).setHTML(opciones.ficha?.(d) || `FRP: ${esc(d.frp)} MW`).addTo(mapa);
+        // La pertenencia se calcula en la posición real del foco, no en el borde del círculo pulsado.
+        opciones.alSeleccionarPunto?.(lon, lat, mapa.getZoom());
       });
       for (const id of ["focos", "detalle-focos", "detalle-grupos"]) {
         mapa.on("mouseenter", id, () => { mapa.getCanvas().style.cursor = "pointer"; });
@@ -752,7 +755,9 @@
       actualizarContexto,
       obtenerMapa: () => mapa,
       cobertura: () => datos,
+      quitarLugar() { marcadorLugar?.remove(); marcadorLugar = null; paisSeleccionado = null; pintarPaisSeleccionado(); },
       localizar(lugar, analizar) {
+        detenerRotacion();
         opciones.alExploracion?.();
         paisSeleccionado=null;pintarPaisSeleccionado();
         marcadorLugar?.remove();
@@ -778,7 +783,7 @@
       deteccionesVisibles: () => detalle?.features.map((f) => f.properties) ?? [],
       /** Estado del panel de capas: {base, capas: {id: {on, opacidad, mezcla}}}. */
       capas(cfg) { capasCfg = cfg; aplicarCapas(); },
-      /** Límites del Huila servidos localmente: siempre visibles sobre cualquier base. */
+      /** Límites locales: misma escala y estilo que los ADM globales sobre cualquier base. */
       limitesLocales(l) { locales = l; aplicarLocales(); },
       /** Límites ADM descargados a demanda para la vista actual (0, 1 o 2). */
       limites: (nivel) => limitesCargados[nivel] ?? [],
@@ -799,6 +804,7 @@
       limitesDe,
       seleccion(bbox) {
         if (!mapa?.getSource("seleccion")) return;
+        if (!bbox) { mapa.getSource("seleccion").setData({type:"FeatureCollection",features:[]}); return; }
         const [w,s,e,n]=bbox;
         mapa.getSource("seleccion").setData({type:"FeatureCollection",features:[{type:"Feature",properties:{},
           geometry:{type:"Polygon",coordinates:[[[w,s],[e,s],[e,n],[w,n],[w,s]]]}}]});

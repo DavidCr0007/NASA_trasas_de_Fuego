@@ -86,8 +86,8 @@ window.iniciarBusquedaLugares = function ({ explorar, buscarLocal = () => [], el
     if (q.length < 3) { campo.focus(); return; }
     campo.focus({ preventScroll: true });
     const locales = buscarLocal(q);
-    // Un único resultado exacto se abre directamente; si hay varios, se elige de la lista.
-    if (locales.length === 1) { generacion++; ctrl?.abort(); cerrar(); campo.value = locales[0].nombre; elegirLocal(locales[0]); return; }
+    // Incluso una coincidencia local única puede tener homónimos en otros países.
+    // Se confirma en la lista y siempre se ofrece ampliar la búsqueda a internet.
     if (locales.length) { generacion++; ctrl?.abort(); mostrarLocales(q, locales); return; }
     buscarRemoto(q);
   });

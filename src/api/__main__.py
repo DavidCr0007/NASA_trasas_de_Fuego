@@ -3,11 +3,22 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
+import sys
 from pathlib import Path
 
 import uvicorn
 
 from api.app import create_app
+
+
+def crear_bucle_windows() -> asyncio.AbstractEventLoop:
+    """Evita el cierre del listener de Proactor ante desconexiones (WinError 64).
+
+    La API local no crea subprocesos asyncio; Selector basta para sus conexiones HTTP.
+    Solo se aplica al arranque CLI de Windows, sin cambiar el despliegue ASGI.
+    """
+    return asyncio.SelectorEventLoop()
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -20,7 +31,8 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--anios-minimos", type=int, default=None,
                    help="mínimo de años para la línea base (por defecto: 5, acordado en el ADR 0005)")
     a = p.parse_args(argv)
-    uvicorn.run(create_app(a.datos, datos_global=a.datos_global, anios_minimos=a.anios_minimos), host=a.host, port=a.puerto)
+    bucle = "api.__main__:crear_bucle_windows" if sys.platform == "win32" else "auto"
+    uvicorn.run(create_app(a.datos, datos_global=a.datos_global, anios_minimos=a.anios_minimos), host=a.host, port=a.puerto, loop=bucle)
 
 
 if __name__ == "__main__":
